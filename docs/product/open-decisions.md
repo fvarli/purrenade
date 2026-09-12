@@ -1,0 +1,295 @@
+# Open and Proposed Decision Register
+
+The single live list of everything not yet decided, and everything recommended
+but not yet authoritative — **across both repositories**.
+
+Sections 1–3 hold the decisions that block or shape milestones. Section 4 holds
+the proposals awaiting review. **Section 6 indexes every remaining open question**
+raised so far, so nothing is recorded only in a document nobody rereads.
+
+**Last reviewed:** 2026-09-12 (M0.6 decision normalization).
+
+| Status | Meaning |
+| --- | --- |
+| **OPEN** | Unresolved. Requires a product-owner decision. **Must not be implemented or guessed.** |
+| **PROPOSED** | A recommendation written so it can be reviewed. **Not authoritative.** May be implemented as a named tuning parameter, never presented as decided. |
+
+**Neither is ever silently promoted to APPROVED.**
+
+---
+
+## 0A. Resolved in M0.6 — now APPROVED
+
+| Decision | Outcome | Owning document |
+| --- | --- | --- |
+| **Audio controls** (was #10, SI-3) | **Option C.** Settings owns **music and SFX volume sliders**; Pause exposes **quick mute/unmute** for each. **Mute is independent of volume** — unmuting restores the previous non-zero level, and mute is never stored as `volume = 0`. Four persisted fields. A deliberate deviation from both v0.3 boards. | [screen-inventory](screen-inventory.md) §7A |
+| **Character unlocks** (was AU-4) | **Büşo** best accepted single-run ≥ 2,500 · **Ogito** 10 accepted runs with **no** minimum-duration criterion · **Sero** 3 lifetime **actual** Loli activations. | [achievements-and-unlocks](achievements-and-unlocks.md) §2.2 |
+| **Loli activation is a distinct fact** | **Threshold earned ≠ queued ≠ activated.** An activation counts only on the **ENTERING/ACTIVE transition**. The accepted run exposes `loliActivations`, derived from validated telemetry — **never inferred from the paw ledger**, because run-scoped queued bonuses can expire unstarted. | [achievements-and-unlocks](achievements-and-unlocks.md) §1.5A |
+| **Two-column verification model** | **Verification Source** (`DERIVED_PERSISTENT` / `DERIVED_TELEMETRY`) is separated from **Progress Persistence** (`PERSISTED_AGGREGATE` / `RUN_FACT`). Governing rule: *storing a cumulative total never reclassifies where its evidence came from.* Catalogue counts corrected to **9 / 7** by source, **10 / 6** by persistence. | [achievements-and-unlocks](achievements-and-unlocks.md) §1.4 |
+| **Leaderboard core rules** (was LB-1, LB-2, LB-4) | Monday 00:00 **Europe/Istanbul**, attributed by server-recorded run start · `score DESC` → earlier `achieved_at` → shorter `duration_ms` → stable id · cursor pagination, default 25 / max 100 · banned users hidden publicly and retained for audit · public opt-out supported. | [leaderboards](leaderboards.md) §3.2, §4, §5 |
+| **Display-name v1 baseline** (was LB-3) | 3–20 chars · Unicode letters/digits plus `_` `.` `-` · at least one letter · no leading/trailing punctuation · case-insensitive uniqueness · rate-limited changes · **admin force-rename**. Profanity screening and homoglyph detection are **future hardening, not v1 blockers**. | [leaderboards](leaderboards.md) §5.1 |
+| **Minimum admin set** (was SI-1) | Six capabilities: user lookup · suspend/unsuspend · run inspection · run invalidation with mandatory reason · leaderboard/display-name moderation · audit log inspection. CMS, arbitrary data editing, granting progression, impersonation and bulk export are approved as **out of scope**. | `purrenade-api/docs/api/endpoints/admin.md` |
+| **Telemetry retention latitude** | **Raw events need not be retained forever.** The implementation may **validate raw telemetry at acceptance and persist compact authoritative derived run facts**, discarding the raw events, where that satisfies replay, audit and security. The data-minimizing option is explicitly permitted; the retention *choice* remains ANTI-5. | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
+
+**Retired in M0.6:** `AU-7` (Ogito minimum duration), and the counters `lifetimeScore`,
+`maxLoliBonusInSingleRun`, `accepted_runs_above_min_duration`.
+
+---
+
+## 0. Resolved in M0.5 — now APPROVED
+
+Recorded so their history is traceable and they are not reopened by accident.
+
+| Decision | Outcome | Owning document |
+| --- | --- | --- |
+| **Auth transport** (was ARCH-1, ARCH-3) | **Nuxt BFF with server-managed session cookies** over a token-capable Laravel API. Laravel/Fortify/Sanctum remains the authentication authority. No persistent bearer token in browser storage. A native bearer flow is preserved as a future capability and **not implemented in v1**. Nitro *is* the BFF, which resolves ARCH-3. | [ADR-0005](../decisions/ADR-0005-authentication-and-2fa-strategy.md) |
+| **Password reset never touches 2FA** | A security **invariant**: a reset never disables, resets, or bypasses 2FA; enrolment, secret and recovery codes are untouched; the next login is still challenged. 2FA recovery is a separate process. Tested by gate `S8`. | `purrenade-api/docs/security/authentication.md` §4.1 |
+| **Obstacle model** (was DO-1, DO-2, conflict #15) | Two semantic classes, decoupled from artwork: **`LANE_BLOCKING`** (traffic cone, avoided by lane change) and **`JUMPABLE`** (low seaside barrier, avoided by jump). No further speculative mechanics. | [difficulty-and-obstacles](difficulty-and-obstacles.md) §3.1 |
+| **Near miss** (was #14, AU-3, CR-5) | A real v1 **statistic** mechanic: safely passing within a defined danger envelope; **at most one event per obstacle**; **no score and no multiplier**; deterministic and testable; leaderboard-relevant progress **server-verifiable from accepted run telemetry**. Geometric threshold remains PROPOSED tuning. | [core-run](core-run.md) §5A |
+| **Loli Bonus queueing is run-scoped** | Only one bonus active at a time; a threshold crossed while active increments `queuedLoliBonuses` **for that run**; **all queue state ends with the run**; nothing carries forward. `loliCyclePaws` stays persistent. **No `owedLoliBonuses` field anywhere.** | [scoring-and-progression](scoring-and-progression.md) §2.4 |
+| **Two achievements removed, one superseded** (was AU-2) | **Çay Molası** and **Trileçe Avcısı** removed as invalid — they need non-mechanics. **Koni Koleksiyoncusu** ("hit 25 cones") **superseded by product review** for rewarding intentional collision. | [achievements-and-unlocks](achievements-and-unlocks.md) §1.3 |
+| **Achievement progression authority** | **Client-reported summary counters alone are insufficient.** The client emits telemetry, the server validates the run, and progression is **derived server-side**. Every achievement is `DERIVED_PERSISTENT` or `DERIVED_TELEMETRY`; `BOUNDED` is not an acceptable model. | [achievements-and-unlocks](achievements-and-unlocks.md) §1.4 |
+| **Difficulty tier labels** | Relabelled **Tier 1–Tier 5** (one-indexed). Thresholds unchanged; Tier 5 begins at 180 s and is terminal. Definitions remain PROPOSED (DO-3). | [difficulty-and-obstacles](difficulty-and-obstacles.md) §2.3 |
+
+**Retired reference ids.** `ARCH-1`, `ARCH-3`, `AU-2`, `AU-3`, `AU-4`, `AU-7`, `CR-5`, `DO-1`,
+`DO-2`, `DM-5`, `DM-6`, `LB-1`, `LB-2`, `LB-3`, `LB-4`, `SI-1` and `SI-3` are resolved and no
+longer appear in any owning document. They are named in §0 and §0A only so the history is
+traceable, and are **never reused** for a new question.
+
+---
+
+## 1. OPEN — blocking a specific milestone
+
+These stop work when their milestone is reached.
+
+| Ref | Decision | Blocks | Source |
+| --- | --- | --- | --- |
+| **AU-1** | **Approval of the proposed 16-achievement catalogue**, as a whole. The authoring gap is closed; this is now a review item. | **M11** | [achievements-and-unlocks](achievements-and-unlocks.md) §1.5 |
+| **ANTI-5** | **What validated event data is retained**, in what form and for how long. **Seven** achievements are `DERIVED_TELEMETRY`. Validating at acceptance and keeping only derived run facts is an **explicitly permitted** answer. Interacts with SEC-3 and SEC-5. | **M9**, **M11** | `purrenade-api/docs/security/anti-cheat.md` §2.1 |
+| **TU-1 / #12** | **Tutorial visual design treatment.** Behavior is APPROVED; presentation has no v0.3 screen and must not be invented. | **M8** | [tutorial](tutorial.md) §7 |
+| **LB-5** | **Retention and anonymization policy for deleted players.** Genuinely OPEN — product/legal decision, not architecture. | **M10**, **M14** | [leaderboards](leaderboards.md) §5.3 |
+| **LO-1 / #17** | **English and Spanish copy.** Only Turkish exists. | **M4** onward | [localization](localization.md) §5 |
+| **ADR-0006** | The run validation model itself, and **PWA-1** (offline play), which decides whether a server-issued run token is available. | **M9**, **M10** | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
+
+---
+
+## 2. OPEN — product and brand
+
+| Ref | Decision | Source |
+| --- | --- | --- |
+| **#6** | Is there an approved **brand tagline**? *"Run Cute. Live Bright."* appears only on the ChatGPT board. If approved, is it localized? | [conflicts #6](design-reference-conflicts.md) |
+| **SP-2** | **Bonus score sources.** Near-miss is now excluded, leaving the component with **no defined source at all**. Removing it from the score composition is a legitimate outcome. | [scoring-and-progression](scoring-and-progression.md) §6 |
+| **TU-2** | Is the first-time tutorial **mandatory or skippable**? | [tutorial](tutorial.md) §4 |
+| **TU-3** | Does the **tutorial paw count** toward progression? PROPOSED: no, so the tutorial cannot be farmed. | [tutorial](tutorial.md) §3.1 |
+| **TU-4** | Is there a separate **first-SLAYYY coach mark**? | [tutorial](tutorial.md) §2 |
+| **SI-2** | Where **"replay tutorial"** lives on the Settings screen. | [screen-inventory](screen-inventory.md) §6 |
+| **SI-5 / AU-5** | Do **non-Ayşenur characters have their own special power**? PROPOSED: no — all share SLAYYY in v1. | [achievements-and-unlocks](achievements-and-unlocks.md) §2.4 |
+| **SI-6 / AA-6** | **Avatar system** — uploaded, generated, or initials-based. An upload path adds storage, moderation and a new abuse surface. | [screen-inventory](screen-inventory.md) §9 |
+| **AU-6** | What an achievement's hidden reward (*"gizli ödül"*) actually grants. | [achievements-and-unlocks](achievements-and-unlocks.md) |
+| **AU-8** | Display text in **tr/en/es** for all 16 machine keys, once the catalogue is approved. | [achievements-and-unlocks](achievements-and-unlocks.md) §1.5 |
+| **CR-2** | Does a collision interrupt an in-progress lane change or apply a speed dip? | [core-run](core-run.md) §5.5 |
+| **CR-6** | **Near-miss envelope vs the escape-path reaction budget** — they pull against each other and must be tuned together during M6. | [core-run](core-run.md) §5A.3 |
+| **DO-4** | May difficulty be influenced by the player's current heart count? | [difficulty-and-obstacles](difficulty-and-obstacles.md) §7 |
+| **PWA-1** | **Is a run playable offline?** Shapes both the PWA strategy and run validation. | [`../architecture/pwa-and-mobile.md`](../architecture/pwa-and-mobile.md) |
+
+---
+
+## 3. OPEN — architecture, security, legal
+
+| Ref | Decision | Owner |
+| --- | --- | --- |
+| **ARCH-2** | **Run validation / anti-cheat model.** Leaderboards are in v1. Largest architectural risk in the product. | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
+| **SEC-1** | **Password policy** — length, composition, breach-list checking. | `purrenade-api/docs/security/authentication.md` |
+| **SEC-2** | Transactional **email provider**, code TTL, resend cooldown, rate-limit values. | `purrenade-api/docs/security/rate-limiting.md` |
+| **SEC-3** | **KVKK/GDPR flows** — account deletion, data export, consent capture, retention. Architecture is proposed; **policy is OPEN**. | `purrenade-api/docs/security/data-protection.md` |
+| **SEC-4** | Published **security contact** and disclosure timeline. | `SECURITY.md` in both repositories |
+| **SEC-5** | **Retention period and minimization for gameplay telemetry.** New in M0.5: derived-from-telemetry achievements mean per-event data is retained, and that data is **behavioural personal data**. Jointly with ANTI-5. | `purrenade-api/docs/security/data-protection.md` §2A |
+| **LR-1** | The **layered licensing model**. `LICENSE` stays a placeholder until decided. | [licensing-and-rights](licensing-and-rights.md) §1 |
+| **LR-2 / #18** | **Consent records** for every real-person and real-animal likeness, covering commercial use, app-store distribution and marketing. | [licensing-and-rights](licensing-and-rights.md) §3 |
+| **LR-3** | Are the repositories **public from the first commit** or later? | [licensing-and-rights](licensing-and-rights.md) |
+| **OPS-1** | Environment matrix, hosting, secret management, backup/restore. **Now also covers operating the BFF as a stateful, security-relevant component.** | `purrenade-api/docs/architecture/` |
+| **AA-3** | **Audio asset list, formats and licensing.** | [art-asset-requirements](art-asset-requirements.md) §7 |
+| **ASSET-1** | Whether design/production binaries eventually move to **Git LFS or another asset strategy**. Deliberately not adopted in M0. | [`../architecture/asset-strategy.md`](../architecture/asset-strategy.md) |
+
+---
+
+## 4. PROPOSED — awaiting review
+
+Recommendations written so they can be reviewed rather than left blank. They may
+be implemented as named tuning parameters; they are **not** approved behavior.
+
+### 4.1 The proposed 16-achievement catalogue
+
+The full table, with both classification columns and rationale, is in
+[achievements-and-unlocks](achievements-and-unlocks.md) §1.5.
+
+Summary: **by verification source, 9 `DERIVED_PERSISTENT` and 7 `DERIVED_TELEMETRY`**; by
+progress persistence, **10 `PERSISTED_AGGREGATE` and 6 `RUN_FACT`**. Three entries survive from
+v0.3; thirteen are new; **none rewards collision, death, or deliberate failure**; every entry
+has a stable machine key and counts accepted runs only.
+
+`cone_dodger` reads: *successfully avoid 500 traffic cones across accepted runs; each safely
+passed cone increments progress by one; a collision neither increments nor resets progress* —
+it is **not** a collision-free streak.
+
+### 4.2 Leaderboard — future hardening
+
+Automated **profanity screening** in tr/en/es and **homoglyph/confusable impersonation
+detection**. Both are deferred: each needs a real user base to tune against, and a naive filter
+wrongly rejects legitimate names. **Admin force-rename is the approved v1 answer.** Neither
+blocks M1 or v1 (LB-7).
+
+### 4.3 Core run
+
+| Ref | Proposal |
+| --- | --- |
+| CR-1 | **Mid-air lane changes are permitted.** |
+| CR-3 | Road width `0.72` of the play column; lane pitch `road.width / 3`. |
+| CR-4 | Resuming from pause replays a shortened readiness beat. |
+| — | Lane transition `160 ms`, ease-out; collision lane changes at the **midpoint**. |
+| — | Input buffer depth 1, `120 ms`. Swipe: min `24 px`, max `400 ms`, axis dominance `1.5`. |
+| — | Jump: `650 ms` airborne (APPROVED), apex `96 px`; gravity and velocity derived. No double jump, no variable height, no airborne invulnerability. |
+| — | Hitboxes: AABB at `0.60 ×` sprite width, `0.80 ×` height. |
+| — | Post-hit invulnerability `1200 ms`, blink `10 Hz`, reduced-motion aware, never a full-screen flash. |
+| — | Run start: `1500 ms` readiness beat; no hazard reachable before `2500 ms`. |
+| — | **Near-miss envelope:** lateral `0.55` lanes, longitudinal `0.75`, vertical clearance `0.40`. Tuned **with** the escape-path budget (CR-6). |
+
+### 4.4 Difficulty
+
+| Ref | Proposal |
+| --- | --- |
+| DO-3 | Soft caps: speed `1.00 → 1.85×`, density `0.25 → 0.55`, decisions/min `14 → 38`; asymptotic, time constant `90 s`. |
+| — | Driven by **elapsed time**, not distance. |
+| — | **Tiers 1–5** at 0 / 25 / 60 / 110 / 180 s; Tier 5 terminal. |
+| — | Escape-path budget: max 2 actions per pattern, `350 ms` reaction budget, validated across pattern **joins** and across **both verbs**. |
+
+### 4.5 Scoring and progression
+
+| Ref | Proposal |
+| --- | --- |
+| SP-1 | **SLAYYY charge model:** max 100; `+1.4`/s; `+0.45`/paw; no decay; first activation ≈ 40 s. |
+| SP-3 | The ×2 multiplier applies to **distance, collectible and bonus** alike. |
+| SP-4 | **Loli grants no score multiplier.** Maximum multiplier is ×2; multipliers take the maximum, never the product. |
+| SP-5 | The in-run paw HUD switches to `n/200` within 25 of the threshold. |
+| SP-6 | `10` points/second at base speed; `5` per paw; integer, floored. |
+| SP-7 | Whether the HUD shows a queued-bonus indicator when `queuedLoliBonuses > 0`. |
+| — | Loli magnet radius `1.5` lanes, pull `6.0` lane-units/s, Paw Tokens only. |
+
+### 4.6 Product and platform
+
+| Ref | Proposal |
+| --- | --- |
+| LO-4 | Numbers are formatted in the **viewer's** locale. |
+| AC-1 | Target **WCAG 2.2 AA** for non-canvas UI. |
+| AC-2 | Colour independence achieved **structurally** rather than with a separate palette. |
+| AA-5 | Art authored at 3× the 390 baseline; atlases for gameplay sprites; **no text in art**; **self-hosted fonts**. |
+| TU-3 | The tutorial paw does **not** count toward progression. |
+| — | Locale resolution: profile → device → `Accept-Language` → Turkish. |
+
+---
+
+## 5. How to resolve an item
+
+1. Decide, and record the decision in the owning document with status **APPROVED**.
+2. Remove the row from this register (or move it to the APPROVED note in the
+   owning document).
+3. If the decision changes previously approved behavior, follow the change report
+   in `CONTRIBUTING.md` — current specification, evidence, alternative, benefits,
+   risks, scope/migration impact, recommendation.
+4. If it is an architecture or security decision, write or update the ADR.
+
+---
+
+## 6. Appendix — remaining open questions by owning document
+
+Lower-level questions raised so far. They are not silent: each is recorded in the document
+that owns it, and listed here so this register is the complete live list.
+
+### 6.1 Frontend repository
+
+| Ref | Owning document | Question |
+| --- | --- | --- |
+| AA-1 | [art-asset-requirements.md](art-asset-requirements.md) | SLAYYY visual variant for the `JUMPABLE` beach barrier (§3) — the cone already has one |
+| AA-2 | [art-asset-requirements.md](art-asset-requirements.md) | Full SLAYYY transformation set (§3) |
+| AA-4 | [art-asset-requirements.md](art-asset-requirements.md) | Who produces the production character art, and on what schedule |
+| AC-3 | [accessibility.md](accessibility.md) | Is there a low-motion gameplay variant beyond decoration reduction? |
+| AC-4 | [accessibility.md](accessibility.md) | Are subtitles/captions needed for any audio? (None is known to carry meaning) |
+| DO-5 | [difficulty-and-obstacles.md](difficulty-and-obstacles.md) | Whether patterns may span a SLAYYY activation boundary without adjustment |
+| DO-6 | [difficulty-and-obstacles.md](difficulty-and-obstacles.md) | Whether additional art variants are needed per class beyond the cone and the beach barrier |
+| GE-1 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Fixed-step rate (PROPOSED 120 Hz) |
+| GE-2 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Whether the render snapshot is rebuilt per frame or diffed |
+| GE-3 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Whether the domain also runs server-side for validation — see [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md). If it ever does, the domain must be portable, which is an additional reason to keep it free of browser APIs. |
+| LB-6 | [leaderboards.md](leaderboards.md) | Is there a friends-only or regional board? Nothing suggests one; recorded so it is not assumed |
+| LB-8 | [leaderboards.md](leaderboards.md) | Opt-out surface: where the setting lives and what an opted-out player sees (§5.4) |
+| LO-2 | [localization.md](localization.md) | Tone brief for translators (§5) |
+| LO-3 | [localization.md](localization.md) | Is the brand tagline localized? — depends on whether a tagline is approved at all ([conflict #6](design-reference-conflicts.md)) |
+| LR-4 | [licensing-and-rights.md](licensing-and-rights.md) | Trademark posture for the Purrenade name and wordmark |
+| LR-5 | [licensing-and-rights.md](licensing-and-rights.md) | Contribution terms, if outside contributions are ever accepted |
+| PWA-2 | [architecture/pwa-and-mobile.md](../architecture/pwa-and-mobile.md) | Does the service worker cache sprite atlases aggressively enough to make a repeat run start instantly, within the storage budget? |
+| PWA-3 | [architecture/pwa-and-mobile.md](../architecture/pwa-and-mobile.md) | Is installability promoted in-product, or left to the browser? |
+| PWA-4 | [architecture/pwa-and-mobile.md](../architecture/pwa-and-mobile.md) | Is a native shell actually planned, and on what horizon? |
+| RNG-1 | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | Is the run seed server-issued? Depends on [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) and on the offline question (PWA-1) |
+| RNG-2 | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | Is an input log recorded and submitted with the run? Directly affects payload size and the validation model |
+| RNG-3 | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | Fixed-step rate confirmation (PROPOSED 120 Hz) |
+| SI-4 | [screen-inventory.md](screen-inventory.md) | Password policy (§2) |
+| SP-8 | [scoring-and-progression.md](scoring-and-progression.md) | Whether an activation that is cut short by run end still counts (PROPOSED: yes — it started) |
+| TU-5 | [tutorial.md](tutorial.md) | Does the tutorial demonstrate a near miss, or leave it to be discovered? |
+
+### 6.2 Backend repository (`purrenade-api`)
+
+| Ref | Owning document | Question |
+| --- | --- | --- |
+| 2FA-1 | `purrenade-api/docs/security/two-factor.md` | Recovery-code count and regeneration policy |
+| 2FA-2 | `purrenade-api/docs/security/two-factor.md` | Challenge at login or step-up |
+| 2FA-3 | `purrenade-api/docs/security/two-factor.md` | Account recovery when both factors are lost |
+| 2FA-4 | `purrenade-api/docs/security/two-factor.md` | Admin lockout recovery |
+| 2FA-5 | `purrenade-api/docs/security/two-factor.md` | Is WebAuthn planned beyond v1? |
+| AD-1 | `purrenade-api/docs/api/endpoints/admin.md` | Is the admin surface part of this application or a separate one? (BA-2) |
+| AD-2 | `purrenade-api/docs/security/authorization-and-roles.md` | Is more than one admin level needed? |
+| AD-3 | `purrenade-api/docs/api/endpoints/admin.md` | Audit log retention (SEC-3, OB-3) |
+| AD-4 | `purrenade-api/docs/security/authorization-and-roles.md` | Is admin access restricted by network or device in addition to 2FA? |
+| AD-5 | `purrenade-api/docs/security/authorization-and-roles.md` | Per-capability request/response shapes for the approved six-capability admin console, to be contracted at M13 |
+| ANTI-1 | `purrenade-api/docs/security/anti-cheat.md` | Which layers ship in v1 |
+| ANTI-2 | `purrenade-api/docs/security/anti-cheat.md` | What a `flagged` run means for the player, and whether there is an appeal |
+| ANTI-3 | `purrenade-api/docs/security/anti-cheat.md` | Who reviews flagged runs — an admin capability that does not exist yet (SI-1) |
+| ANTI-4 | `purrenade-api/docs/security/anti-cheat.md` | Bound values, derived once the tuning values are APPROVED rather than PROPOSED |
+| API-1 | `purrenade-api/docs/api/api-conventions.md` | RFC 9457 `problem+json` or the envelope in §3? |
+| API-2 | `purrenade-api/docs/api/api-conventions.md` | `snake_case` confirmation (§2) |
+| API-3 | `purrenade-api/docs/api/api-conventions.md` | Idempotency key retention window |
+| API-4 | `purrenade-api/docs/api/api-conventions.md` | Default and maximum pagination limits |
+| API-5 | `purrenade-api/docs/api/api-conventions.md` | Is idempotency generalized beyond run submission? |
+| API-6 | `purrenade-api/docs/api/api-conventions.md` | Whether the API exposes a distinct bearer scheme now, or only when the native client is built |
+| AUTH-1 | `purrenade-api/docs/security/authentication.md` | What an unverified player may access |
+| AUTH-2 | `purrenade-api/docs/security/authentication.md` | Does revoke-all include the current session? |
+| AUTH-3 | `purrenade-api/docs/security/authentication.md` | Lockout policy |
+| AUTH-4 | `purrenade-api/docs/security/authentication.md` | Device labelling and location derivation |
+| BA-1 | `purrenade-api/docs/architecture/backend-architecture.md` | Whether an event-driven internal design is warranted, or direct service calls suffice at this scale (PROPOSED: direct calls; events only where a genuine fan-out exists) |
+| BA-2 | `purrenade-api/docs/architecture/backend-architecture.md` | Whether the admin surface is a separate route group in this application or a separate application |
+| BA-3 | `purrenade-api/docs/architecture/backend-architecture.md` | The transaction boundary for leaderboard projection refresh — inside the submission transaction, or deferred |
+| CACHE-1 | `purrenade-api/docs/architecture/caching-and-redis.md` | Is Redis adopted at all, and at which milestone? |
+| CACHE-2 | `purrenade-api/docs/architecture/caching-and-redis.md` | Redis or Valkey? |
+| CACHE-3 | `purrenade-api/docs/architecture/caching-and-redis.md` | Is the leaderboard projection in PostgreSQL or in Redis? |
+| CACHE-4 | `purrenade-api/docs/architecture/caching-and-redis.md` | Cache TTLs, once real traffic shapes are known |
+| CH-1 | `purrenade-api/docs/api/endpoints/characters.md` | Does selecting a character affect gameplay at all in v1, or only presentation? |
+| DM-1 | `purrenade-api/docs/architecture/data-model.md` | What form validated event retention takes — per-event records or per-run derived counts (ANTI-5). *That* some retention exists is no longer in question. |
+| DM-2 | `purrenade-api/docs/architecture/data-model.md` | Weekly window: partitioned table, materialized view, or maintained table (LB-1) |
+| DM-3 | `purrenade-api/docs/architecture/data-model.md` | Retention for `runs`, `paw_ledger`, `audit_log` (SEC-3) |
+| DM-4 | `purrenade-api/docs/architecture/data-model.md` | What account deletion does to runs and leaderboard entries (LB-5, SEC-3) |
+| DM-7 | `purrenade-api/docs/architecture/data-model.md` | Index strategy for the lifetime telemetry-derived counters once real query shapes exist |
+| GR-1 | `purrenade-api/docs/api/endpoints/game-runs.md` | What a `flagged` run means for the player: hidden, held, or rejected |
+| GR-2 | `purrenade-api/docs/api/endpoints/game-runs.md` | Is there an appeal path, and who reviews |
+| GR-3 | `purrenade-api/docs/api/endpoints/game-runs.md` | Idempotency key retention window (API-3) |
+| GR-4 | `purrenade-api/docs/api/endpoints/game-runs.md` | May a player hold two runs open at once? |
+| GR-5 | `purrenade-api/docs/api/endpoints/game-runs.md` | Do near-miss, obstacle-pass, SLAYYY-activation and Loli-activation events arrive per-event, or as counts derived at acceptance? (ANTI-5) — the latter is explicitly permitted |
+| OB-1 | `purrenade-api/docs/architecture/observability.md` | Log aggregation destination and retention |
+| OB-2 | `purrenade-api/docs/security/data-protection.md` | Is an external error tracker acceptable? |
+| OB-3 | `purrenade-api/docs/architecture/observability.md` | Audit log retention (SEC-3) |
+| OB-4 | `purrenade-api/docs/architecture/observability.md` | Alerting thresholds, particularly on the run-rejection rate |
+| PR-1 | `purrenade-api/docs/security/data-protection.md` | Can a player change their username? |
+| PR-2 | `purrenade-api/docs/api/endpoints/profile.md` | Avatar source — uploaded, generated, or initials-based (SI-6). An upload path would add file storage, moderation, and a new abuse surface |
+| QJ-1 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Is Redis adopted, and therefore used as the queue driver? (CACHE-1) |
+| QJ-2 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Is the leaderboard projection refreshed by job or inline? (BA-3) |
+| QJ-3 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Which security notifications are sent, if any? Nothing in the approved surface requires them |
+| QJ-4 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Retention and alerting policy for failed jobs |
+| RL-1 | `purrenade-api/docs/security/rate-limiting.md` | Fail open or fail closed when the limiter is unavailable? |
+| RL-2 | `purrenade-api/docs/security/rate-limiting.md` | Is Redis adopted for rate limiting, and at which milestone? (CACHE-1) |

@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned to the project runtime. Nuxt 4.5 requires ^22.19 || ^24.11 || >=26;
+  # 24 is the active LTS line. See docs/architecture/versions-and-runtime.md.
+  NODE_VERSION: '24'
+
+jobs:
+  app:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Phaser must not enter a non-run bundle
+        run: |
+          set -euo pipefail
+          # The engine is lazily loaded on the run route only. If Phaser appears
+          # in the entry chunk, that boundary has been broken.
+          if grep -rl 'phaser' .output/public/_nuxt/ 2>/dev/null | head -1 | grep -q .; then
+            echo "Phaser found in the client bundle. It must be lazily loaded on the run route only."
+            grep -rl 'phaser' .output/public/_nuxt/ | head
+            exit 1
+          fi
+          echo "no Phaser in the client bundle"
+
+  docs:
+    name: Documentation checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify documentation structure
+        run: |
+          set -euo pipefail
+          for d in docs/product docs/architecture docs/game docs/testing docs/decisions; do
+            test -d "$d" || { echo "missing required directory: $d"; exit 1; }
+          done
+          test -f docs/README.md
+          test -f docs/product/game-specification.md
+          test -f docs/product/open-decisions.md
+          echo "documentation structure OK"
+
+      - name: Verify no private source material is tracked
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -q '^design-reference/private-source/'; then
+            echo "ERROR: private source material is tracked by git"
+            exit 1
+          fi
+          echo "no private source material tracked"
+
+      - name: Verify no dependency or build output is tracked
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Eq '^(node_modules|\.nuxt|\.output|dist)/'; then
+            echo "ERROR: dependency or build output is tracked by git"
+            exit 1
+          fi
+          echo "no dependency or build output tracked"
+
+      - name: Check the decision register is complete
+        run: |
+          set -euo pipefail
+          # Every question defined in an owning document's "Open questions" table
+          # must also appear in the register, so the register stays the live list.
+          python3 - <<'EOF'
+          import os, re, sys
+          P = (r'(?:CR|DO|SP|TU|SI|AU|LB|LO|AC|AA|PWA|GE|RNG|ARCH|SEC|LR|OPS'
+               r'|ASSET|API|BA|CH|PR|AD|GR|RL|QJ|OB|DM|AUTH|CACHE|ANTI|2FA)-\d+')
+          defined = set()
+          for dp, _, fn in os.walk('docs'):
+              for f in fn:
+                  if not f.endswith('.md'):
+                      continue
+                  text = open(os.path.join(dp, f), encoding='utf-8').read()
+                  defined |= set(re.findall(r'^\|\s*\*{0,2}(' + P + r')\*{0,2}\s*\|', text, re.M))
+          register = set(re.findall(
+              r'\b(' + P + r')\b',
+              open('docs/product/open-decisions.md', encoding='utf-8').read()))
+          missing = sorted(defined - register)
+          if missing:
+              print('ERROR: open questions missing from docs/product/open-decisions.md:')
+              for ref in missing:
+                  print('  ', ref)
+              sys.exit(1)
+          print(f'decision register complete: {len(defined)} questions tracked')
+          EOF

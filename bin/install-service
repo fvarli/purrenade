@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+#
+# Install the Purrenade frontend as a systemd USER service.
+#
+#   bin/install-service              install, enable, and start
+#   bin/install-service --uninstall  stop, disable, and remove
+#
+# A user service, not a system service: it runs as you, needs no root, and stops
+# when your session ends. Nginx is untouched — it is a system service and none of
+# this script's business.
+#
+# This installs ONLY the frontend. The API is a separate repository and installs
+# its own unit with its own script; neither repository names a path inside the
+# other (ADR-0001).
+
+set -euo pipefail
+
+FRONTEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+UNIT_NAME="purrenade-frontend.service"
+TEMPLATE="$FRONTEND_DIR/deploy/systemd/$UNIT_NAME"
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+NODE_VERSION="24"
+
+die() { printf '\n  ERROR: %s\n\n' "$1" >&2; exit 1; }
+info() { printf '  %s\n' "$1"; }
+
+# Express a path under $HOME using systemd's %h specifier, so the installed unit
+# does not hardcode a home directory either. Paths outside $HOME are left as-is.
+homify() {
+    case "$1" in
+        "$HOME"/*) printf '%%h/%s' "${1#"$HOME"/}" ;;
+        *)         printf '%s' "$1" ;;
+    esac
+}
+
+if [[ "${1:-}" == "--uninstall" ]]; then
+    systemctl --user disable --now "$UNIT_NAME" 2>/dev/null || true
+    rm -f "$UNIT_DIR/$UNIT_NAME"
+    systemctl --user daemon-reload
+    info "removed $UNIT_NAME"
+    info "https://purrenade.test now answers 502 until the frontend is started again."
+    exit 0
+fi
+
+[[ $# -eq 0 ]] || die "unknown argument: $1"
+
+# ---------------------------------------------------------------------------
+# Validate before writing anything. A unit that installs cleanly and then fails
+# on every start is worse than a refusal.
+# ---------------------------------------------------------------------------
+[[ -f "$TEMPLATE" ]] || die "missing unit template: $TEMPLATE"
+[[ -d "$FRONTEND_DIR/node_modules" ]] || die "Dependencies are not installed. Run: npm ci"
+command -v systemctl >/dev/null || die "systemctl not found; this machine does not use systemd."
+systemctl --user show-environment >/dev/null 2>&1 || die \
+"No systemd user manager is running for this session."
+
+# ---------------------------------------------------------------------------
+# Resolve Node 24 through the developer's own nvm, now, at install time.
+#
+# systemd has no shell function called nvm, so the unit needs an absolute path.
+# Resolving it here rather than writing a version directory into the template
+# means the template does not rot at the next Node upgrade — re-run this script
+# and the unit points at the new one.
+#
+# npm exports npm_config_prefix when it runs a script, and nvm refuses to load
+# while that is set.
+# ---------------------------------------------------------------------------
+unset npm_config_prefix npm_config_globalconfig 2>/dev/null || true
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+[[ -s "$NVM_DIR/nvm.sh" ]] || die \
+"nvm not found at $NVM_DIR/nvm.sh — Node ${NODE_VERSION} is required."
+# shellcheck disable=SC1091
+. "$NVM_DIR/nvm.sh"
+nvm use "$NODE_VERSION" >/dev/null 2>&1 || die \
+"Node ${NODE_VERSION} is not installed. Run: nvm install ${NODE_VERSION}"
+
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
+[[ -x "$NODE_BIN_DIR/npm" ]] || die "no npm alongside node in $NODE_BIN_DIR"
+
+mkdir -p "$UNIT_DIR"
+
+sed \
+    -e "s#@WORKING_DIRECTORY@#$(homify "$FRONTEND_DIR")#g" \
+    -e "s#@NODE_BIN_DIR@#$(homify "$NODE_BIN_DIR")#g" \
+    "$TEMPLATE" > "$UNIT_DIR/$UNIT_NAME"
+
+systemctl --user daemon-reload
+systemctl --user enable --now "$UNIT_NAME"
+
+info "installed $UNIT_DIR/$UNIT_NAME  (node $(node --version))"
+info ""
+info "  status : systemctl --user status $UNIT_NAME"
+info "  logs   : journalctl --user -u $UNIT_NAME -f"
+info "  stop   : systemctl --user stop $UNIT_NAME"
+info "  remove : bin/install-service --uninstall"
+info ""
+info "https://purrenade.test  -> 127.0.0.1:4310"

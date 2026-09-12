@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+#
+# Purrenade — local development stack launcher.
+#
+# Starts the Nuxt and Laravel dev servers together and stops both on Ctrl+C.
+#
+# Nginx and PostgreSQL are NOT touched: they run natively and persistently, and
+# are not this script's concern. Nuxt and Laravel remain ordinary developer
+# processes that die with the terminal — deliberately not system services.
+#
+#   https://purrenade.test      -> 127.0.0.1:4310  (Nuxt)
+#   https://api.purrenade.test  -> 127.0.0.1:8410  (Laravel)
+#
+# Ports are NOT set here. They live in nuxt.config.ts and the API's .env, so
+# there is exactly one source for each and no chance of the two drifting.
+
+set -euo pipefail
+
+FRONTEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PHP_BIN="${PURRENADE_PHP_BIN:-/usr/bin/php8.4}"
+NODE_VERSION="24"
+
+die() { printf '\n  ERROR: %s\n\n' "$1" >&2; exit 1; }
+info() { printf '  %s\n' "$1"; }
+
+# ---------------------------------------------------------------------------
+# Resolve the API directory.
+#
+# Read from the environment, falling back to the git-ignored .env. It is never
+# hardcoded: the two repositories are independent, and a tracked file naming the
+# other's path would couple them (ADR-0001).
+# ---------------------------------------------------------------------------
+if [[ -z "${PURRENADE_API_DIR:-}" && -f "$FRONTEND_DIR/.env" ]]; then
+    PURRENADE_API_DIR="$(grep -E '^[[:space:]]*PURRENADE_API_DIR=' "$FRONTEND_DIR/.env" \
+        | tail -n1 | cut -d= -f2- | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/^"//; s/"$//' || true)"
+fi
+
+# ---------------------------------------------------------------------------
+# Validate everything BEFORE starting anything, so a failure never leaves one
+# half of the stack running.
+# ---------------------------------------------------------------------------
+[[ -n "${PURRENADE_API_DIR:-}" ]] || die \
+"PURRENADE_API_DIR is not set.
+
+  The API lives in a separate repository, so this launcher needs to be told
+  where it is. Add it to $FRONTEND_DIR/.env (git-ignored):
+
+      PURRENADE_API_DIR=/path/to/purrenade-api
+
+  See .env.example."
+
+[[ -d "$PURRENADE_API_DIR" ]] || die \
+"PURRENADE_API_DIR points at a directory that does not exist:
+      $PURRENADE_API_DIR"
+
+[[ -f "$PURRENADE_API_DIR/artisan" ]] || die \
+"No 'artisan' found in PURRENADE_API_DIR, so this does not look like the API:
+      $PURRENADE_API_DIR"
+
+[[ -d "$FRONTEND_DIR/node_modules" ]] || die \
+"Frontend dependencies are not installed. Run: npm ci"
+
+[[ -d "$PURRENADE_API_DIR/vendor" ]] || die \
+"API dependencies are not installed. Run, in the API repository:
+      $PHP_BIN \$(command -v composer) install"
+
+[[ -f "$PURRENADE_API_DIR/.env" ]] || die \
+"The API has no .env. Copy .env.example and fill in the local database password."
+
+[[ -x "$PHP_BIN" ]] || die \
+"PHP 8.4 not found at $PHP_BIN.
+  Override with PURRENADE_PHP_BIN if it lives elsewhere."
+
+# ---------------------------------------------------------------------------
+# Refuse to start if either port is already taken.
+#
+# Almost always this means the systemd user services are running — the other,
+# persistent way to run the stack. Without this check the failure is obscure and
+# half-silent: Nuxt dies on EADDRINUSE while `artisan serve` quietly hunts for
+# the next free port, leaving a stack where one URL works, the other 502s, and
+# nothing says why.
+#
+# `ss` is the primary check: it is part of iproute2 and present on any machine
+# running systemd, and it sees a listener regardless of who owns it.
+#
+# The TCP-connect fallback runs from a temporary directory on purpose. A bash
+# built without network redirections treats /dev/tcp/... as an ordinary file
+# path and CREATES it — dropping a file named after the address into whatever
+# the working directory happens to be, which here would be the repository.
+# ---------------------------------------------------------------------------
+port_in_use() {
+    if command -v ss >/dev/null; then
+        ss -ltn 2>/dev/null | awk -v p=":$1\$" '$4 ~ p { found = 1 } END { exit !found }'
+        return
+    fi
+    (cd "${TMPDIR:-/tmp}" && exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+
+# Best effort only: `ss` reports the process for sockets this user owns, and
+# says nothing about anyone else's. A name here is a help, not a guarantee.
+port_holder() {
+    command -v ss >/dev/null || return 0
+    ss -ltnp 2>/dev/null \
+        | awk -v p=":$1\$" '$4 ~ p {print $NF}' \
+        | sed -n 's/.*users:(("\([^"]*\)",pid=\([0-9]*\).*/\1, pid \2/p' \
+        | head -n1
+}
+
+occupied=""
+for port_and_role in "4310 frontend" "8410 api"; do
+    read -r port role <<<"$port_and_role"
+    if port_in_use "$port"; then
+        occupied+="
+      $port  ($role)  $(port_holder "$port")"
+    fi
+done
+
+if [[ -n "$occupied" ]]; then
+    die \
+"A port this launcher needs is already serving, so it is starting nothing.
+$occupied
+
+  If the systemd user services are running, that is the expected cause — the
+  stack is already up, and you do not need this launcher at all:
+
+      systemctl --user status purrenade-frontend purrenade-api
+
+  To run in the foreground instead, stop them first:
+
+      systemctl --user stop purrenade-frontend purrenade-api
+
+  See docs/architecture/local-development.md."
+fi
+
+# Node 24 through the existing nvm setup.
+#
+# npm exports npm_config_prefix when it runs a script, and nvm refuses to load
+# while that is set. Without this the launcher works when invoked directly but
+# fails via `npm run dev:stack` — which is the documented path.
+unset npm_config_prefix npm_config_globalconfig 2>/dev/null || true
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+[[ -s "$NVM_DIR/nvm.sh" ]] || die \
+"nvm not found at $NVM_DIR/nvm.sh — Node ${NODE_VERSION} is required."
+# shellcheck disable=SC1091
+. "$NVM_DIR/nvm.sh"
+nvm use "$NODE_VERSION" >/dev/null 2>&1 || die \
+"Node ${NODE_VERSION} is not installed. Run: nvm install ${NODE_VERSION}"
+
+info "frontend : $FRONTEND_DIR  (node $(node --version))"
+info "api      : $PURRENADE_API_DIR  (php $("$PHP_BIN" -r 'echo PHP_VERSION;'))"
+info ""
+info "https://purrenade.test      -> 127.0.0.1:4310"
+info "https://api.purrenade.test  -> 127.0.0.1:8410"
+info ""
+info "Ctrl+C stops both."
+info ""
+
+# ---------------------------------------------------------------------------
+# Start both, then shut both down together.
+#
+# `set -m` gives each background job its own process group, so killing the
+# NEGATIVE pid signals the whole tree. Signalling the pid alone would kill npm
+# and orphan the nuxt/node child still holding port 4310 — which then makes the
+# next launch fail with EADDRINUSE.
+# ---------------------------------------------------------------------------
+set -m
+FE_PID=""
+BE_PID=""
+
+shutdown() {
+    trap '' INT TERM
+    printf '\n  stopping...\n'
+    for pid in "$FE_PID" "$BE_PID"; do
+        [[ -n "$pid" ]] && kill -TERM -"$pid" 2>/dev/null || true
+    done
+    # Grace period, then insist.
+    for _ in $(seq 1 20); do
+        if ! kill -0 -"${FE_PID:-0}" 2>/dev/null && ! kill -0 -"${BE_PID:-0}" 2>/dev/null; then
+            break
+        fi
+        sleep 0.25
+    done
+    for pid in "$FE_PID" "$BE_PID"; do
+        [[ -n "$pid" ]] && kill -KILL -"$pid" 2>/dev/null || true
+    done
+    printf '  stopped. Nginx keeps running; both URLs will answer 502 until the stack is started again.\n'
+}
+trap 'shutdown; exit 130' INT TERM
+
+( cd "$FRONTEND_DIR" && npm run dev ) &
+FE_PID=$!
+
+( cd "$PURRENADE_API_DIR" && "$PHP_BIN" artisan serve ) &
+BE_PID=$!
+
+# If either side exits on its own, take the other down too. A half-running stack
+# that still answers on one URL is more confusing than a clean stop.
+wait -n "$FE_PID" "$BE_PID"
+status=$?
+shutdown
+exit "$status"

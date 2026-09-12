@@ -1,0 +1,24 @@
+# Normalize line endings across platforms.
+* text=auto eol=lf
+
+# Binary assets — never diffed, never line-ending converted.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.mp3   binary
+*.ogg   binary
+*.wav   binary
+*.m4a   binary
+
+# Design reference material is documentation, not source code.
+design-reference/** linguist-documentation
+
+# Lockfiles: keep in the repository, but collapse them in diffs.
+package-lock.json -diff
+pnpm-lock.yaml    -diff
+yarn.lock         -diff

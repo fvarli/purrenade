@@ -1,0 +1,30 @@
+PURRENADE — LICENSING NOT YET DETERMINED
+========================================
+
+Status: OPEN. No license has been granted.
+
+This repository is expected to be publicly readable. Public source
+availability does NOT imply that any rights are granted. Until an explicit
+licensing decision is recorded in docs/product/licensing-and-rights.md and
+this file is replaced with real license terms, ALL RIGHTS ARE RESERVED.
+
+No permission is granted to copy, modify, distribute, sublicense, or make
+derivative or commercial use of any part of this repository, including but
+not limited to:
+
+  - source code
+  - the Purrenade name, wordmark, logo, and brand identity
+  - production artwork, sprites, and animation
+  - character designs and the likenesses of the real people and the real
+    animal they are based on
+  - audio and music
+  - design reference material
+
+Third-party components (fonts, libraries, assets) remain governed by their
+own licenses.
+
+Private source/reference photographs are never included in this repository
+under any license, and must never be committed, published, bundled, or served.
+
+See docs/product/licensing-and-rights.md for the layered rights model that
+must be decided before this file is finalized.

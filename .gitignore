@@ -1,0 +1,68 @@
+# =============================================================================
+# Purrenade — frontend .gitignore
+# =============================================================================
+
+# --- Private visual references (LOCAL ONLY, NEVER COMMIT) --------------------
+# Private source photographs are reference-only material. They must never be
+# committed, published, bundled, or served. See docs/product/licensing-and-rights.md
+/design-reference/private-source/
+
+# --- Local scratch / work-in-progress design exports -------------------------
+/design-reference/_scratch/
+
+# --- Environment / secrets ---------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Dependencies ------------------------------------------------------------
+node_modules/
+.pnp/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/versions
+
+# --- Build output / framework caches ----------------------------------------
+.nuxt/
+.output/
+.nitro/
+.cache/
+.data/
+dist/
+.vite/
+.temp/
+
+# --- Test / coverage artifacts ----------------------------------------------
+coverage/
+playwright-report/
+playwright/.cache/
+test-results/
+*.lcov
+
+# --- Logs --------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- OS / editor junk --------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.fleet
+.vscode/
+*.swp
+
+# --- Local development certificates -----------------------------------------
+# Certificates and keys live outside the repository (Nginx's cert directory).
+# These patterns exist so a key generated into a working tree by mistake can
+# never be committed.
+*.pem
+*-key.pem
+*.key
+*.crt
+certs/

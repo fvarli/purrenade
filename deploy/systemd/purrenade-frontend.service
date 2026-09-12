@@ -1,0 +1,50 @@
+# Purrenade frontend — local development server as a systemd USER service.
+#
+# A user unit, never a system unit: it runs as the developer, needs no root, and
+# lives and dies with the desktop session. Nothing here requires sudo.
+#
+# This file is a TEMPLATE. The @PLACEHOLDERS@ carry no machine-specific paths,
+# so it stays portable for any developer. `bin/install-service` substitutes them
+# and writes the result to ~/.config/systemd/user/ — where paths under $HOME are
+# expressed with systemd's %h specifier rather than a literal home directory.
+#
+# This runs the DEV SERVER, not a production build: HMR, instant reloads, no
+# build step. A built preview would defeat the point of a local stack.
+#
+# Nginx and PostgreSQL are NOT managed here. They are persistent system services
+# that this unit has no business starting, stopping, or depending on.
+
+[Unit]
+Description=Purrenade frontend (Nuxt dev server, 127.0.0.1:4310)
+Documentation=file://@WORKING_DIRECTORY@/docs/architecture/local-development.md
+
+[Service]
+Type=simple
+WorkingDirectory=@WORKING_DIRECTORY@
+
+# nvm is a shell function and does not exist for systemd, so the required Node
+# is put on PATH by absolute path. `bin/install-service` resolves it through the
+# developer's own nvm at install time rather than this file guessing a version
+# directory that would rot at the next Node upgrade.
+Environment=PATH=@NODE_BIN_DIR@:/usr/local/bin:/usr/bin:/bin
+
+# `npm run dev`, deliberately, rather than calling nuxt directly: the dev script
+# carries NODE_OPTIONS=--use-system-ca, without which Nitro does not trust the
+# mkcert CA and every server-side fetch to https://api.purrenade.test fails with
+# "unable to verify the first certificate". Keeping one definition of that flag
+# means this unit cannot drift away from the documented command.
+ExecStart=@NODE_BIN_DIR@/npm run dev
+
+# Restart when it crashes; do not fight a deliberate `systemctl --user stop`.
+Restart=on-failure
+RestartSec=5
+
+# Logs go to the journal: journalctl --user -u purrenade-frontend
+SyslogIdentifier=purrenade-frontend
+
+# systemd kills the whole control group, so the npm → nuxt → node tree dies with
+# the unit and no orphan is left holding port 4310.
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

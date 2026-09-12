@@ -1,1 +1,271 @@
-{}
+{
+  "common": {
+    "language": "Idioma",
+    "mainNavigation": "Navegación principal",
+    "optional": "opcional",
+    "loading": "Cargando…",
+    "cancel": "Cancelar",
+    "continue": "Continuar",
+    "done": "Listo",
+    "copy": "Copiar",
+    "copied": "¡Copiado!"
+  },
+  "home": {
+    "title": "La playa",
+    "greeting": "¡Bienvenida de nuevo, {name}!",
+    "guestLede": "La playa te espera. Inicia sesión para empezar.",
+    "milestoneNotice": "El juego aún no está aquí. Por ahora, tu cuenta y su seguridad están listas.",
+    "adminEnrolmentRequired": "La verificación en dos pasos es obligatoria para administradores. Actívala para acceder al área de administración."
+  },
+  "auth": {
+    "signOut": "Cerrar sesión",
+    "fields": {
+      "displayName": "Nombre de usuario",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "passwordConfirmation": "Repite la contraseña",
+      "currentPassword": "Tu contraseña actual"
+    },
+    "password": {
+      "show": "mostrar",
+      "hide": "ocultar",
+      "strength": {
+        "weak": "hazla un poco más larga",
+        "fair": "no está mal",
+        "good": "cuenta como fuerte",
+        "strong": "¡SLAYYY! ✨"
+      }
+    },
+    "otp": {
+      "digit": "Dígito {position} de {total}"
+    },
+    "login": {
+      "title": "Iniciar sesión",
+      "heading": "¡Bienvenida de nuevo!",
+      "lede": "La playa te espera.",
+      "forgotPassword": "¿Olvidaste tu contraseña?",
+      "submit": "Iniciar sesión",
+      "submitting": "Iniciando sesión…",
+      "noAccount": "¿Aún no tienes cuenta?",
+      "registerLink": "Crea una",
+      "reauthenticateForAdmin": "El área de administración necesita una sesión que haya pasado la verificación en dos pasos. Inicia sesión de nuevo."
+    },
+    "register": {
+      "title": "Crear cuenta",
+      "heading": "¡Únete!",
+      "lede": "Un minuto y estarás en la playa.",
+      "displayNameHint": "3–20 caracteres: letras, números y _ . -",
+      "passwordHint": "Al menos {min} caracteres. La longitud importa más que nada.",
+      "verificationNotice": "Verificaremos tu correo después del registro — ¡mira también la carpeta de spam!",
+      "submit": "Crear cuenta",
+      "submitting": "Creando…",
+      "haveAccount": "¿Ya tienes cuenta?",
+      "loginLink": "Iniciar sesión",
+      "terms": "Al registrarte aceptas las reglas. La regla es simple: diviértete."
+    },
+    "verifyEmail": {
+      "title": "Verifica tu correo",
+      "heading": "Verifica tu correo",
+      "lede": "Enviamos un código de 6 dígitos a {email}.",
+      "codeLabel": "Código de verificación",
+      "submit": "Verificar",
+      "submitting": "Verificando…",
+      "resend": "Enviar un código nuevo",
+      "resendIn": "Enviar un código nuevo ({time})",
+      "resent": "Va en camino un código nuevo. El anterior ya no sirve."
+    },
+    "twoFactor": {
+      "title": "Código de seguridad",
+      "heading": "Código de seguridad",
+      "lede": "Introduce el código de 6 dígitos de tu aplicación de autenticación. Tu cuenta es una fortaleza.",
+      "recoveryLede": "Introduce uno de tus códigos de recuperación. Cada uno sirve una sola vez.",
+      "codeLabel": "Código de 6 dígitos",
+      "recoveryCodeLabel": "Código de recuperación",
+      "recoveryCodeHint": "Uno de los códigos que guardaste durante la configuración.",
+      "submit": "Verificar",
+      "submitting": "Verificando…",
+      "useRecoveryCode": "Usar un código de recuperación",
+      "useAuthenticator": "Usar el código de la aplicación",
+      "backToLogin": "← Volver al inicio de sesión",
+      "footerNote": "La verificación en dos pasos se recomienda a todos y es obligatoria para administradores."
+    },
+    "forgotPassword": {
+      "title": "Contraseña olvidada",
+      "heading": "¿Olvidaste tu contraseña?",
+      "lede": "Pasa. Te enviamos un enlace para restablecerla — seca esas lágrimas.",
+      "submit": "Enviar enlace",
+      "submitting": "Enviando…",
+      "sent": "Si esa dirección pertenece a una cuenta, el enlace va en camino. Mira también la carpeta de spam.",
+      "backToLogin": "← Volver al inicio de sesión"
+    },
+    "resetPassword": {
+      "title": "Restablecer contraseña",
+      "heading": "Elige una contraseña nueva",
+      "lede": "Intenta no olvidar esta — o olvídala, aquí estaremos.",
+      "newPassword": "Contraseña nueva",
+      "submit": "Restablecer contraseña",
+      "submitting": "Restableciendo…",
+      "done": "Tu contraseña ha cambiado. Se cerró la sesión en todos los dispositivos.",
+      "twoFactorUnaffected": "Tu verificación en dos pasos sigue intacta. Restablecer la contraseña nunca la desactiva.",
+      "goToLogin": "Iniciar sesión",
+      "linkIncomplete": "Este enlace parece incompleto. Solicita un enlace nuevo.",
+      "requestNewLink": "Solicitar un enlace nuevo"
+    }
+  },
+  "account": {
+    "security": {
+      "title": "Cuenta y seguridad",
+      "navLabel": "Cuenta y seguridad",
+      "heading": "Cuenta y seguridad",
+      "accountHeading": "Tu cuenta",
+      "verified": "verificado",
+      "role": "Rol",
+      "roles": {
+        "player": "Jugadora",
+        "admin": "Administradora"
+      },
+      "twoFactorHeading": "Verificación en dos pasos",
+      "twoFactorOn": "Activada — aplicación de autenticación.",
+      "twoFactorOff": "Desactivada. Te recomendamos activarla; convierte tu cuenta en una fortaleza.",
+      "enableTwoFactor": "Activar 2FA",
+      "disableTwoFactor": "Desactivar 2FA",
+      "confirmDisable": "Sí, desactivarla",
+      "disableWarning": "Sin 2FA, solo tu contraseña protege la cuenta, y tus códigos de recuperación se eliminan.",
+      "adminTwoFactorMandatory": "La verificación en dos pasos es obligatoria para administradores y no se puede desactivar.",
+      "adminEnrolmentRequired": "Necesitas activar la verificación en dos pasos para acceder al área de administración.",
+      "twoFactorDisabled": "La verificación en dos pasos se ha desactivado.",
+      "reauthenticateHint": "Pedimos tu contraseña de nuevo antes de cambiar un ajuste de seguridad.",
+      "scanInstruction": "Escanea el código con tu aplicación de autenticación y luego introduce el código de 6 dígitos que muestre.",
+      "qrAlt": "Código QR para configurar la verificación en dos pasos",
+      "manualEntry": "Si no puedes escanear, introduce esta clave a mano:",
+      "confirmCodeLabel": "Código de 6 dígitos de la aplicación",
+      "confirmEnrolment": "Activar 2FA",
+      "recoveryCodesHeading": "Tus códigos de recuperación",
+      "recoveryCodesLabel": "Códigos de recuperación",
+      "recoveryCodesNotice": "Guárdalos ahora. No se mostrarán otra vez, y cada uno sirve una sola vez.",
+      "recoveryCodesAcknowledge": "He guardado estos códigos en un lugar seguro.",
+      "recoveryCodesSaved": "Tus códigos de recuperación están listos.",
+      "recoveryCodesRemaining": "Quedan {count} códigos de recuperación.",
+      "noRecoveryCodesLeft": "No te quedan códigos de recuperación. Si pierdes tu autenticador no podrás entrar — genera un conjunto nuevo.",
+      "regenerateRecoveryCodes": "Generar códigos nuevos",
+      "regenerateWarning": "Generar un conjunto nuevo invalida todos los códigos actuales.",
+      "passwordHeading": "Contraseña",
+      "changePassword": "Cambiar contraseña",
+      "newPassword": "Contraseña nueva",
+      "changePasswordNotice": "Al cambiar la contraseña se cierra la sesión en tus otros dispositivos. Este sigue conectado.",
+      "passwordChanged": "Tu contraseña ha cambiado. Se cerró la sesión en los otros dispositivos.",
+      "sessionsHeading": "Sesiones activas",
+      "sessionsLede": "Dispositivos con sesión en tu cuenta. Si ves alguno que no reconoces, ciérralo y cambia tu contraseña.",
+      "thisDevice": "este dispositivo",
+      "sessionTwoFactor": "verificada con 2FA",
+      "sessionNeverUsed": "sin usar todavía",
+      "revokeSession": "Cerrar sesión",
+      "revokeOthers": "Cerrar sesión en los demás dispositivos",
+      "revokeOthersHint": "También cierra sesiones que no puedes ver, por eso pedimos tu contraseña.",
+      "otherSessionsRevoked": "{count} sesiones cerradas."
+    }
+  },
+  "admin": {
+    "title": "Administración",
+    "navLabel": "Administración",
+    "heading": "Administración",
+    "accountsHeading": "Cuentas",
+    "counts": {
+      "total": "Total",
+      "verified": "Verificadas",
+      "administrators": "Administradoras",
+      "with_two_factor": "Con 2FA"
+    },
+    "capabilitiesPending": "Las capacidades de administración llegan en {milestone}. Por ahora esta pantalla solo comprueba el control de acceso."
+  },
+  "errors": {
+    "unexpected": "Algo salió mal. Inténtalo de nuevo.",
+    "unexpected_with_reference": "Algo salió mal. Si lo reportas, indica esta referencia: {reference}",
+    "client_network_error": "No pudimos contactar con el servidor. Comprueba tu conexión e inténtalo de nuevo.",
+    "bff_upstream_timeout": "El servidor no respondió a tiempo. Inténtalo de nuevo.",
+    "bff_upstream_unavailable": "El servicio no está disponible ahora mismo. Inténtalo en un momento.",
+    "bff_csrf_token_mismatch": "Tu sesión se ha renovado. Recarga la página e inténtalo de nuevo.",
+    "bff_origin_rejected": "Esta solicitud no se aceptó. Recarga la página e inténtalo de nuevo.",
+    "bff_session_unavailable": "No se pudo guardar tu sesión. Inténtalo de nuevo.",
+    "unauthenticated": "Tu sesión ha terminado. Inicia sesión de nuevo.",
+    "invalid_credentials": "Ese correo o esa contraseña no son correctos.",
+    "validation_failed": "Hay campos que necesitan corregirse.",
+    "forbidden": "No tienes permiso para hacer eso.",
+    "not_found": "No encontramos eso.",
+    "conflict": "Eso entra en conflicto con el estado actual. Recarga la página e inténtalo de nuevo.",
+    "rate_limited": "Eso fue muy rápido. Espera un momento e inténtalo de nuevo.",
+    "server_error": "Algo falló por nuestra parte. Inténtalo de nuevo.",
+    "service_unavailable": "El servicio no está disponible ahora mismo. Inténtalo en un momento.",
+    "email_not_verified": "Verifica primero tu dirección de correo.",
+    "email_already_verified": "Esa dirección de correo ya está verificada.",
+    "verification_code_invalid": "Ese código no es correcto. Inténtalo de nuevo.",
+    "verification_code_expired": "Ese código ha caducado. Solicita uno nuevo.",
+    "verification_code_missing": "No hay ningún código pendiente. Solicita uno nuevo.",
+    "verification_resend_cooldown": "Acabamos de enviar un código. Espera un momento e inténtalo de nuevo.",
+    "two_factor_challenge_invalid": "Ese paso de verificación ha caducado. Inicia sesión de nuevo.",
+    "two_factor_code_invalid": "Ese código no es correcto. Comprueba tu aplicación de autenticación.",
+    "two_factor_already_enabled": "La verificación en dos pasos ya está activada.",
+    "two_factor_not_enabled": "La verificación en dos pasos no está activada.",
+    "two_factor_not_pending": "Primero inicia la configuración de 2FA.",
+    "admin_two_factor_mandatory": "La verificación en dos pasos es obligatoria para administradores y no se puede desactivar.",
+    "admin_role_required": "Esa área es solo para administradores.",
+    "admin_two_factor_required": "El área de administración necesita una sesión que haya pasado la verificación en dos pasos.",
+    "reset_token_invalid": "Este enlace no es válido o ha caducado. Solicita uno nuevo.",
+    "display_name_change_cooldown": "Cambiaste tu nombre de usuario hace poco. Espera un rato.",
+    "fields": {
+      "default": {
+        "invalid": "Ese valor no es válido.",
+        "required": "Este campo es obligatorio.",
+        "taken": "Eso ya está en uso.",
+        "email_invalid": "Introduce una dirección de correo válida.",
+        "too_short": "Eso necesita ser un poco más largo.",
+        "too_long": "Eso necesita ser un poco más corto.",
+        "confirmation_mismatch": "Las dos contraseñas no coinciden.",
+        "password_incorrect": "Esa contraseña no es correcta.",
+        "password_compromised": "Esa contraseña ha aparecido en una filtración conocida. Elige otra.",
+        "format_invalid": "Ese formato no está permitido.",
+        "type_invalid": "Ese valor no es del tipo esperado.",
+        "value_not_allowed": "Ese valor no está permitido.",
+        "digits_expected": "Solo dígitos.",
+        "invalid_length": "Esa longitud no está permitida.",
+        "not_found": "No encontrado."
+      },
+      "display_name": {
+        "taken": "Ese nombre de usuario ya está tomado. Prueba otro.",
+        "format_invalid": "3–20 caracteres: letras, números y _ . - Necesita al menos una letra y no puede empezar ni terminar con puntuación."
+      },
+      "email": {
+        "taken": "Ya existe una cuenta con ese correo.",
+        "email_invalid": "Introduce una dirección de correo válida."
+      },
+      "password": {
+        "too_short": "Tu contraseña necesita al menos 12 caracteres.",
+        "too_long": "Tu contraseña puede tener como máximo 128 caracteres.",
+        "password_compromised": "Esa contraseña ha aparecido en una filtración conocida. Elige otra."
+      },
+      "password_confirmation": {
+        "confirmation_mismatch": "Las dos contraseñas no coinciden."
+      },
+      "current_password": {
+        "password_incorrect": "Tu contraseña actual no es correcta.",
+        "required": "Introduce tu contraseña actual para continuar."
+      },
+      "code": {
+        "digits_expected": "El código tiene 6 dígitos.",
+        "invalid_length": "El código tiene 6 dígitos.",
+        "required": "Introduce el código."
+      }
+    },
+    "page": {
+      "notFound": {
+        "title": "Esta página no está aquí",
+        "body": "Puede que el enlace esté obsoleto o que la dirección esté mal escrita."
+      },
+      "generic": {
+        "title": "Algo ha ido mal",
+        "body": "Se ha producido un error inesperado. Inténtalo de nuevo en un momento."
+      },
+      "action": "Volver al inicio"
+    }
+  }
+}

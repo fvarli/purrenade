@@ -65,6 +65,7 @@ Conflict rules and every conflict found so far:
 | [frontend-architecture.md](architecture/frontend-architecture.md) | Nuxt structure, SSR/client boundaries |
 | [game-engine-integration.md](architecture/game-engine-integration.md) | **★** Pure game rules vs Phaser rendering |
 | [state-management.md](architecture/state-management.md) | Store ownership and boundaries |
+| [bff-and-session.md](architecture/bff-and-session.md) | **★** The BFF, sessions, CSRF, and the browser security boundary (M2) |
 | [api-client.md](architecture/api-client.md) | Typed client, errors, auth transport, correlation IDs |
 | [design-tokens.md](architecture/design-tokens.md) | **★** Locked palette and typography |
 | [responsive-and-viewport.md](architecture/responsive-and-viewport.md) | Mobile baseline, desktop protected column |

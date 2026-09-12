@@ -6,6 +6,30 @@ How the frontend talks to `purrenade-api`.
 
 ---
 
+## 0. Implementation status — M2
+
+The **authentication** half of this document is implemented. The transport lives
+behind one module as §2 requires:
+
+| Concern | Where |
+| --- | --- |
+| The browser's only HTTP door | `app/composables/useBffClient.ts` |
+| Error normalisation to a stable `code` | `app/composables/useApiProblem.ts` |
+| BFF routes, session, CSRF, upstream client | `server/` — see [bff-and-session.md](bff-and-session.md) |
+
+Two things this document requires are **not** yet done, and are OPEN:
+
+- **Generated types.** §1 requires client types to come from the contract.
+  `server/utils/contracts.ts` is hand-written, checked against
+  `openapi.draft.yaml` by hand whenever either changes. The generator is a
+  toolchain task.
+- **Retries, cancellation and idempotency keys.** §4 and §6 concern run
+  submission, which does not exist yet. The BFF client has timeouts and does not
+  retry; the one retry it performs is a single CSRF-token refresh, which is not a
+  network retry.
+
+---
+
 ## 1. Contract-first — APPROVED
 
 The API contract is authored in the backend repository
@@ -30,7 +54,7 @@ a **Nuxt BFF with server-managed session cookies** over a token-capable Laravel 
 | The browser talks to **one origin** — the Nuxt application | **No CORS**, no cross-origin credentialed requests |
 | The browser's only credential is an **`HttpOnly`, `Secure`, `SameSite=Lax` session cookie** | Set by the BFF and unreachable from JavaScript |
 | **No bearer token is ever stored in `localStorage` or `sessionStorage`** | This is the point of the design; a token in web storage is exfiltrable by XSS |
-| Every state-changing request carries a **CSRF token** | The BFF is the CSRF boundary. The hop relocates the problem; it does not remove it. |
+| Every state-changing request carries a **CSRF token** | **IMPLEMENTED** as a synchroniser token in an `X-CSRF-Token` header, compared against the BFF's server-side session. A header is the load-bearing detail: a cross-site form can make the browser send cookies, but it cannot set one. |
 | The API credential lives **server-side in the BFF session** | It never reaches the browser |
 | Laravel + Fortify + Sanctum remains the **authentication authority** | The BFF is a client of it, never a second source of truth |
 
@@ -88,7 +112,7 @@ human-readable message text. Message text is for display; codes are for logic.
 | `404` | Not-found view; never an empty success state |
 | `409` | Reconcile — usually a stale local value; refetch and inform |
 | `422` | Map field errors onto the form by field name and code |
-| `429` | Honour the retry signal; show a calm message |
+| `429` | **IMPLEMENTED** — `retry_after` arrives both as a problem member and as a `Retry-After` header, and drives the verification countdown rather than a bare error |
 | `5xx` | Generic failure plus the correlation ID |
 | Network error | Offline/connection message with retry. **A run in progress is never destroyed by a network error.** |
 

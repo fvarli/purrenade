@@ -162,6 +162,112 @@ The API answers its web root with a JSON signpost rather than a 404, and `/api/v
 reports whether it can actually reach PostgreSQL — **503 when it cannot**. Both are documented in
 the API repository's `local-development.md` and in its OpenAPI contract.
 
+## Authentication, locally
+
+The full flow works end to end on the local stack. The one thing that is not
+"real" is mail delivery: the API writes it to a log instead of sending it, so
+verification codes and reset links are read from there.
+
+### Reading a verification code or reset link
+
+```bash
+# In the API repository.
+tail -200 storage/logs/laravel.log | tr -d '\r' | grep -aoE '^[0-9]{6}$' | tail -1
+```
+
+The API repository's `local-development.md` has the reset-link variant and
+explains the `tr -d '\r'` — a MIME message uses CRLF, so an anchored `$` will
+not match.
+
+### Session state on disk
+
+The BFF keeps its sessions in `.data/sessions/`, which is git-ignored because
+those records contain the upstream API token. Deleting the directory signs
+everyone out; it is the quickest way to get back to a clean state.
+
+```bash
+rm -rf .data/sessions            # every local session ends immediately
+```
+
+Each record is plaintext JSON holding `apiToken`, in a file **named after the
+session cookie value** — so a directory listing yields cookies and reading it
+yields credentials. `server/plugins/session-store-guard.ts` therefore creates the
+directory `0700` and rewrites its records `0600` at every boot; unstorage
+otherwise writes at whatever the process umask allows, which on a typical machine
+left live bearer tokens readable by every other account on the machine.
+
+The same plugin **refuses to start** a production process whose resolved session
+store is filesystem-backed. That is not a development concern, but the reason it
+exists is: `NUXT_SESSION_DRIVER` is read when the server is *built*, not when it
+runs, so setting it in a production environment does nothing at all and the
+failure would be silent. `PURRENADE_ALLOW_FS_SESSIONS=1` is the deliberate
+opt-out for a single-instance deployment.
+
+Expired records are swept hourly, and once at startup. Nothing else collects
+them: a session is otherwise only ever cleaned up when the identifier naming it
+is presented again, and `GET /api/auth/csrf` creates one for any visitor who
+arrives without a cookie.
+
+### Cookies you should see
+
+Two, and only two, both `__Host-` prefixed:
+
+| Cookie | Attributes |
+| --- | --- |
+| `__Host-purrenade_session` | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` |
+| `__Host-purrenade_csrf` | `Secure`, `SameSite=Lax`, `Path=/` — readable, by design |
+
+**No bearer token, anywhere.** Not in a cookie, not in `localStorage`, not in
+`sessionStorage`. If you find one, that is a bug in the BFF, not a configuration
+difference.
+
+> The `__Host-` prefix requires `Secure`, so **the cookies are not set over
+> plain HTTP**. Browse `https://purrenade.test`, not `http://127.0.0.1:4310` —
+> on the direct port you will appear permanently signed out.
+
+### Rate limits will refuse you
+
+They are deliberately tight: five login attempts a minute per account, five
+verification resends an hour. A scripted flow trips them almost immediately,
+which is the limiter working. Clear the buckets rather than loosening the limits:
+
+```bash
+# In the API repository.
+php artisan cache:clear
+```
+
+### Two-factor codes from the command line
+
+```bash
+# In the API repository, with the secret from the enrolment response.
+php -r "require 'vendor/autoload.php'; \$a=require 'bootstrap/app.php';
+  \$a->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+  echo app(PragmaRX\Google2FA\Google2FA::class)->getCurrentOtp('YOURSECRET').PHP_EOL;"
+```
+
+**Wait for a fresh 30-second step between uses.** A code from a step already
+accepted is refused — replay rejection is per account and durable, so reusing one
+looks like a failure and is not.
+
+## Testing
+
+```bash
+npm test          # unit (node) + component (happy-dom)
+npm run test:e2e  # responsive and accessibility, against the RUNNING local stack
+```
+
+`npm run test:e2e` is **not** a CI gate and not part of `npm test`. It drives a
+real browser against `https://purrenade.test`, which needs Nginx, the local
+certificate and the `.test` hostname — none of which CI has. It uses the system
+Chrome rather than a bundled Chromium, so it adds no browser download to the
+toolchain.
+
+It covers the standing responsive requirement at **360×640, 360×800 and
+desktop**: the primary action stays reachable and inside the viewport, nothing
+scrolls horizontally, every input has a bound label, the form is keyboard
+navigable to submit, focus is visible, and reduced motion collapses the motion
+tokens.
+
 ## Two things that will bite you otherwise
 
 **Node does not trust the system CA store by default.** It ships its own bundle, so a

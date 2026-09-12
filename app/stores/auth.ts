@@ -1,0 +1,215 @@
+import { defineStore } from 'pinia'
+import type { AuthStatus, AuthUser, EmailVerificationState } from '~/types/auth'
+
+/**
+ * Authentication state.
+ *
+ * `state-management.md` §1 puts session and auth status in this store, and the
+ * rest of that document imposes the constraints:
+ *
+ *  - **Nothing sensitive is stored.** No token, no challenge token, no password.
+ *    The browser's only credential is the `HttpOnly` cookie it cannot read; this
+ *    store holds a *projection* of who that cookie belongs to.
+ *
+ *  - **Nothing is persisted to web storage.** Not `localStorage`, not
+ *    `sessionStorage`. State is rebuilt on every load by asking the BFF, which
+ *    is the only party that can answer. That also means signing out in one tab
+ *    cannot leave a stale "signed in" view behind in another.
+ *
+ *  - **The status is derived, never received.** The server sends facts — is the
+ *    address verified, is 2FA enabled, did this session pass a challenge — and
+ *    `status` is computed from them. A state name sent by the server would be a
+ *    state the client had to trust.
+ *
+ *  - **None of this is authorization.** Every gate here is a convenience;
+ *    removing one exposes nothing, because Laravel authorizes every request.
+ */
+
+interface AuthState {
+  user: AuthUser | null
+  status: AuthStatus
+  emailVerification: EmailVerificationState | null
+
+  /** Present only while a challenge is owed. Never the token itself. */
+  challengeExpiresAt: string | null
+  recoveryCodesAvailable: boolean
+
+  /** True while `bootstrap()` is in flight, so guards can wait rather than guess. */
+  loading: boolean
+}
+
+export const useAuthStore = defineStore('auth', {
+  state: (): AuthState => ({
+    user: null,
+    status: 'unknown',
+    emailVerification: null,
+    challengeExpiresAt: null,
+    recoveryCodesAvailable: false,
+    loading: false,
+  }),
+
+  getters: {
+    isGuest: (state): boolean => state.status === 'guest',
+
+    /** Signed in, whether or not the address is verified. */
+    isSignedIn: (state): boolean =>
+      state.status === 'unverified'
+      || state.status === 'authenticated'
+      || state.status === 'admin_two_factor_setup_required',
+
+    /** Signed in **and** verified — the gate most of the product sits behind. */
+    isVerified: (state): boolean =>
+      state.status === 'authenticated' || state.status === 'admin_two_factor_setup_required',
+
+    needsTwoFactorChallenge: (state): boolean => state.status === 'two_factor_required',
+
+    needsEmailVerification: (state): boolean => state.status === 'unverified',
+
+    isAdmin: (state): boolean => state.user?.role === 'admin',
+
+    /**
+     * May this session actually use the admin surface?
+     *
+     * All four conditions, mirroring the server's gate — but as *UX*, so the
+     * admin link is not offered to a session that would be refused. The server
+     * decides; this only decides what to render.
+     */
+    canUseAdminSurface: (state): boolean =>
+      state.user?.role === 'admin'
+      && state.user.email_verified
+      && state.user.two_factor_enabled
+      && state.user.session?.two_factor_satisfied === true,
+
+    /** An administrator who has not enrolled: a real, reachable state. */
+    needsAdminTwoFactorSetup: (state): boolean =>
+      state.status === 'admin_two_factor_setup_required',
+
+    recoveryCodesRemaining: (state): number =>
+      state.user?.two_factor_recovery_codes_remaining ?? 0,
+  },
+
+  actions: {
+    /**
+     * Ask the BFF who this browser is.
+     *
+     * Called once per app load. Never throws: a failure leaves the visitor a
+     * guest, because a network problem on first paint must not blank the
+     * application — and every protected action is authorized server-side anyway,
+     * so guessing "guest" is safe in a way guessing "signed in" would not be.
+     */
+    async bootstrap(): Promise<void> {
+      if (this.loading) return
+
+      this.loading = true
+
+      try {
+        const client = useBffClient()
+        const response = await client.me()
+
+        this.applyMeResponse(response)
+      }
+      catch {
+        this.reset()
+        this.status = 'guest'
+      }
+      finally {
+        this.loading = false
+      }
+    },
+
+    /** @internal */
+    applyMeResponse(response: import('~/types/auth').MeResponse): void {
+      if (response.status === 'two_factor_required') {
+        this.user = null
+        this.status = 'two_factor_required'
+        this.challengeExpiresAt = response.challenge_expires_at ?? null
+        this.recoveryCodesAvailable = response.recovery_codes_available ?? false
+        this.emailVerification = null
+
+        return
+      }
+
+      if (response.status === 'guest' || !response.user) {
+        this.reset()
+        this.status = 'guest'
+
+        return
+      }
+
+      this.setUser(response.user)
+      this.emailVerification = response.email_verification ?? null
+    },
+
+    /**
+     * Record the signed-in account and derive the status from its facts.
+     *
+     * The order of the checks is the order of the gates: verification first,
+     * because an unverified account reaches almost nothing; then admin
+     * enrolment, which is a warning rather than a blocker for the player-facing
+     * product.
+     */
+    setUser(user: AuthUser): void {
+      this.user = user
+      this.challengeExpiresAt = null
+      this.recoveryCodesAvailable = false
+
+      if (!user.email_verified) {
+        this.status = 'unverified'
+
+        return
+      }
+
+      this.status = user.requires_two_factor_enrolment
+        ? 'admin_two_factor_setup_required'
+        : 'authenticated'
+    },
+
+    setTwoFactorRequired(challengeExpiresAt: string, recoveryCodesAvailable: boolean): void {
+      this.user = null
+      this.status = 'two_factor_required'
+      this.challengeExpiresAt = challengeExpiresAt
+      this.recoveryCodesAvailable = recoveryCodesAvailable
+      this.emailVerification = null
+
+      // The session was rotated upstream, so the cached CSRF token is stale.
+      invalidateCsrfToken()
+    },
+
+    setEmailVerification(state: EmailVerificationState | null): void {
+      this.emailVerification = state
+    },
+
+    /**
+     * Clear everything.
+     *
+     * Also drops the cached CSRF token: it belonged to a session that no longer
+     * exists, and a stale one would cost the next request a needless round trip.
+     */
+    reset(): void {
+      this.user = null
+      this.status = 'guest'
+      this.emailVerification = null
+      this.challengeExpiresAt = null
+      this.recoveryCodesAvailable = false
+
+      invalidateCsrfToken()
+    },
+
+    /**
+     * Sign out.
+     *
+     * Local state is cleared **whatever the BFF says**. The BFF destroys its own
+     * session even when the upstream revoke fails, so a browser left looking
+     * signed in after the player pressed the button would be a lie about state
+     * that no longer exists.
+     */
+    async signOut(): Promise<void> {
+      try {
+        await useBffClient().logout()
+      }
+      finally {
+        this.reset()
+      }
+    },
+  },
+})

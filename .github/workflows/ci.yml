@@ -45,6 +45,55 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: No credential or server-only value in the client bundle
+        run: |
+          set -euo pipefail
+          # ADR-0005's central claim, checked mechanically against the built
+          # artefact rather than trusted: the browser bundle must contain no
+          # bearer token, no upstream origin, and none of the BFF's private
+          # runtime config. A leak here is not a style problem — it is the
+          # design being inverted.
+          leaked=0
+          for needle in prrn_ Authorization apiBase apiTimeoutMs trustedOrigins api.purrenade; do
+            if grep -rlF "$needle" .output/public/ >/dev/null 2>&1; then
+              echo "ERROR: '$needle' appears in the client bundle:"
+              grep -rlF "$needle" .output/public/ | head -5
+              leaked=1
+            fi
+          done
+          [ "$leaked" -eq 0 ] || exit 1
+          echo "no credential or server-only value in the client bundle"
+
+      - name: No auth state written to web storage
+        run: |
+          set -euo pipefail
+          # Nuxt's own reload guard writes one `nuxt:reload` key, which is a
+          # path and a timestamp. Anything else writing to web storage is a
+          # candidate for auth state an XSS defect could read.
+          offenders=$(grep -rhoE "(localStorage|sessionStorage)\.setItem\(\`?[a-zA-Z:_-]*" .output/public/ 2>/dev/null \
+            | grep -v 'nuxt:reload' || true)
+          if [ -n "$offenders" ]; then
+            echo "ERROR: unexpected web-storage writes in the client bundle:"
+            echo "$offenders" | sort -u
+            exit 1
+          fi
+          echo "no unexpected web-storage writes"
+
+      - name: Fonts are self-hosted
+        run: |
+          set -euo pipefail
+          # design-tokens.md §2.1 and licensing-and-rights.md §5: loading fonts
+          # from a third party transmits every visitor's IP address to it, which
+          # is a KVKK/GDPR problem before it is a performance one.
+          if grep -rlE "fonts\.(googleapis|gstatic)\.com" .output/public/ >/dev/null 2>&1; then
+            echo "ERROR: a third-party font origin is referenced in the build"
+            grep -rlE "fonts\.(googleapis|gstatic)\.com" .output/public/ | head
+            exit 1
+          fi
+          test "$(find .output/public -name '*.woff2' | wc -l)" -gt 0 \
+            || { echo "ERROR: no self-hosted font files were emitted"; exit 1; }
+          echo "fonts are self-hosted ($(find .output/public -name '*.woff2' | wc -l) files)"
+
       - name: Phaser must not enter a non-run bundle
         run: |
           set -euo pipefail
@@ -91,6 +140,51 @@ jobs:
             exit 1
           fi
           echo "no dependency or build output tracked"
+
+      - name: Locale files must have identical keys
+        run: |
+          set -euo pipefail
+          # A missing key renders as the key itself, which ships as a visible
+          # defect in one language only — the kind nobody notices until a player
+          # reports it. tr is the source locale (ADR-0007).
+          python3 - <<'EOF'
+          import json, sys
+
+          def keys(obj, prefix=''):
+              out = set()
+              for key, value in obj.items():
+                  path = f'{prefix}.{key}' if prefix else key
+                  out |= keys(value, path) if isinstance(value, dict) else {path}
+              return out
+
+          source = keys(json.load(open('i18n/locales/tr.json', encoding='utf-8')))
+          failed = False
+
+          for locale in ('en', 'es'):
+              other = keys(json.load(open(f'i18n/locales/{locale}.json', encoding='utf-8')))
+              missing, extra = sorted(source - other), sorted(other - source)
+              if missing or extra:
+                  failed = True
+                  print(f'ERROR: {locale}.json differs from tr.json')
+                  for key in missing: print(f'   missing: {key}')
+                  for key in extra:   print(f'   extra:   {key}')
+
+          if failed:
+              sys.exit(1)
+
+          print(f'all locales carry the same {len(source)} keys')
+          EOF
+
+      - name: No bearer token is stored in web storage anywhere in source
+        run: |
+          set -euo pipefail
+          # ADR-0005: no browser code may store a bearer token. Checked against
+          # source as well as the bundle, so the intent is visible in review.
+          if grep -rnE "(localStorage|sessionStorage)\.setItem" app/ game/ 2>/dev/null; then
+            echo "ERROR: browser code writes to web storage; ADR-0005 forbids storing credentials there."
+            exit 1
+          fi
+          echo "no web-storage writes in app/ or game/"
 
       - name: Check the decision register is complete
         run: |

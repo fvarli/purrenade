@@ -1,1 +1,271 @@
-{}
+{
+  "common": {
+    "language": "Language",
+    "mainNavigation": "Main navigation",
+    "optional": "optional",
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "done": "Done",
+    "copy": "Copy",
+    "copied": "Copied!"
+  },
+  "home": {
+    "title": "Seaside",
+    "greeting": "Welcome back, {name}!",
+    "guestLede": "The seaside is waiting. Sign in to get started.",
+    "milestoneNotice": "The game is not here yet. For now, your account and its security are ready.",
+    "adminEnrolmentRequired": "Two-factor authentication is mandatory for administrators. Turn it on to reach the admin area."
+  },
+  "auth": {
+    "signOut": "Sign out",
+    "fields": {
+      "displayName": "Display name",
+      "email": "Email",
+      "password": "Password",
+      "passwordConfirmation": "Confirm password",
+      "currentPassword": "Your current password"
+    },
+    "password": {
+      "show": "show",
+      "hide": "hide",
+      "strength": {
+        "weak": "make it a bit longer",
+        "fair": "not bad",
+        "good": "counts as strong",
+        "strong": "SLAYYY! ✨"
+      }
+    },
+    "otp": {
+      "digit": "Digit {position} of {total}"
+    },
+    "login": {
+      "title": "Sign in",
+      "heading": "Welcome back!",
+      "lede": "The seaside is waiting.",
+      "forgotPassword": "Forgotten your password?",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "noAccount": "No account yet?",
+      "registerLink": "Create one",
+      "reauthenticateForAdmin": "The admin area needs a session that has passed two-factor authentication. Please sign in again."
+    },
+    "register": {
+      "title": "Create account",
+      "heading": "Join us!",
+      "lede": "One minute, and you are on the beach.",
+      "displayNameHint": "3–20 characters: letters, digits, and _ . -",
+      "passwordHint": "At least {min} characters. Length matters more than anything else.",
+      "verificationNotice": "We will verify your email after you register — check your spam folder too!",
+      "submit": "Create account",
+      "submitting": "Creating…",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Sign in",
+      "terms": "By registering you accept the rules. The rule is simple: have fun."
+    },
+    "verifyEmail": {
+      "title": "Verify your email",
+      "heading": "Verify your email",
+      "lede": "We sent a 6-digit code to {email}.",
+      "codeLabel": "Verification code",
+      "submit": "Verify",
+      "submitting": "Verifying…",
+      "resend": "Send a new code",
+      "resendIn": "Send a new code ({time})",
+      "resent": "A new code is on its way. The previous one no longer works."
+    },
+    "twoFactor": {
+      "title": "Security code",
+      "heading": "Security code",
+      "lede": "Enter the 6-digit code from your authenticator app. Your account is a fortress.",
+      "recoveryLede": "Enter one of your recovery codes. Each one works only once.",
+      "codeLabel": "6-digit code",
+      "recoveryCodeLabel": "Recovery code",
+      "recoveryCodeHint": "One of the codes you saved during setup.",
+      "submit": "Verify",
+      "submitting": "Verifying…",
+      "useRecoveryCode": "Use a recovery code",
+      "useAuthenticator": "Use the app code instead",
+      "backToLogin": "← Back to sign in",
+      "footerNote": "Two-factor authentication is recommended for everyone and mandatory for administrators."
+    },
+    "forgotPassword": {
+      "title": "Forgotten password",
+      "heading": "Forgotten your password?",
+      "lede": "It happens. We will send a reset link — dry those tears.",
+      "submit": "Send link",
+      "submitting": "Sending…",
+      "sent": "If that address belongs to an account, a reset link is on its way. Check your spam folder too.",
+      "backToLogin": "← Back to sign in"
+    },
+    "resetPassword": {
+      "title": "Reset password",
+      "heading": "Choose a new password",
+      "lede": "Try not to forget this one — or do, we will be here.",
+      "newPassword": "New password",
+      "submit": "Reset password",
+      "submitting": "Resetting…",
+      "done": "Your password has been changed. Every device has been signed out.",
+      "twoFactorUnaffected": "Your two-factor authentication is untouched. Resetting a password never turns it off.",
+      "goToLogin": "Sign in",
+      "linkIncomplete": "This link looks incomplete. Please request a new reset link.",
+      "requestNewLink": "Request a new link"
+    }
+  },
+  "account": {
+    "security": {
+      "title": "Account and security",
+      "navLabel": "Account and security",
+      "heading": "Account and security",
+      "accountHeading": "Your account",
+      "verified": "verified",
+      "role": "Role",
+      "roles": {
+        "player": "Player",
+        "admin": "Administrator"
+      },
+      "twoFactorHeading": "Two-factor authentication",
+      "twoFactorOn": "On — authenticator app.",
+      "twoFactorOff": "Off. We recommend turning it on; it makes your account a fortress.",
+      "enableTwoFactor": "Turn on 2FA",
+      "disableTwoFactor": "Turn off 2FA",
+      "confirmDisable": "Yes, turn it off",
+      "disableWarning": "With 2FA off, only your password protects the account, and your recovery codes are deleted.",
+      "adminTwoFactorMandatory": "Two-factor authentication is mandatory for administrators and cannot be turned off.",
+      "adminEnrolmentRequired": "You need to turn on two-factor authentication before you can reach the admin area.",
+      "twoFactorDisabled": "Two-factor authentication has been turned off.",
+      "reauthenticateHint": "We ask for your password again before changing a security setting.",
+      "scanInstruction": "Scan the code with your authenticator app, then enter the 6-digit code it shows.",
+      "qrAlt": "QR code for two-factor authentication setup",
+      "manualEntry": "If you cannot scan, enter this key by hand:",
+      "confirmCodeLabel": "6-digit code from the app",
+      "confirmEnrolment": "Activate 2FA",
+      "recoveryCodesHeading": "Your recovery codes",
+      "recoveryCodesLabel": "Recovery codes",
+      "recoveryCodesNotice": "Save these now. They will not be shown again, and each one works only once.",
+      "recoveryCodesAcknowledge": "I have saved these codes somewhere safe.",
+      "recoveryCodesSaved": "Your recovery codes are ready.",
+      "recoveryCodesRemaining": "{count} recovery codes left.",
+      "noRecoveryCodesLeft": "You have no recovery codes left. If you lose your authenticator you will be locked out — generate a new set.",
+      "regenerateRecoveryCodes": "Generate new recovery codes",
+      "regenerateWarning": "Generating a new set makes every existing code stop working.",
+      "passwordHeading": "Password",
+      "changePassword": "Change password",
+      "newPassword": "New password",
+      "changePasswordNotice": "Changing your password signs out your other devices. This one stays signed in.",
+      "passwordChanged": "Your password has been changed. Other devices have been signed out.",
+      "sessionsHeading": "Active sessions",
+      "sessionsLede": "Devices signed in to your account. If you see one you do not recognise, sign it out and change your password.",
+      "thisDevice": "this device",
+      "sessionTwoFactor": "verified with 2FA",
+      "sessionNeverUsed": "not used yet",
+      "revokeSession": "Sign out",
+      "revokeOthers": "Sign out all other devices",
+      "revokeOthersHint": "This also ends sessions you cannot see, which is why we ask for your password.",
+      "otherSessionsRevoked": "{count} sessions signed out."
+    }
+  },
+  "admin": {
+    "title": "Admin",
+    "navLabel": "Admin",
+    "heading": "Admin",
+    "accountsHeading": "Accounts",
+    "counts": {
+      "total": "Total",
+      "verified": "Verified",
+      "administrators": "Administrators",
+      "with_two_factor": "2FA on"
+    },
+    "capabilitiesPending": "Administrative capabilities arrive in {milestone}. For now this screen only proves access control works."
+  },
+  "errors": {
+    "unexpected": "Something went wrong. Please try again.",
+    "unexpected_with_reference": "Something went wrong. Quote this reference if you report it: {reference}",
+    "client_network_error": "We could not reach the server. Check your connection and try again.",
+    "bff_upstream_timeout": "The server did not respond in time. Please try again.",
+    "bff_upstream_unavailable": "The service is unreachable right now. Try again shortly.",
+    "bff_csrf_token_mismatch": "Your session was refreshed. Reload the page and try again.",
+    "bff_origin_rejected": "This request was not accepted. Reload the page and try again.",
+    "bff_session_unavailable": "Your session could not be stored. Please try again.",
+    "unauthenticated": "Your session has ended. Please sign in again.",
+    "invalid_credentials": "That email or password is not correct.",
+    "validation_failed": "Some fields need fixing.",
+    "forbidden": "You are not permitted to do that.",
+    "not_found": "We could not find that.",
+    "conflict": "That conflicts with the current state. Reload the page and try again.",
+    "rate_limited": "That was a bit fast. Wait a moment and try again.",
+    "server_error": "Something failed on our side. Please try again.",
+    "service_unavailable": "The service is unavailable right now. Try again shortly.",
+    "email_not_verified": "Verify your email address first.",
+    "email_already_verified": "That email address is already verified.",
+    "verification_code_invalid": "That code is not correct. Try again.",
+    "verification_code_expired": "That code has expired. Request a new one.",
+    "verification_code_missing": "There is no code outstanding. Request a new one.",
+    "verification_resend_cooldown": "We sent a code just now. Wait a moment and try again.",
+    "two_factor_challenge_invalid": "That verification step has expired. Please sign in again.",
+    "two_factor_code_invalid": "That code is not correct. Check your authenticator app.",
+    "two_factor_already_enabled": "Two-factor authentication is already on.",
+    "two_factor_not_enabled": "Two-factor authentication is not on.",
+    "two_factor_not_pending": "Start the 2FA setup first.",
+    "admin_two_factor_mandatory": "Two-factor authentication is mandatory for administrators and cannot be turned off.",
+    "admin_role_required": "That area is for administrators only.",
+    "admin_two_factor_required": "The admin area needs a session that has passed two-factor authentication.",
+    "reset_token_invalid": "This reset link is invalid or has expired. Request a new one.",
+    "display_name_change_cooldown": "You changed your display name recently. Please wait a while.",
+    "fields": {
+      "default": {
+        "invalid": "That value is not valid.",
+        "required": "This field is required.",
+        "taken": "That is already in use.",
+        "email_invalid": "Enter a valid email address.",
+        "too_short": "That needs to be a bit longer.",
+        "too_long": "That needs to be a bit shorter.",
+        "confirmation_mismatch": "The two passwords do not match.",
+        "password_incorrect": "That password is not correct.",
+        "password_compromised": "That password has appeared in a known data breach. Choose a different one.",
+        "format_invalid": "That format is not allowed.",
+        "type_invalid": "That value is not the expected type.",
+        "value_not_allowed": "That value is not allowed.",
+        "digits_expected": "Digits only.",
+        "invalid_length": "That length is not allowed.",
+        "not_found": "Not found."
+      },
+      "display_name": {
+        "taken": "That display name is taken. Try another.",
+        "format_invalid": "3–20 characters: letters, digits, and _ . - It needs at least one letter and cannot start or end with punctuation."
+      },
+      "email": {
+        "taken": "An account with that email already exists.",
+        "email_invalid": "Enter a valid email address."
+      },
+      "password": {
+        "too_short": "Your password needs at least 12 characters.",
+        "too_long": "Your password can be at most 128 characters.",
+        "password_compromised": "That password has appeared in a known data breach. Choose a different one."
+      },
+      "password_confirmation": {
+        "confirmation_mismatch": "The two passwords do not match."
+      },
+      "current_password": {
+        "password_incorrect": "Your current password is not correct.",
+        "required": "Enter your current password to continue."
+      },
+      "code": {
+        "digits_expected": "The code is 6 digits.",
+        "invalid_length": "The code is 6 digits.",
+        "required": "Enter the code."
+      }
+    },
+    "page": {
+      "notFound": {
+        "title": "This page is not here",
+        "body": "The link may be out of date, or the address mistyped."
+      },
+      "generic": {
+        "title": "Something went wrong",
+        "body": "An unexpected error occurred. Try again in a moment."
+      },
+      "action": "Back to the start"
+    }
+  }
+}

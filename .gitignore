@@ -29,6 +29,8 @@ node_modules/
 .output/
 .nitro/
 .cache/
+# Nitro storage. Holds live BFF session records, which contain the upstream API
+# credential — this directory is secret material, not build output.
 .data/
 dist/
 .vite/

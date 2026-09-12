@@ -18,6 +18,55 @@ raised so far, so nothing is recorded only in a document nobody rereads.
 
 ---
 
+## 0AB. Corrected by the M2 adversarial audit
+
+Three things this register and its owning documents recorded as true were not.
+Listed here because a decision that the code does not implement is worse than an
+open one — an OPEN item gets revisited, a wrong APPROVED one does not.
+
+| Was recorded as | Actually was | Now |
+| --- | --- | --- |
+| "Every error is RFC 9457, and that holds with `APP_DEBUG=true`" | True for `api/*` only. Every other path on the API host returned the framework's default error, with a stack trace and absolute filesystem paths under debug. | The renderer covers the host. A CI gate boots the application and checks, instead of only linting the contract. |
+| "Moving the BFF session store in production is a configuration change, not a code change" | `nitro.storage` is build-time. `NUXT_SESSION_DRIVER` has no runtime effect at all, so a production deploy would keep writing plaintext bearer tokens to local disk while the operator believed otherwise. | Documented as build-time. The BFF refuses to start a production process on a filesystem-backed store unless explicitly acknowledged, and hardens the store's permissions. |
+| "`startSession()` is the only function that writes a session" | `touchSession()` writes too. Harmless — it updates one timestamp on an existing record — but the stated invariant was not the true one. | Restated as the property that actually holds: it is the only function that can put a credential into a session. |
+
+Two further gaps were in the code rather than in the record, and are documented
+where they belong: a `two-factor` ability outliving the secret it attested to
+(`purrenade-api/docs/architecture/auth-architecture.md` §3A), and a pending
+two-factor challenge surviving a password reset (§3B, and
+`docs/security/authentication.md` §4.2).
+
+**AUTH-4, RL-1, CACHE-1, 2FA-3, 2FA-4, SEC-3, AD-5 and OPS-1 remain OPEN.** The
+audit found none of them load-bearing for M2's security: OPS-1 in particular is
+now guarded rather than resolved — production cannot reach the unsafe answer by
+accident, but choosing the right store is still an open decision.
+
+---
+
+## 0AA. Resolved in M2 — now APPROVED and IMPLEMENTED
+
+Ten ADR-0005 parameters and eight register items were decided during M2
+implementation. The mechanism is documented in
+`purrenade-api/docs/architecture/auth-architecture.md` (API side) and
+[`../architecture/bff-and-session.md`](../architecture/bff-and-session.md)
+(browser side).
+
+| Decision | Resolution | Owning document |
+| --- | --- | --- |
+| **API-1** — error envelope | **RFC 9457 Problem Details**, `application/problem+json`, for every error. Extensions: a stable `code` (the value clients branch on), `correlation_id`, per-field `errors`, and `retry_after`. `type` is a **URN**, because the RFC does not require it to be dereferenceable and no documentation site exists to dereference. | `purrenade-api/docs/api/api-conventions.md` §3 |
+| **API-2** — naming | **`snake_case`**, in requests, responses, extensions, contract and tests. | `purrenade-api/docs/api/api-conventions.md` §2 |
+| **SEC-1** — password policy | **12–128 characters, no composition rules, breach-checked**, hashed with **argon2id**. The maximum is a refusal, never a silent trim — which is also why not bcrypt, whose 72-byte limit would make the policy a truncation bug. | `purrenade-api/docs/security/authentication.md` §2 |
+| **SEC-2** — code and token rules | Verification code **10-minute TTL, 5 attempts, 42-second resend cooldown** (the number v0.3 renders), resend 5/hour per account. Concrete limits for every class. Provider: a driver abstraction, `log` locally — M2 depends on **no** purchased provider. | `purrenade-api/docs/security/rate-limiting.md` §2 |
+| **AUTH-1** — unverified access | **Exactly four endpoints**: `me`, `email/verify`, `email/verify/resend`, `logout`. Two-factor enrolment and session management are *not* included. Enforced on the route group, with a test that asserts the allowance cannot widen. | `purrenade-api/docs/security/authorization-and-roles.md` §7 |
+| **AUTH-2** — revoke-all scope | **Keeps the current session.** The action is "get everyone else out"; `POST /auth/logout` exists for the other intent. | `purrenade-api/docs/security/authentication.md` §6 |
+| **AUTH-3** — lockout policy | **Progressive throttling, no lockout, ever.** A hard lockout turns credential stuffing into a reliable denial-of-service against any account whose address is known. Every limiter is two-dimensional, per identifier **and** per source. | `purrenade-api/docs/security/rate-limiting.md` §2 |
+| **2FA-1** — recovery codes | **8 codes**, one hashed row each, single use enforced by an atomic conditional update. Regeneration requires the current password and invalidates the whole previous set. | `purrenade-api/docs/security/two-factor.md` §4 |
+| **2FA-2** — challenge point | **At login.** Step-up rejected for v1; per-request `current_password` covers the risk it addressed. | `purrenade-api/docs/security/two-factor.md` §6 |
+| **ADR-0005** q1–q10 | All resolved: token-mode Sanctum, two-tier timeouts, synchroniser CSRF at the BFF, challenge at login, admin 2FA enforced on the route group via a token ability, 8 hashed recovery codes, token-row sessions with coarse device labels and no IP, the password policy above, the verification rules above, and throttling without lockout. | [ADR-0005](../decisions/ADR-0005-authentication-and-2fa-strategy.md) |
+| **AUTH-4** — device labelling | **Partly resolved.** A coarse server-derived label (`Chrome on Android`) is implemented; the raw User-Agent is never stored. **IP address and location remain OPEN** — they need a geo-IP source and a retention policy decided together, and storing the address early would create the obligation before the decision. | `purrenade-api/docs/architecture/auth-architecture.md` §8 |
+
+---
+
 ## 0A. Resolved in M0.6 — now APPROVED
 
 | Decision | Outcome | Owning document |
@@ -99,8 +148,8 @@ These stop work when their milestone is reached.
 | Ref | Decision | Owner |
 | --- | --- | --- |
 | **ARCH-2** | **Run validation / anti-cheat model.** Leaderboards are in v1. Largest architectural risk in the product. | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
-| **SEC-1** | **Password policy** — length, composition, breach-list checking. | `purrenade-api/docs/security/authentication.md` |
-| **SEC-2** | Transactional **email provider**, code TTL, resend cooldown, rate-limit values. | `purrenade-api/docs/security/rate-limiting.md` |
+| ~~**SEC-1**~~ | **Resolved in M2.** 12–128 characters, no composition rules, breach-checked, argon2id. See §0AA. | `purrenade-api/docs/security/authentication.md` |
+| ~~**SEC-2**~~ | **Resolved in M2** for code TTL, resend cooldown and rate-limit values. The **transactional email provider** itself is still unchosen and is an OPS-1 concern: M2 runs on a driver abstraction with `log` locally and depends on no purchased service. | `purrenade-api/docs/security/rate-limiting.md` |
 | **SEC-3** | **KVKK/GDPR flows** — account deletion, data export, consent capture, retention. Architecture is proposed; **policy is OPEN**. | `purrenade-api/docs/security/data-protection.md` |
 | **SEC-4** | Published **security contact** and disclosure timeline. | `SECURITY.md` in both repositories |
 | **SEC-5** | **Retention period and minimization for gameplay telemetry.** New in M0.5: derived-from-telemetry achievements mean per-event data is retained, and that data is **behavioural personal data**. Jointly with ANTI-5. | `purrenade-api/docs/security/data-protection.md` §2A |
@@ -239,8 +288,8 @@ that owns it, and listed here so this register is the complete live list.
 
 | Ref | Owning document | Question |
 | --- | --- | --- |
-| 2FA-1 | `purrenade-api/docs/security/two-factor.md` | Recovery-code count and regeneration policy |
-| 2FA-2 | `purrenade-api/docs/security/two-factor.md` | Challenge at login or step-up |
+| ~~2FA-1~~ | `purrenade-api/docs/security/two-factor.md` | **Resolved in M2:** 8 codes; regeneration invalidates the previous set |
+| ~~2FA-2~~ | `purrenade-api/docs/security/two-factor.md` | **Resolved in M2:** at login |
 | 2FA-3 | `purrenade-api/docs/security/two-factor.md` | Account recovery when both factors are lost |
 | 2FA-4 | `purrenade-api/docs/security/two-factor.md` | Admin lockout recovery |
 | 2FA-5 | `purrenade-api/docs/security/two-factor.md` | Is WebAuthn planned beyond v1? |
@@ -253,16 +302,16 @@ that owns it, and listed here so this register is the complete live list.
 | ANTI-2 | `purrenade-api/docs/security/anti-cheat.md` | What a `flagged` run means for the player, and whether there is an appeal |
 | ANTI-3 | `purrenade-api/docs/security/anti-cheat.md` | Who reviews flagged runs — an admin capability that does not exist yet (SI-1) |
 | ANTI-4 | `purrenade-api/docs/security/anti-cheat.md` | Bound values, derived once the tuning values are APPROVED rather than PROPOSED |
-| API-1 | `purrenade-api/docs/api/api-conventions.md` | RFC 9457 `problem+json` or the envelope in §3? |
-| API-2 | `purrenade-api/docs/api/api-conventions.md` | `snake_case` confirmation (§2) |
+| ~~API-1~~ | `purrenade-api/docs/api/api-conventions.md` | **Resolved in M2:** RFC 9457 `problem+json` |
+| ~~API-2~~ | `purrenade-api/docs/api/api-conventions.md` | **Resolved in M2:** `snake_case` |
 | API-3 | `purrenade-api/docs/api/api-conventions.md` | Idempotency key retention window |
 | API-4 | `purrenade-api/docs/api/api-conventions.md` | Default and maximum pagination limits |
 | API-5 | `purrenade-api/docs/api/api-conventions.md` | Is idempotency generalized beyond run submission? |
 | API-6 | `purrenade-api/docs/api/api-conventions.md` | Whether the API exposes a distinct bearer scheme now, or only when the native client is built |
-| AUTH-1 | `purrenade-api/docs/security/authentication.md` | What an unverified player may access |
-| AUTH-2 | `purrenade-api/docs/security/authentication.md` | Does revoke-all include the current session? |
-| AUTH-3 | `purrenade-api/docs/security/authentication.md` | Lockout policy |
-| AUTH-4 | `purrenade-api/docs/security/authentication.md` | Device labelling and location derivation |
+| ~~AUTH-1~~ | `purrenade-api/docs/security/authorization-and-roles.md` | **Resolved in M2:** four endpoints |
+| ~~AUTH-2~~ | `purrenade-api/docs/security/authentication.md` | **Resolved in M2:** revoke-all keeps the current session |
+| ~~AUTH-3~~ | `purrenade-api/docs/security/authentication.md` | **Resolved in M2:** progressive throttling, no lockout |
+| AUTH-4 | `purrenade-api/docs/architecture/auth-architecture.md` | Device **labelling resolved in M2**; IP/location and its retention still OPEN |
 | BA-1 | `purrenade-api/docs/architecture/backend-architecture.md` | Whether an event-driven internal design is warranted, or direct service calls suffice at this scale (PROPOSED: direct calls; events only where a genuine fan-out exists) |
 | BA-2 | `purrenade-api/docs/architecture/backend-architecture.md` | Whether the admin surface is a separate route group in this application or a separate application |
 | BA-3 | `purrenade-api/docs/architecture/backend-architecture.md` | The transaction boundary for leaderboard projection refresh — inside the submission transaction, or deferred |

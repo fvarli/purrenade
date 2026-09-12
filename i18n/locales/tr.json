@@ -1,1 +1,271 @@
-{}
+{
+  "common": {
+    "language": "Dil",
+    "mainNavigation": "Ana gezinme",
+    "optional": "isteğe bağlı",
+    "loading": "Yükleniyor…",
+    "cancel": "Vazgeç",
+    "continue": "Devam",
+    "done": "Tamam",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı!"
+  },
+  "home": {
+    "title": "Sahil",
+    "greeting": "Tekrar hoş geldin, {name}!",
+    "guestLede": "Sahil seni bekliyor. Başlamak için giriş yap.",
+    "milestoneNotice": "Oyun henüz burada değil. Şimdilik hesabın ve güvenliğin hazır.",
+    "adminEnrolmentRequired": "Admin rolünde 2FA zorunludur. Yönetim ekranına ulaşmak için önce iki adımlı doğrulamayı aç."
+  },
+  "auth": {
+    "signOut": "Çıkış yap",
+    "fields": {
+      "displayName": "Kullanıcı adı",
+      "email": "E-posta",
+      "password": "Şifre",
+      "passwordConfirmation": "Şifreyi tekrar gir",
+      "currentPassword": "Mevcut şifren"
+    },
+    "password": {
+      "show": "göster",
+      "hide": "gizle",
+      "strength": {
+        "weak": "biraz daha uzun olsun",
+        "fair": "fena değil",
+        "good": "güçlü sayılır",
+        "strong": "SLAYYY! ✨"
+      }
+    },
+    "otp": {
+      "digit": "{total} haneli kodun {position}. hanesi"
+    },
+    "login": {
+      "title": "Giriş",
+      "heading": "Tekrar hoş geldin!",
+      "lede": "Sahil seni bekliyor.",
+      "forgotPassword": "Şifreni mi unuttun?",
+      "submit": "Giriş yap",
+      "submitting": "Giriş yapılıyor…",
+      "noAccount": "Hesabın yok mu?",
+      "registerLink": "Kayıt ol",
+      "reauthenticateForAdmin": "Yönetim ekranı için oturumunun iki adımlı doğrulamadan geçmesi gerekiyor. Lütfen tekrar giriş yap."
+    },
+    "register": {
+      "title": "Kayıt",
+      "heading": "Aramıza katıl!",
+      "lede": "1 dakika sürer, sonra sahildesin.",
+      "displayNameHint": "3–20 karakter; harf, rakam ve _ . - kullanabilirsin.",
+      "passwordHint": "En az {min} karakter. Uzunluk her şeyden önemli.",
+      "verificationNotice": "Kayıttan sonra e-postanı doğrulayacağız — spam'e de bak!",
+      "submit": "Kayıt ol",
+      "submitting": "Kaydediliyor…",
+      "haveAccount": "Zaten hesabın var mı?",
+      "loginLink": "Giriş yap",
+      "terms": "Kayıt olarak kuralları kabul edersin. Kural basit: eğlen."
+    },
+    "verifyEmail": {
+      "title": "E-posta doğrulama",
+      "heading": "E-postanı doğrula",
+      "lede": "{email} adresine 6 haneli kod gönderdik.",
+      "codeLabel": "Doğrulama kodu",
+      "submit": "Doğrula",
+      "submitting": "Doğrulanıyor…",
+      "resend": "Kodu tekrar gönder",
+      "resendIn": "Kodu tekrar gönder ({time})",
+      "resent": "Yeni kod yolda. Bir önceki kod artık geçersiz."
+    },
+    "twoFactor": {
+      "title": "Güvenlik kodu",
+      "heading": "Güvenlik kodu",
+      "lede": "Doğrulama uygulamandaki 6 haneli kodu gir. Hesabın kale gibi.",
+      "recoveryLede": "Yedek kodlarından birini gir. Her kod yalnızca bir kez kullanılır.",
+      "codeLabel": "6 haneli kod",
+      "recoveryCodeLabel": "Yedek kod",
+      "recoveryCodeHint": "Kurulum sırasında kaydettiğin kodlardan biri.",
+      "submit": "Doğrula",
+      "submitting": "Doğrulanıyor…",
+      "useRecoveryCode": "Yedek kod kullan",
+      "useAuthenticator": "Uygulama kodunu kullan",
+      "backToLogin": "← Girişe dön",
+      "footerNote": "2FA tüm hesaplarda önerilir, admin rolünde zorunludur."
+    },
+    "forgotPassword": {
+      "title": "Şifremi unuttum",
+      "heading": "Şifreni mi unuttun?",
+      "lede": "Olur öyle. Sıfırlama bağlantısı gönderelim, gözyaşlarını sil.",
+      "submit": "Bağlantı gönder",
+      "submitting": "Gönderiliyor…",
+      "sent": "Bu adres bir hesaba aitse, sıfırlama bağlantısı yolda. Spam klasörüne de bak.",
+      "backToLogin": "← Girişe dön"
+    },
+    "resetPassword": {
+      "title": "Şifre yenileme",
+      "heading": "Yeni şifre belirle",
+      "lede": "Bu sefer unutma — ya da unut, biz buradayız.",
+      "newPassword": "Yeni şifre",
+      "submit": "Şifreyi yenile",
+      "submitting": "Yenileniyor…",
+      "done": "Şifren değişti. Tüm cihazlardaki oturumlar kapatıldı.",
+      "twoFactorUnaffected": "İki adımlı doğrulaman aynen duruyor. Şifre sıfırlamak 2FA'yı asla kapatmaz.",
+      "goToLogin": "Giriş yap",
+      "linkIncomplete": "Bu bağlantı eksik görünüyor. Lütfen yeni bir sıfırlama bağlantısı isteyin.",
+      "requestNewLink": "Yeni bağlantı isteyin"
+    }
+  },
+  "account": {
+    "security": {
+      "title": "Hesap ve güvenlik",
+      "navLabel": "Hesap ve güvenlik",
+      "heading": "Hesap ve güvenlik",
+      "accountHeading": "Hesabın",
+      "verified": "doğrulandı",
+      "role": "Rol",
+      "roles": {
+        "player": "Oyuncu",
+        "admin": "Yönetici"
+      },
+      "twoFactorHeading": "İki adımlı doğrulama",
+      "twoFactorOn": "Açık — doğrulama uygulaması.",
+      "twoFactorOff": "Kapalı. Açmanı öneririz; hesabın kale gibi olur.",
+      "enableTwoFactor": "2FA'yı aç",
+      "disableTwoFactor": "2FA'yı kapat",
+      "confirmDisable": "Evet, kapat",
+      "disableWarning": "2FA'yı kapatırsan hesabın yalnızca şifreyle korunur ve yedek kodların silinir.",
+      "adminTwoFactorMandatory": "Admin rolünde 2FA zorunludur; kapatılamaz.",
+      "adminEnrolmentRequired": "Yönetim ekranına ulaşmak için iki adımlı doğrulamayı açman gerekiyor.",
+      "twoFactorDisabled": "İki adımlı doğrulama kapatıldı.",
+      "reauthenticateHint": "Güvenlik ayarını değiştirmek için şifreni tekrar isteriz.",
+      "scanInstruction": "Kodu doğrulama uygulamanla tara, sonra uygulamadaki 6 haneli kodu gir.",
+      "qrAlt": "İki adımlı doğrulama için QR kodu",
+      "manualEntry": "Tarayamıyorsan bu anahtarı elle gir:",
+      "confirmCodeLabel": "Uygulamadaki 6 haneli kod",
+      "confirmEnrolment": "2FA'yı etkinleştir",
+      "recoveryCodesHeading": "Yedek kodların",
+      "recoveryCodesLabel": "Yedek kodlar",
+      "recoveryCodesNotice": "Bu kodları şimdi kaydet. Bir daha gösterilmeyecek. Her kod yalnızca bir kez kullanılır.",
+      "recoveryCodesAcknowledge": "Kodları güvenli bir yere kaydettim.",
+      "recoveryCodesSaved": "Yedek kodların hazır.",
+      "recoveryCodesRemaining": "{count} yedek kod kaldı.",
+      "noRecoveryCodesLeft": "Hiç yedek kodun kalmadı. Doğrulama uygulamanı kaybedersen hesabına giremezsin — yeni kodlar oluştur.",
+      "regenerateRecoveryCodes": "Yeni yedek kodlar oluştur",
+      "regenerateWarning": "Yeni kodlar oluşturulduğunda eski kodların hepsi geçersiz olur.",
+      "passwordHeading": "Şifre",
+      "changePassword": "Şifreyi değiştir",
+      "newPassword": "Yeni şifre",
+      "changePasswordNotice": "Şifreni değiştirdiğinde diğer cihazlardaki oturumlar kapatılır; bu cihaz açık kalır.",
+      "passwordChanged": "Şifren değişti. Diğer cihazlardaki oturumlar kapatıldı.",
+      "sessionsHeading": "Etkin oturumlar",
+      "sessionsLede": "Hesabına giriş yapılmış cihazlar. Tanımadığın bir cihaz görürsen oturumunu kapat ve şifreni değiştir.",
+      "thisDevice": "bu cihaz",
+      "sessionTwoFactor": "2FA ile doğrulandı",
+      "sessionNeverUsed": "henüz kullanılmadı",
+      "revokeSession": "Oturumu kapat",
+      "revokeOthers": "Diğer tüm cihazlardan çık",
+      "revokeOthersHint": "Göremediğin oturumları da kapatır, bu yüzden şifreni isteriz.",
+      "otherSessionsRevoked": "{count} oturum kapatıldı."
+    }
+  },
+  "admin": {
+    "title": "Yönetim",
+    "navLabel": "Yönetim",
+    "heading": "Yönetim",
+    "accountsHeading": "Hesaplar",
+    "counts": {
+      "total": "Toplam",
+      "verified": "Doğrulanmış",
+      "administrators": "Yönetici",
+      "with_two_factor": "2FA açık"
+    },
+    "capabilitiesPending": "Yönetim yetkileri {milestone} ile geliyor. Bu ekran şimdilik yalnızca erişim denetimini doğruluyor."
+  },
+  "errors": {
+    "unexpected": "Bir şeyler ters gitti. Lütfen tekrar dene.",
+    "unexpected_with_reference": "Bir şeyler ters gitti. Bildirirken şu kodu ver: {reference}",
+    "client_network_error": "Sunucuya ulaşamadık. Bağlantını kontrol edip tekrar dene.",
+    "bff_upstream_timeout": "Sunucu yanıt vermedi. Lütfen tekrar dene.",
+    "bff_upstream_unavailable": "Servise şu anda ulaşılamıyor. Birazdan tekrar dene.",
+    "bff_csrf_token_mismatch": "Oturum bilgin tazelenmiş. Sayfayı yenileyip tekrar dene.",
+    "bff_origin_rejected": "Bu istek kabul edilmedi. Sayfayı yenileyip tekrar dene.",
+    "bff_session_unavailable": "Oturum saklanamadı. Lütfen tekrar dene.",
+    "unauthenticated": "Oturumun kapanmış. Lütfen tekrar giriş yap.",
+    "invalid_credentials": "E-posta veya şifre hatalı.",
+    "validation_failed": "Formda düzeltilmesi gereken alanlar var.",
+    "forbidden": "Bu işlem için yetkin yok.",
+    "not_found": "Aradığın şey bulunamadı.",
+    "conflict": "Bu işlem şu anki durumla çelişiyor. Sayfayı yenileyip tekrar dene.",
+    "rate_limited": "Çok hızlı gittin. Biraz bekleyip tekrar dene.",
+    "server_error": "Sunucuda bir hata oldu. Lütfen tekrar dene.",
+    "service_unavailable": "Servis şu anda kullanılamıyor. Birazdan tekrar dene.",
+    "email_not_verified": "Önce e-posta adresini doğrulaman gerekiyor.",
+    "email_already_verified": "Bu e-posta adresi zaten doğrulanmış.",
+    "verification_code_invalid": "Kod doğru değil. Tekrar dene.",
+    "verification_code_expired": "Kodun süresi doldu. Yeni bir kod isteyin.",
+    "verification_code_missing": "Bekleyen bir kod yok. Yeni bir kod isteyin.",
+    "verification_resend_cooldown": "Kodu az önce gönderdik. Biraz bekleyip tekrar dene.",
+    "two_factor_challenge_invalid": "Doğrulama adımının süresi doldu. Lütfen tekrar giriş yap.",
+    "two_factor_code_invalid": "Kod doğru değil. Uygulamandaki kodu kontrol et.",
+    "two_factor_already_enabled": "İki adımlı doğrulama zaten açık.",
+    "two_factor_not_enabled": "İki adımlı doğrulama açık değil.",
+    "two_factor_not_pending": "Önce 2FA kurulumunu başlatman gerekiyor.",
+    "admin_two_factor_mandatory": "Admin rolünde 2FA zorunludur; kapatılamaz.",
+    "admin_role_required": "Bu alan yalnızca yöneticilere açık.",
+    "admin_two_factor_required": "Yönetim ekranı için oturumunun iki adımlı doğrulamadan geçmesi gerekiyor.",
+    "reset_token_invalid": "Bu sıfırlama bağlantısı geçersiz veya süresi dolmuş. Yeni bir tane isteyin.",
+    "display_name_change_cooldown": "Kullanıcı adını kısa süre önce değiştirdin. Biraz bekle.",
+    "fields": {
+      "default": {
+        "invalid": "Bu alan geçerli değil.",
+        "required": "Bu alan gerekli.",
+        "taken": "Bu zaten kullanılıyor.",
+        "email_invalid": "Geçerli bir e-posta adresi gir.",
+        "too_short": "Biraz daha uzun olmalı.",
+        "too_long": "Biraz daha kısa olmalı.",
+        "confirmation_mismatch": "İki şifre aynı değil.",
+        "password_incorrect": "Şifre doğru değil.",
+        "password_compromised": "Bu şifre bilinen bir veri sızıntısında görüldü. Başka bir şifre seç.",
+        "format_invalid": "Biçim uygun değil.",
+        "type_invalid": "Bu değer beklenen türde değil.",
+        "value_not_allowed": "Bu değere izin verilmiyor.",
+        "digits_expected": "Yalnızca rakam gir.",
+        "invalid_length": "Uzunluk uygun değil.",
+        "not_found": "Bulunamadı."
+      },
+      "display_name": {
+        "taken": "Bu kullanıcı adı alınmış. Başka bir tane dene.",
+        "format_invalid": "3–20 karakter; harf, rakam ve _ . - kullanabilirsin. En az bir harf olmalı, başında veya sonunda noktalama olmamalı."
+      },
+      "email": {
+        "taken": "Bu e-posta adresiyle bir hesap zaten var.",
+        "email_invalid": "Geçerli bir e-posta adresi gir."
+      },
+      "password": {
+        "too_short": "Şifre en az 12 karakter olmalı.",
+        "too_long": "Şifre en fazla 128 karakter olabilir.",
+        "password_compromised": "Bu şifre bilinen bir veri sızıntısında görüldü. Başka bir şifre seç."
+      },
+      "password_confirmation": {
+        "confirmation_mismatch": "İki şifre aynı değil."
+      },
+      "current_password": {
+        "password_incorrect": "Mevcut şifren doğru değil.",
+        "required": "Devam etmek için mevcut şifreni gir."
+      },
+      "code": {
+        "digits_expected": "Kod 6 rakamdan oluşur.",
+        "invalid_length": "Kod 6 rakamdan oluşur.",
+        "required": "Kodu gir."
+      }
+    },
+    "page": {
+      "notFound": {
+        "title": "Bu sayfa burada değil",
+        "body": "Bağlantı eskimiş ya da adres yanlış yazılmış olabilir."
+      },
+      "generic": {
+        "title": "Bir şeyler ters gitti",
+        "body": "Beklenmedik bir hata oluştu. Birazdan tekrar deneyin."
+      },
+      "action": "Ana sayfaya dön"
+    }
+  }
+}

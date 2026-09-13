@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '~/stores/auth'
+import { resolveRedirectTarget } from '~/utils/redirect'
 import type { AuthUser } from '~/types/auth'
 
 /**
@@ -33,6 +34,19 @@ function stubNuxtGlobals(): void {
   // The store drops the cached CSRF token whenever it clears state. Nothing in
   // a guard depends on that, but `reset()` is how a test sets up a guest.
   vi.stubGlobal('invalidateCsrfToken', () => {})
+
+  // Only reached on the server; stubbed so the module evaluates in Node.
+  vi.stubGlobal('useRequestHeaders', () => ({}))
+  vi.stubGlobal('useRequestEvent', () => null)
+  /*
+   * The *real* predicate, not a re-implementation.
+   *
+   * Stubbing a second copy here would mean the off-site cases below tested the
+   * stub — they would keep passing after `resolveRedirectTarget` itself
+   * regressed, which is the exact failure the shared module was extracted to
+   * prevent.
+   */
+  vi.stubGlobal('resolveRedirectTarget', resolveRedirectTarget)
 }
 
 /** Load a guard fresh, so the stubs are in place when its module evaluates. */
@@ -41,7 +55,7 @@ async function loadMiddleware(name: string) {
 
   const module = await import(`~/middleware/${name}.ts`)
 
-  return module.default as (to: { fullPath: string }) => unknown
+  return module.default as (to: { fullPath: string, query: Record<string, unknown> }) => unknown
 }
 
 function user(overrides: Partial<AuthUser> = {}): AuthUser {
@@ -62,7 +76,10 @@ function user(overrides: Partial<AuthUser> = {}): AuthUser {
   }
 }
 
-const route = { fullPath: '/account/security' }
+// `query` is part of a real route object, and `guest` now reads it. Widening
+// the fixture is the right fix: a guard should not have to defend itself
+// against a malformed route.
+const route = { fullPath: '/account/security', query: {} as Record<string, unknown> }
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -114,6 +131,97 @@ describe('guest guard', () => {
     guard(route)
 
     expect(navigations).toEqual(['/'])
+  })
+})
+
+describe('the guest guard honours where the visitor was going', () => {
+  /*
+   * Reached when a signed-in visitor lands on a guest-only screen carrying a
+   * destination — which is exactly what happens on the degraded path: SSR could
+   * not resolve the session, `verified` sent them to login with the page they
+   * wanted in the query, and the browser then found the session after all.
+   * Sending them to `/` there loses the destination and makes an availability
+   * blip look like a broken link.
+   */
+  it('sends them to the page they were sent to sign in for', async () => {
+    const auth = useAuthStore()
+    auth.setUser(user())
+
+    const guard = await loadMiddleware('guest')
+    guard({ fullPath: '/auth/login', query: { redirect: '/account/security' } })
+
+    expect(navigations).toEqual(['/account/security'])
+  })
+
+  it('still refuses an off-site destination', async () => {
+    // The same audited predicate the login form uses. A second copy of a
+    // security check is a second thing to get wrong, so this asserts the reuse.
+    const auth = useAuthStore()
+    auth.setUser(user())
+
+    const guard = await loadMiddleware('guest')
+    guard({ fullPath: '/auth/login', query: { redirect: 'https://evil.example' } })
+
+    expect(navigations).toEqual(['/'])
+  })
+
+  it('still refuses a protocol-relative destination', async () => {
+    const auth = useAuthStore()
+    auth.setUser(user())
+
+    const guard = await loadMiddleware('guest')
+    guard({ fullPath: '/auth/login', query: { redirect: '//evil.example' } })
+
+    expect(navigations).toEqual(['/'])
+  })
+
+  it('falls back to the home page when there is no destination', async () => {
+    const auth = useAuthStore()
+    auth.setUser(user())
+
+    const guard = await loadMiddleware('guest')
+    guard(route)
+
+    expect(navigations).toEqual(['/'])
+  })
+})
+
+describe('the bootstrap middleware', () => {
+  /*
+   * The middleware that resolves who the visitor is before any guard runs. It
+   * used to return early during SSR, which left every guard above deciding
+   * against `status === 'unknown'` on the server.
+   *
+   * Note what this project *cannot* assert: `import.meta.server` is folded away
+   * at build time, so the server branch is unreachable here by construction.
+   * That is precisely why the original defect survived a green suite, and why
+   * the `unit-ssr` project exists.
+   */
+  it('asks who the visitor is when nothing is known yet', async () => {
+    const auth = useAuthStore()
+    auth.reset()
+    auth.status = 'unknown'
+
+    const bootstrap = vi.spyOn(auth, 'bootstrap').mockResolvedValue()
+    const middleware = await loadMiddleware('auth-bootstrap.global')
+
+    await middleware(route)
+
+    expect(bootstrap).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not ask again once the answer is in hand', async () => {
+    // On the client this is what stops a second `/api/auth/me` after the server
+    // already resolved one into the payload.
+    const auth = useAuthStore()
+    auth.setUser(user())
+
+    const bootstrap = vi.spyOn(auth, 'bootstrap').mockResolvedValue()
+    const middleware = await loadMiddleware('auth-bootstrap.global')
+
+    await middleware(route)
+
+    expect(bootstrap).not.toHaveBeenCalled()
   })
 })
 

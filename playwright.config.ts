@@ -16,6 +16,38 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
+
+  /*
+   * Capped, because the thing under test is one dev server.
+   *
+   * Playwright defaults to half the cores, which here means several specs
+   * driving a live Phaser run at the same time, against a single Nuxt process
+   * that is also server-rendering every navigation. Under that load the run
+   * route can sit in "Getting ready" for twenty seconds and a signed-in home
+   * page can take longer than any reasonable assertion budget — failures that
+   * describe the machine, not the product. Measured serially, every one of
+   * those cases is correct every time.
+   *
+   * Four keeps the suite honest without making it slow: a full run costs about
+   * a minute more than it did at six, and stops reporting saturation as defect.
+   */
+  workers: process.env.CI ? 2 : 4,
+
+  /*
+   * A minute, not Playwright's default thirty seconds.
+   *
+   * These are acceptance tests against a live stack, and several of them drive a
+   * real Phaser run: waiting out a readiness beat, losing three hearts at the
+   * real scroll speed, comparing canvas frames across a jump arc. Thirty seconds
+   * was never a generous budget for that, and three separate specs were sitting
+   * within a second or two of it — so any extra load tipped them over and the
+   * suite reported "expected 0, received 1" or a bare screenshot timeout, which
+   * describes the machine rather than the product.
+   *
+   * Individual tests still raise this where they genuinely need longer; what
+   * this removes is a whole class of failures that were only ever about time.
+   */
+  timeout: 60_000,
   reporter: [['list']],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://purrenade.test',
@@ -36,7 +68,7 @@ export default defineConfig({
       // The anonymous pass: sign-in, registration, the guards. These must run
       // with no session, so they deliberately do not adopt the saved state.
       name: 'chrome',
-      testIgnore: [/auth\.setup\.ts/, /run-surface\.spec\.ts/, /run-lifecycle\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /run-surface\.spec\.ts/, /run-lifecycle\.spec\.ts/, /run-obstacles\.spec\.ts/, /ssr-auth-session\.spec\.ts/],
       use: {
         // The system Chrome, not Playwright's bundled build. These tests are an
         // acceptance pass against the machine's real stack, so the real browser
@@ -49,7 +81,7 @@ export default defineConfig({
       // The authenticated pass: the run surface, which lives behind the
       // verified-account guard.
       name: 'chrome-auth',
-      testMatch: /run-(surface|lifecycle)\.spec\.ts/,
+      testMatch: /(run-(surface|lifecycle|obstacles)|ssr-auth-session)\.spec\.ts/,
       dependencies: ['setup'],
       use: {
         channel: 'chrome',

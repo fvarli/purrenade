@@ -253,11 +253,119 @@ jobs:
           done
           curl -sf -o /dev/null http://127.0.0.1:4399/
 
+      - name: No credential reaches server-rendered HTML
+        # SSR resolves the BFF session now, so ADR-0005's promise — the API
+        # credential never reaches the browser — has a new way to be broken:
+        # by serialisation into the page rather than by a header.
+        #
+        # Provable here with no backend at all, because `readSession` only
+        # consults the local store. Planting a record with a canary token
+        # exercises the whole SSR resolution path, and the upstream call then
+        # fails (there is no API in this job) — which is the *other* thing this
+        # asserts: a BFF the render cannot reach must still return a 200 with an
+        # unresolved status, never a 500 and never a confident "guest".
+        run: |
+          set -euo pipefail
+
+          now=$(node -e 'process.stdout.write(String(Date.now()))')
+          sid=$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')
+
+          install -d -m 700 .data/sessions
+          cat > ".data/sessions/$sid" <<EOF
+          {"apiToken":"9999|prrn_CANARY_MUST_NOT_LEAK","userId":9999,
+           "csrfToken":"CANARY_CSRF_MUST_NOT_LEAK","createdAt":$now,"lastSeenAt":$now}
+          EOF
+          chmod 600 ".data/sessions/$sid"
+
+          code=$(curl -s -o /tmp/ssr.html -w '%{http_code}' \
+            -H "Cookie: __Host-purrenade_session=$sid" http://127.0.0.1:4399/)
+
+          rm -f ".data/sessions/$sid"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::SSR with an unreachable BFF returned $code, not 200"
+            exit 1
+          fi
+
+          leaked=0
+          for needle in CANARY prrn_ apiToken csrfToken pendingTwoFactor challengeToken \
+                        'Bearer ' otpauth:// api.purrenade "$sid"; do
+            if grep -qF -- "$needle" /tmp/ssr.html; then
+              echo "::error::'$needle' appears in server-rendered HTML"
+              leaked=1
+            fi
+          done
+
+          [ "$leaked" -eq 0 ] || exit 1
+          echo "no credential in server-rendered HTML, and the degraded path still renders"
+
+      - name: An anonymous page is server-rendered resolved, not unresolved
+        # The other half of the same defect. Before SSR resolved the session,
+        # `/` server-rendered its "we do not know yet" branch to *everybody* and
+        # swapped it on the client — a hydration mismatch on every single load,
+        # signed in or not.
+        run: |
+          set -euo pipefail
+
+          curl -sf http://127.0.0.1:4399/ > /tmp/anon.html
+
+          if grep -q 'home__resolving' /tmp/anon.html; then
+            echo "::error::anonymous / server-renders the unresolved branch"
+            exit 1
+          fi
+
+          echo "anonymous / server-renders a resolved guest"
+
       - name: Browser acceptance, no account required
         # `@stack` marks the handful of cases that genuinely need the API. They
         # run in the full-stack pass, not here — and they are reported as not
         # run, never as passed.
         run: npx playwright test --project=chrome --grep-invert @stack
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4399
+
+      - name: Account for every browser case this job cannot run
+        # The gap is real and it is not closing here: the cases below drive the
+        # signed-in `/run` route, and standing up the API would mean coupling
+        # two deliberately independent repositories inside CI.
+        #
+        # What this step refuses to allow is the gap *widening in silence*. Any
+        # new browser spec must either run in this job or be listed here with a
+        # reason. A spec that quietly stops being executed used to look exactly
+        # like a spec that passes.
+        run: |
+          set -euo pipefail
+
+          # Specs that need a session, and why. Keep sorted.
+          cat > /tmp/expected-unrun <<'EOF'
+          run-lifecycle.spec.ts
+          run-obstacles.spec.ts
+          run-surface.spec.ts
+          ssr-auth-session.spec.ts
+          EOF
+          sed -i 's/^[[:space:]]*//' /tmp/expected-unrun
+
+          # Everything the executed project actually ran.
+          npx playwright test --project=chrome --grep-invert @stack --list --reporter=list \
+            > /tmp/ran.txt 2>&1 || true
+
+          ACTUAL_UNRUN=$(mktemp)
+          for spec in tests/e2e/*.spec.ts; do
+            name=$(basename "$spec")
+            grep -q "$name" /tmp/ran.txt || echo "$name" >> "$ACTUAL_UNRUN"
+          done
+          sort -o "$ACTUAL_UNRUN" "$ACTUAL_UNRUN" 2>/dev/null || true
+          sort -o /tmp/expected-unrun /tmp/expected-unrun
+
+          echo "Browser specs this job does not execute:"
+          cat "$ACTUAL_UNRUN" || true
+
+          if ! diff -u /tmp/expected-unrun "$ACTUAL_UNRUN"; then
+            echo "::error::The set of browser specs CI cannot run has changed."
+            echo "Either make the new spec runnable without a session, or record"
+            echo "it above with the reason it needs one. Never leave it silent."
+            exit 1
+          fi
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4399
 

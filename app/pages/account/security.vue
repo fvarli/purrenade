@@ -640,6 +640,7 @@ function finishCodes(): void {
       </section>
 
       <UiAuthButton
+        class="account__sign-out"
         variant="quiet"
         @click="signOut()"
       >

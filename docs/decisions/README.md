@@ -12,6 +12,7 @@
 | [0006](ADR-0006-run-validation-and-anti-cheat-boundary.md) | Run validation and anti-cheat boundary | **🔴 Proposed — decision required** | Product-wide |
 | [0007](ADR-0007-localization-strategy.md) | Localization strategy | **Accepted** | Product-wide |
 | [0008](ADR-0008-source-of-truth-and-design-reference-hierarchy.md) | Source-of-truth and design-reference hierarchy | **Accepted** | Product-wide |
+| [0009](ADR-0009-server-rendered-session-awareness.md) | Server-rendered session awareness | **Accepted** | Frontend |
 
 **ADR-0005 and ADR-0006 block work.** Neither can be deferred past its milestone:
 0005 blocks M2/M3 and constrains the approved "Android/iOS must remain possible"

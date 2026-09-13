@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type { AuthStatus, AuthUser, EmailVerificationState } from '~/types/auth'
+import type { SsrCall } from '~/composables/useBffClient'
 
 /**
  * Authentication state.
@@ -23,6 +24,13 @@ import type { AuthStatus, AuthUser, EmailVerificationState } from '~/types/auth'
  *
  *  - **None of this is authorization.** Every gate here is a convenience;
  *    removing one exposes nothing, because Laravel authorizes every request.
+ *
+ *  - **It is serialised into the page source.** SSR resolves this store, so
+ *    everything in it appears in `__NUXT_DATA__` — visible in view-source, in
+ *    the browser's disk cache, and in anything that logs a response body. That
+ *    does not change *what* may be held here; it raises the cost of getting it
+ *    wrong, and it is why the credential-shape assertions in the store's tests
+ *    and the server-rendered-HTML gate in CI both exist.
  */
 
 interface AuthState {
@@ -97,18 +105,46 @@ export const useAuthStore = defineStore('auth', {
      * application — and every protected action is authorized server-side anyway,
      * so guessing "guest" is safe in a way guessing "signed in" would not be.
      */
-    async bootstrap(): Promise<void> {
+    async bootstrap(ssr?: SsrCall): Promise<void> {
       if (this.loading) return
 
       this.loading = true
 
       try {
         const client = useBffClient()
-        const response = await client.me()
+        const response = await client.me(ssr)
 
         this.applyMeResponse(response)
       }
-      catch {
+      catch (error) {
+        /*
+         * `unknown` means "we could not find out". `guest` means "there is no
+         * session". Only the browser is allowed to reach the second.
+         *
+         * On the client, an unreachable BFF leaving the visitor a guest is
+         * safe: a network problem on first paint must not blank the
+         * application, the person is there and can retry, and every protected
+         * action is authorised server-side regardless.
+         *
+         * During SSR it would not be safe, because `guest` is a *conclusion*
+         * and the client only bootstraps when the status is `unknown`.
+         * Concluding "guest" on the server would strand a signed-in visitor in
+         * guest UI for the life of the page, with nothing left to retry and no
+         * way for them to know. Leaving it `unknown` hands the decision back to
+         * the browser, which asks again.
+         *
+         * This is a degraded *availability* path, not evidence about the
+         * visitor. It is bounded — `SSR_BOOTSTRAP_TIMEOUT_MS` caps the wait —
+         * and it is observable: it says so, once, with the reason.
+         */
+        if (import.meta.server) {
+          console.warn('[auth] SSR session bootstrap failed; leaving the status unknown for the client to resolve', {
+            reason: error instanceof Error ? error.message : String(error),
+          })
+
+          return
+        }
+
         this.reset()
         this.status = 'guest'
       }

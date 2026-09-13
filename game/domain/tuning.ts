@@ -115,6 +115,176 @@ export const TUNING = Object.freeze({
      * @status PROPOSED
      */
     readyMs: 1500,
+    /**
+     * No hazard may be **reachable** before this.
+     *
+     * Reachable, not spawned: obstacles are created a lookahead ahead of the
+     * player so the renderer can show them approaching, and the guarantee the
+     * player experiences is about when one can first hurt them.
+     *
+     * @status PROPOSED
+     */
+    firstHazardMinMs: 2500,
+  }),
+
+  /**
+   * The scrolling world, in road units.
+   *
+   * One unit is one lane width, used for both axes so the lateral and
+   * longitudinal envelopes are comparable. The player's reference point sits at
+   * distance zero; obstacles are created ahead at a positive distance and move
+   * toward it. Nothing here is a pixel — the engine converts.
+   */
+  world: Object.freeze({
+    /** @status PROPOSED — road units per second at the base difficulty speed */
+    baseScrollUnitsPerS: 3.0,
+    /** @status PROPOSED — how much road the player can see ahead */
+    visibleUnits: 10,
+    /** @status PROPOSED — obstacles are created this far ahead, beyond the visible road */
+    spawnLookaheadUnits: 14,
+    /** @status PROPOSED — an obstacle is removed once its trailing edge is this far behind */
+    despawnBehindUnits: 2,
+  }),
+
+  obstacle: Object.freeze({
+    /**
+     * Longitudinal footprint of a v1 obstacle.
+     *
+     * Was 1.0, which together with a 0.8 player made the overlap window 1.8
+     * units — 600 ms at the base scroll speed, against an APPROVED 650 ms jump
+     * arc. That left a **42 ms** window in which a jump could be started and
+     * still clear a barrier, at the slowest point of the run: the jump verb was
+     * effectively unusable in the first half-minute, and got *easier* as the
+     * game sped up, which is backwards. 0.7 with a 0.5 player gives 400 ms of
+     * overlap and a ~250 ms window at the start, widening from there.
+     *
+     * @status PROPOSED
+     */
+    defaultLengthUnits: 0.7,
+    jumpable: Object.freeze({
+      /** @status APPROVED — a jumpable obstacle is cleared while airborne */
+      clearableByJump: true,
+    }),
+  }),
+
+  collision: Object.freeze({
+    /** @status PROPOSED — the player's longitudinal footprint, centred on the reference point */
+    playerLengthUnits: 0.5,
+  }),
+
+  hearts: Object.freeze({
+    /** @status APPROVED */
+    start: 3,
+    /** @status APPROVED */
+    max: 3,
+    /** @status APPROVED */
+    costPerCollision: 1,
+  }),
+
+  invuln: Object.freeze({
+    /** @status PROPOSED — post-hit invulnerability, so one hazard cannot drain the run */
+    postHitMs: 1200,
+    /** @status PROPOSED — presentation only; the domain exposes the state, not the blink */
+    blinkHz: 10,
+  }),
+
+  /*
+   * `nearMiss.enabled`, `nearMiss.awardsScore`, `nearMiss.oneEventPerObstacle`,
+   * `escape.validateJoins` and `obstacle.laneBlocking.clearableByJump` are in
+   * the registry and deliberately **not** here.
+   *
+   * Each is an APPROVED statement of policy rather than a knob, and each is
+   * already structural in the code: a near miss cannot award score because
+   * there is no score; it cannot fire twice because an obstacle's outcome is
+   * set once; joins are validated because a test validates them; and a lane
+   * blocker is not cleared by a jump because `collision.ts` only exempts the
+   * jumpable class. Reading a `true` and branching on it would add a way for
+   * the invariant to be switched off, which is the opposite of enforcing it.
+   */
+  nearMiss: Object.freeze({
+    /**
+     * Lane widths, centre to centre, against the obstacle's lane.
+     *
+     * Was 0.55, which made the approved earning path unreachable: an adjacent
+     * lane is exactly 1.0 centre-to-centre, so a settled pass could never
+     * qualify and the mechanic only fired in an 8 ms sliver mid-transition.
+     * 1.25 admits the adjacent lane and still excludes two lanes away (2.0),
+     * which is exactly what the approved rule describes. The measurement basis
+     * is unchanged; only the number moved. CR-6 tuning correction.
+     *
+     * @status PROPOSED
+     */
+    lateralEnvelopeUnits: 1.25,
+    /** @status PROPOSED — how close along the road counts as passing */
+    longitudinalEnvelopeUnits: 0.75,
+    /**
+     * Headroom, as a fraction of the jump apex, below which clearing a
+     * `JUMPABLE` obstacle counts as a near miss.
+     *
+     * The registry writes this in "units"; read here as apex-normalised height,
+     * because the domain has no pixels and the apex is the only vertical scale
+     * it owns. Recorded as an interpretation, not a decision.
+     *
+     * @status PROPOSED
+     */
+    verticalClearanceUnits: 0.40,
+  }),
+
+  difficulty: Object.freeze({
+    speed: Object.freeze({
+      /** @status PROPOSED — reference scroll speed */
+      base: 1.00,
+      /** @status PROPOSED — never faster than this */
+      ceiling: 1.85,
+      /** @status PROPOSED — reaches about 63% of the gap at this many seconds */
+      timeConstantS: 90,
+    }),
+    density: Object.freeze({
+      /** @status PROPOSED — fraction of road length occupied */
+      base: 0.25,
+      /** @status PROPOSED */
+      ceiling: 0.55,
+    }),
+    decisionsPerMin: Object.freeze({
+      /** @status PROPOSED */
+      base: 14,
+      /** @status PROPOSED */
+      ceiling: 38,
+    }),
+    /**
+     * Tier 1…Tier 5 start times, in seconds. Tier 5 is terminal.
+     *
+     * The repository carried 0 / 25 / 60 / 110 / 180 from its first commit and
+     * never changed it, which let a PROPOSED value quietly read as source of
+     * truth. It had never been approved: DO-3 recorded the thresholds as
+     * unconfirmed from M0.5 onward, and the M0.5 note changed only the labels.
+     *
+     * The product owner settled it during the M6 adversarial remediation, and
+     * these are that decision. Approved as *thresholds* only — the soft-cap
+     * ceilings DO-3 also asked about are still open and still PROPOSED, so the
+     * decision narrows DO-3 rather than closing it.
+     *
+     * @status APPROVED
+     */
+    tierStartsS: Object.freeze([0, 30, 60, 120, 180]),
+  }),
+
+  generator: Object.freeze({
+    /** @status PROPOSED — patterns used within this many selections are excluded */
+    repeatCooldown: 3,
+    /** @status PROPOSED — the gap floor per tier, regardless of density */
+    minGapUnits: Object.freeze([6, 5.5, 5, 4.5, 4]),
+  }),
+
+  escape: Object.freeze({
+    /** @status PROPOSED — the solver may spend at most this many actions per pattern */
+    maxActionsPerPattern: 2,
+    /** @status PROPOSED — subtracted from the window; turns "possible" into "fair" */
+    reactionBudgetMs: 350,
+    /** @status PROPOSED — how finely the solver considers acting; well under the reaction budget */
+    solverGridMs: 100,
+    /** @status PROPOSED — search ceiling, so a misconfigured pattern fails rather than hangs */
+    solverMaxSteps: 2000,
   }),
 })
 

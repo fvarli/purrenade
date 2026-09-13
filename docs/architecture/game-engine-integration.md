@@ -214,15 +214,16 @@ something.
 
 ## 7B. Two things M5 deliberately does not do
 
-**Reduced motion is not implemented on the run route, and nothing claims it is.**
-Nothing in `game/` or `app/pages/run.vue` reads `prefers-reduced-motion`; the only
-handling in the repository collapses the CSS motion tokens (`tokens.css`), and the run
-route uses none of them. At M5 that is honest rather than a gap: the scene draws static
-rectangles and a circle, and the only movement on screen is the player responding to
-input, which is not decoration and must not be reduced. The contract becomes real at M6,
-when the road scrolls and obstacles approach — and `accessibility.md` already requires
-that the setting *"demonstrably changes behaviour, including inside the canvas"*. That
-test belongs with the motion it tests.
+**Reduced motion — implemented at M6, as this section said it would have to be.**
+At M5 nothing in `game/` read `prefers-reduced-motion`, and that was honest: the scene
+drew static shapes and the only movement was the player responding to input, which is not
+decoration. M6 added the thing the setting is actually about — the post-hit blink. The
+scene now reads the query directly (`game/engine/scene.ts`), and under `reduce` the 10 Hz
+blink becomes a slower, lower-contrast pulse rather than either a flash or a static dim:
+the invulnerable state still has to be *visible*, so switching the feedback off would trade
+an accessibility problem for a legibility one. This satisfies `accessibility.md`'s
+requirement that the setting *"demonstrably changes behaviour, including inside the
+canvas"*. The scroll itself is not reduced: it is the game, not an effect.
 
 **The airborne duration is quantised to the step rate, and only exact at 120 Hz.**
 Measured from the domain, not the renderer:

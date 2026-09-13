@@ -37,11 +37,41 @@ export default defineConfig({
     projects: [
       {
         resolve: { alias },
+        // Stated rather than inherited from `undefined`. Two modules branch on
+        // these, and a test that passes because a constant happened to be
+        // undefined is a test that stops meaning anything the day it is defined.
+        define: {
+          'import.meta.server': 'false',
+          'import.meta.client': 'true',
+        },
         test: {
           name: 'unit',
           environment: 'node',
           include: ['tests/unit/**/*.spec.ts', 'game/**/*.spec.ts'],
-          exclude: ['node_modules/**', '.nuxt/**', '.output/**', 'tests/e2e/**'],
+          exclude: ['node_modules/**', '.nuxt/**', '.output/**', 'tests/e2e/**', 'tests/unit/**/*.ssr.spec.ts'],
+          setupFiles: ['tests/setup/vue-auto-imports.ts'],
+        },
+      },
+      {
+        // The same modules, compiled the way the server sees them.
+        //
+        // `import.meta.server` is a *build-time* constant: esbuild folds it away
+        // before a test can reach it, so no stub can flip it and "what this code
+        // does during SSR" is simply unreachable from the `unit` project. Two
+        // behaviours depend on it and both are load-bearing — `bootstrap()` must
+        // not conclude `guest` on the server, and `useBffClient` must never cache
+        // a CSRF token there. A second compilation is the only honest way to
+        // assert them; the alternative is a comment claiming they hold.
+        resolve: { alias },
+        define: {
+          'import.meta.server': 'true',
+          'import.meta.client': 'false',
+        },
+        test: {
+          name: 'unit-ssr',
+          environment: 'node',
+          include: ['tests/unit/**/*.ssr.spec.ts'],
+          exclude: ['node_modules/**', '.nuxt/**', '.output/**'],
           setupFiles: ['tests/setup/vue-auto-imports.ts'],
         },
       },

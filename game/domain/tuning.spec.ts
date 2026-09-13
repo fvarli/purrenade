@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { JUMP_ARC, STEP_MS, TUNING } from './tuning'
@@ -24,7 +24,9 @@ function read(relative: string): string {
 
 /** Every leaf key of the frozen tuning object, as dotted paths. */
 function leafPaths(value: unknown, prefix = ''): string[] {
-  if (typeof value !== 'object' || value === null) return [prefix]
+  // An array is a value, not a group. Walking into one would demand a registry
+  // row per index, which documents nothing a reader wants.
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [prefix]
 
   return Object.entries(value).flatMap(([key, child]) =>
     leafPaths(child, prefix ? `${prefix}.${key}` : key),
@@ -39,25 +41,115 @@ function leafPaths(value: unknown, prefix = ''): string[] {
  * `@status` in a file-level comment counts towards the total.
  */
 function declaredStatuses(source: string): Map<string, string> {
+  /*
+   * Path-aware, because the groups nest.
+   *
+   * Keying by the bare leaf name collided the moment `difficulty.speed.base`
+   * and `difficulty.density.base` both existed — one `base` overwrote the
+   * other and half the statuses stopped being checked. The brace depth is
+   * tracked so each tag is attributed to the value it actually sits above.
+   */
   const found = new Map<string, string>()
-  const pattern = /@status (APPROVED|PROPOSED)[^\n]*\n\s*(?:\*\/\s*\n\s*)?([A-Za-z][A-Za-z0-9]*)\s*:/g
+  const stack: string[] = []
 
-  for (const match of source.matchAll(pattern)) {
-    found.set(match[2]!, match[1]!)
+  let pending: string | null = null
+  let depth = 0
+
+  for (const line of source.split('\n')) {
+    const tag = /@status (APPROVED|PROPOSED)/.exec(line)
+
+    if (tag !== null) {
+      pending = tag[1]!
+      continue
+    }
+
+    const group = /^\s*([A-Za-z][A-Za-z0-9]*)\s*:\s*Object\.freeze\(\{/.exec(line)
+
+    if (group !== null) {
+      stack[depth] = group[1]!
+      depth++
+      pending = null
+      continue
+    }
+
+    const leaf = /^\s*([A-Za-z][A-Za-z0-9]*)\s*:\s*(?!Object\.freeze\(\{)/.exec(line)
+
+    if (leaf !== null && pending !== null) {
+      found.set([...stack.slice(0, depth), leaf[1]!].join('.'), pending)
+      pending = null
+      continue
+    }
+
+    if (/^\s*\}\)[,;]?\s*$/.test(line) && depth > 0) {
+      depth--
+      pending = null
+    }
   }
 
   return found
 }
 
-/** Every registry row, as leaf → { value, status }. */
-function registryRows(markdown: string): Map<string, { value: string, status: string }> {
-  const rows = new Map<string, { value: string, status: string }>()
-  const pattern = /^\|\s*`([A-Za-z0-9.]+)`\s*\|\s*([^|]+?)\s*\|\s*\*{0,2}(APPROVED|PROPOSED|OPEN)\*{0,2}\s*\|/gm
+/**
+ * Does the code's value match what the registry documents?
+ *
+ * A prefix match is not a match. This was `documented.startsWith(actual)`,
+ * which passes whenever the documented number merely *begins* with the real
+ * one: a registry saying `14` accepted a code value of `1`, and a registry
+ * saying `0.55` accepted `0.5`. Every short number is a prefix of something.
+ *
+ * So numbers are compared as numbers, after stripping the unit or gloss the
+ * registry is allowed to carry ("1 (CENTER)", "0.72 of the column"), and the
+ * boundary after the number is checked so `1` cannot satisfy `14`. Arrays are
+ * compared element by element; anything else is compared as exact text.
+ */
+function valueAgrees(actual: string, documented: string): boolean {
+  const clean = (text: string): string => text.replace(/[`*]/g, '').trim()
+  const text = clean(documented)
+
+  // An array leaf stringifies as "0,30,60,120,180"; the registry writes it with
+  // separators and may gloss it afterwards.
+  if (actual.includes(',')) {
+    const wanted = actual.split(',').map(Number)
+    const found = (text.match(/-?\d+(\.\d+)?/g) ?? []).map(Number)
+
+    return wanted.every((value, index) => found[index] === value)
+      && found.length >= wanted.length
+  }
+
+  const asNumber = Number(actual)
+
+  if (!Number.isNaN(asNumber) && actual.trim() !== '') {
+    // The number must lead, and must end where the code's value ends: a
+    // trailing digit or decimal point means the registry documents a different
+    // number that merely starts the same way.
+    const leading = /^(-?\d+(?:\.\d+)?)(?![\d.])/.exec(text)
+
+    return leading !== null && Number(leading[1]) === asNumber
+  }
+
+  return text === actual || text.startsWith(`${actual} `) || text.startsWith(`${actual}(`)
+}
+
+interface RegistryRow {
+  readonly value: string
+  readonly status: string
+  /** The notes column says this row is ahead of the implementation. */
+  readonly notImplemented: boolean
+}
+
+/** Every registry row, as leaf → { value, status, notImplemented }. */
+function registryRows(markdown: string): Map<string, RegistryRow> {
+  const rows = new Map<string, RegistryRow>()
+  const pattern = /^\|\s*`([A-Za-z0-9.]+)`\s*\|\s*([^|]+?)\s*\|\s*\*{0,2}(APPROVED|PROPOSED|OPEN)\*{0,2}\s*\|([^\n]*)/gm
 
   for (const match of markdown.matchAll(pattern)) {
     // Keyed by the full dotted path. Keyed by the leaf, a newly added
     // `evil.count` was "documented" by the existing `lane.count` row.
-    rows.set(match[1]!, { value: match[2]!, status: match[3]! })
+    rows.set(match[1]!, {
+      value: match[2]!,
+      status: match[3]!,
+      notImplemented: /\bNot implemented\b/i.test(match[4] ?? ''),
+    })
   }
 
   return rows
@@ -94,9 +186,7 @@ describe('the registry and the module agree', () => {
         (node, key) => (node as Record<string, unknown>)[key], TUNING,
       ))
 
-      // The registry writes some values with a unit or a gloss —
-      // "1 (CENTER)", "0.72 of the column". The number must lead.
-      return documented.value.replace(/[`*]/g, '').trim().startsWith(actual)
+      return valueAgrees(actual, documented.value)
         ? []
         : [`${path}: code ${actual}, registry "${documented.value}"`]
     })
@@ -104,13 +194,49 @@ describe('the registry and the module agree', () => {
     expect(disagreements).toEqual([])
   })
 
+  it('documents nothing the code does not have', () => {
+    /*
+     * The reverse direction, which was never checked.
+     *
+     * A registry row with no tunable behind it is worse than a missing row: it
+     * reads as a decision the code honours, and nothing contradicts it. Three
+     * were found this way — `run.resumeReadyMs`, `collision.playerBoxWidthRatio`
+     * and `collision.playerBoxHeightRatio` — all documented with values, none
+     * of them implemented anywhere.
+     *
+     * A row may be kept ahead of its implementation, but it has to say so in
+     * its own notes, in the document, where a reader sees it. The exemption
+     * lives in the registry rather than in a list here, so the test cannot drift
+     * away from what the page claims.
+     */
+    const paths = new Set(leafPaths(TUNING))
+
+    /*
+     * Only rows carrying a *number* are checked.
+     *
+     * Most of the registry states structural rules rather than knobs —
+     * `jump.doubleJumpAllowed | false`, `nearMiss.oneEventPerObstacle | true`,
+     * `lane.pitch | road.width / 3`. Those are true because of how the code is
+     * shaped, and there is deliberately no constant behind them; demanding one
+     * would push a fake tunable into `TUNING` for every documented rule. A row
+     * with a bare number is different: it reads as a value the code reads, and
+     * if nothing reads it the row is a quiet lie.
+     */
+    const undelivered = [...registry.entries()]
+      .filter(([path]) => !paths.has(path))
+      .filter(([, row]) => !row.notImplemented)
+      .filter(([, row]) => /^\s*\**\s*-?\d/.test(row.value))
+      .map(([path, row]) => `${path}: registry says ${row.value}, code has no such tunable`)
+
+    expect(undelivered).toEqual([])
+  })
+
   it('agrees with the registry about every status', () => {
     // `open-decisions.md` §0AC claims this test exists. It did not.
     const declared = declaredStatuses(source)
 
     const disagreements = leafPaths(TUNING).flatMap((path) => {
-      const leaf = path.split('.').pop() ?? path
-      const inCode = declared.get(leaf)
+      const inCode = declared.get(path)
       const inRegistry = registry.get(path)?.status
 
       if (inCode === undefined) return [`${path}: no @status tag in tuning.ts`]
@@ -190,19 +316,60 @@ describe('the fixed step', () => {
 })
 
 describe('no gameplay literal outside the tuning module', () => {
-  const RULE_FILES = ['./step.ts', './lanes.ts', './jump.ts', './input.ts', './state.ts']
+  /**
+ * Every rules file, discovered rather than listed.
+ *
+ * The list used to be hand-maintained, which meant each new rules module was
+ * unscanned by default and nobody found out. `tuning.ts` and `patterns.ts` are
+ * excluded because they *are* the data — their numbers are the content, not
+ * constants hiding inside logic.
+ */
+const RULE_FILES = readdirSync(new URL('.', import.meta.url))
+  .filter(name => name.endsWith('.ts'))
+  .filter(name => !name.endsWith('.spec.ts'))
+  // `rng.ts` is an algorithm, not a set of tunables: its constants are the
+  // xorshift shift schedule and the splitmix words, and they are pinned far
+  // more tightly than a registry row could — by a golden vector.
+  .filter(name => !['tuning.ts', 'patterns.ts', 'index.ts', 'rng.ts'].includes(name))
+  .map(name => `./${name}`)
+  .sort()
 
   it.each(RULE_FILES)('%s reads its numbers from TUNING', (file) => {
     const source = read(file)
       // Comments explain the numbers; they do not encode them.
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '')
+      // A type-level union names things; it does not hide a tunable in the
+      // rules. `type Tier = 1 | 2 | 3 | 4 | 5` is the tier labels, not a
+      // gameplay constant, and there is nowhere else for it to live.
+      .replace(/^\s*export type [A-Za-z]+ =[^\n]*$/gm, '')
 
-    // What remains may contain 0, 1, 2 and 1000: array and index arithmetic,
-    // the ±1 lane direction, the halving in the parabola, and milliseconds to
-    // seconds. Anything else is a gameplay value that escaped the registry.
-    const literals = (source.match(/(?<![\w.])\d+(\.\d+)?/g) ?? [])
-      .filter(literal => !['0', '1', '2', '0.5', '1000'].includes(literal))
+    /*
+     * What remains may contain 0, 1, 2, 0.5 and 1000: array and index
+     * arithmetic, the ±1 lane direction, the halving in the parabola, and
+     * milliseconds to seconds. Anything else is a gameplay value that escaped
+     * the registry.
+     *
+     * The pattern matches every numeric literal JavaScript has, not just the
+     * plain decimal ones. The previous `(?<![\w.])\d+(\.\d+)?` was evaded by
+     * four spellings a person writes without thinking: `.75` (the lookbehind
+     * rejected it on its own decimal point), `1_000`, `1e3` and `0x1F4` (each
+     * matched only its allowlisted first digit, the rest hidden behind a word
+     * character). All four would have sat in the rules unreported.
+     */
+    const ALLOWED = [0, 1, 2, 0.5, 1000]
+
+    const literals = (source.match(
+      /(?<![\w$.])(?:0[xXbBoO][0-9a-fA-F_]+n?|(?:\d[\d_]*)?\.\d[\d_]*(?:[eE][+-]?\d+)?|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d+)?n?)/g,
+    ) ?? []).filter((literal) => {
+      // Compared as a value, not as text: `1_000`, `1e3` and `0x3E8` are all
+      // the millisecond conversion and all fine, while `0x1F4` is 500 and is
+      // not. Matching the spelling would flag the first three and, worse, would
+      // still have to be extended by hand for the fourth.
+      const value = Number(literal.replace(/_/g, '').replace(/n$/, ''))
+
+      return !ALLOWED.includes(value)
+    })
 
     expect(literals).toEqual([])
   })

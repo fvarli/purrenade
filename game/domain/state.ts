@@ -1,6 +1,7 @@
-import { createRngState } from './rng'
+import { createRngState, MAX_SEED } from './rng'
 import { TUNING } from './tuning'
 import { isLaneIndex } from './lanes'
+import { firstHazardDistanceUnits } from './obstacles'
 import type { RunState } from './types'
 
 /**
@@ -13,9 +14,6 @@ import type { RunState } from './types'
  * rather than stubbed. A field that is present but meaningless is worse than a
  * field that is missing: the missing one fails to compile.
  */
-
-/** The largest seed a stream derivation can represent without wrapping. */
-const MAX_SEED = 0xFFFFFFFF
 
 export interface CreateRunOptions {
   /**
@@ -73,6 +71,20 @@ export function createRunState({ seed }: CreateRunOptions): RunState {
     resumePhase: 'ready',
     rng: createRngState(seed),
     seed,
+
+    hearts: TUNING.hearts.start,
+    invulnRemainingMs: 0,
+    obstacles: [],
+    distanceUnits: 0,
+    nextObstacleId: 0,
+    spawn: {
+      // The first pattern is scheduled so that nothing can reach the player
+      // before the approved protected interval. Reachability, not spawn time:
+      // an obstacle exists earlier so it can be seen approaching.
+      nextAtUnits: firstHazardDistanceUnits(),
+      recentPatternIds: [],
+    },
+    nearMissCount: 0,
   })
 }
 
@@ -91,6 +103,13 @@ export function createRunState({ seed }: CreateRunOptions): RunState {
  * the shared ones.
  */
 export function sealState(state: RunState): RunState {
+  // Obstacles are frozen where they are built, so this only has to seal the
+  // array — but the array matters: without it a renderer holding a snapshot
+  // could splice the world out from under the rules.
+  Object.freeze(state.obstacles)
+  Object.freeze(state.spawn.recentPatternIds)
+  Object.freeze(state.spawn)
+
   Object.freeze(state.rng.pattern)
   Object.freeze(state.rng.collectible)
   Object.freeze(state.rng.cosmetic)

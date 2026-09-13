@@ -1,4 +1,5 @@
 import type { MountedRun } from '~~/game/engine'
+import { HEARTS } from '~~/game/bridge'
 import type { RunEvent, RunPhase } from '~~/game/bridge'
 
 /**
@@ -37,10 +38,28 @@ export interface RunSurface {
   start: (container: HTMLElement) => Promise<void>
   stop: () => void
   togglePause: () => void
+  readonly hasEnded: ComputedRef<boolean>
+  readonly hearts: Readonly<Ref<number>>
 }
+
+/** The approved starting value, projected through the boundary. */
+const STARTING_HEARTS = HEARTS.start
 
 export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
   const phase = ref<RunPhase>('ready')
+
+  /*
+   * Hearts, from coarse events rather than from the simulation.
+   *
+   * The app never reads `RunState`, and it must not start now: a reactive
+   * mirror of gameplay state would re-render Vue at the simulation rate and
+   * would let UI code write to something the rules own. `heart_lost` carries
+   * the new count, which is all a heart row needs.
+   *
+   * Seeded from the projected starting value, so the row is correct before the
+   * first event arrives.
+   */
+  const hearts = ref<number>(STARTING_HEARTS)
   const loading = ref(true)
   const failed = ref(false)
 
@@ -71,6 +90,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
   const teardown: Array<() => void> = []
 
   const isPaused = computed(() => phase.value === 'paused')
+  const hasEnded = computed(() => phase.value === 'ended')
 
   /**
    * Pause when the run stops being watched.
@@ -80,7 +100,15 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
    * restart a live run nobody is watching. Resuming is always an explicit act.
    */
   const pauseIfUnwatched = (): void => {
-    if (run === null || run.phase() === 'paused') return
+    /*
+     * An ended run is not paused when the player looks away — it is over.
+     *
+     * The domain refuses the transition now, but this guard matters too: without
+     * it every tab switch on the game-over screen fired a `pause()` the rules
+     * correctly ignored, and the phase ref would have been written to `'paused'`
+     * from here regardless, replacing the run-over message with a pause overlay.
+     */
+    if (run === null || run.phase() === 'paused' || run.phase() === 'ended') return
 
     run.pause()
     phase.value = 'paused'
@@ -120,6 +148,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
           if (mountGeneration !== generation) return
 
           if (event.type === 'phase_changed') phase.value = event.phase
+          if (event.type === 'heart_lost') hearts.value = event.hearts
         },
       })
 
@@ -165,6 +194,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     // when it resolves. It must happen even when there is nothing to tear down.
     generation++
     mounting = false
+    hearts.value = STARTING_HEARTS
 
     // `splice(0)` empties the list as it reads it, so a second `stop()` — from
     // an unmount racing a navigation — undoes nothing twice.
@@ -183,7 +213,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     phase.value = run.phase()
   }
 
-  return { phase, loading, failed, isPaused, start, stop, togglePause }
+  return { phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause }
 }
 
 function defaultSeed(): number {

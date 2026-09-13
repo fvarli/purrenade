@@ -50,6 +50,17 @@ reaction time.
 | `difficulty.decisionsPerMin.base` | 14 | |
 | `difficulty.decisionsPerMin.ceiling` | 38 | |
 
+> **What M6 actually consumes — implementation note.** Of the four dimensions, the generator
+> reads two directly: **movement speed** through `difficulty.speed` (continuous, per step) and
+> **pattern complexity** through the tier pools (discrete). **Spawn density** and **decision
+> frequency** are realised only *indirectly*, by `generator.minGapUnits`, which is a per-tier
+> constant — the road gets fuller and decisions arrive more often as the tier rises, but in five
+> steps rather than along the curves above. `densityTarget()` and `decisionsPerMinute()` exist,
+> are tested, and are **not read by the generator**. Wiring them in changes difficulty feel, so it
+> is a product decision rather than an implementation detail, and it is deliberately not taken here.
+> Principle 3 in §1 stays APPROVED and stays satisfied; this note records how completely, so the
+> curves are not mistaken for something the game already runs on.
+
 ### 2.2 Driver: time or distance — PROPOSED
 
 Difficulty is driven by **elapsed run time**, not distance.
@@ -59,7 +70,7 @@ compounds with the speed dimension and produces a runaway ramp. Time is also the
 value the player perceives and the value a server can sanity-check against a
 submitted score.
 
-### 2.3 Tiers — PROPOSED
+### 2.3 Tiers — thresholds APPROVED, pools PROPOSED
 
 Continuous curves drive feel; discrete tiers gate which pattern pools are
 eligible, so that pattern complexity is reviewable and testable.
@@ -67,18 +78,28 @@ eligible, so that pattern complexity is reviewable and testable.
 | Tier | Starts at | Pattern pool | Character |
 | --- | --- | --- | --- |
 | **Tier 1** | 0 s | Introductory | Single obstacles, generous spacing |
-| **Tier 2** | 25 s | Basic | Two-lane blocks; one decision at a time |
+| **Tier 2** | 30 s | Basic | Two-lane blocks; one decision at a time |
 | **Tier 3** | 60 s | Intermediate | Sequences requiring a planned lane path |
-| **Tier 4** | 110 s | Advanced | Mixed dodge/jump; tighter recovery windows |
+| **Tier 4** | 120 s | Advanced | Mixed dodge/jump; tighter recovery windows |
 | **Tier 5** | 180 s | Peak | Full pool at the soft-capped ceilings |
 
 **Tier 5 is terminal:** it does not escalate further. A skilled player's run length is bounded
 by concentration, not by the game becoming impossible.
 
+> **Thresholds — corrected and APPROVED at M6.** The product decision is
+> **0 / 30 / 60 / 120 / 180 seconds**. This document carried `0 / 25 / 60 / 110 / 180` from the
+> repository's first commit and it was never edited, so a value that was only ever PROPOSED came to
+> look settled purely by longevity. It had not been approved: DO-3 recorded these thresholds as
+> unconfirmed from M0.5 onward, and the naming note below explicitly changed labels only. The
+> corrected values are recorded here and in the tuning registry.
+>
+> The product owner approved them during the M6 adversarial remediation, so the **start times in
+> the table above are APPROVED**. That is the thresholds alone. Which patterns each tier admits is
+> still PROPOSED, and so are the soft-cap ceilings in §2.1 — DO-3 stays open, narrowed to those.
+>
 > **Naming — M0.5.** These were previously labelled `T0`…`T4` (zero-indexed), which invited an
 > off-by-one against how the tiers are actually spoken about. They are now **one-indexed,
-> Tier 1–Tier 5**. Thresholds are unchanged; only the labels moved. The tier definitions
-> themselves remain PROPOSED (DO-3).
+> Tier 1–Tier 5**. Thresholds are unchanged; only the labels moved.
 
 ---
 
@@ -242,7 +263,7 @@ the rules core is isolated from rendering.
 
 | Ref | Question |
 | --- | --- |
-| DO-3 | Confirmation of the tier thresholds and soft-cap ceilings (§2.1, §2.3) |
+| DO-3 | Confirmation of the soft-cap ceilings (§2.1). The tier **thresholds** were approved at M6; this is now the ceilings only |
 | DO-4 | Whether difficulty may also be influenced by the player's current heart count |
 | DO-5 | Whether patterns may span a SLAYYY activation boundary without adjustment |
 | DO-6 | Whether additional art variants are needed per class beyond the cone and the beach barrier |

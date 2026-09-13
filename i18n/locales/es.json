@@ -278,11 +278,15 @@
     "resume": "Reanudar",
     "loading": "Cargando el motor del juego…",
     "failed": "No se ha podido cargar el motor del juego. Actualiza la página e inténtalo de nuevo.",
-    "scopeNotice": "Esta versión tiene carriles, salto y pausa. Los obstáculos, las vidas, las huellas y SLAYYY llegarán en fases posteriores.",
+    "scopeNotice": "Esta versión tiene carriles, salto, obstáculos, vidas y pausa. Las huellas, Loli y SLAYYY llegan más adelante.",
     "phase": {
       "ready": "Preparándose",
       "running": "En marcha",
-      "paused": "En pausa"
-    }
+      "paused": "En pausa",
+      "ended": "Fin"
+    },
+    "hearts": "Vidas: {count} / {max}",
+    "heartsLabel": "Vidas restantes",
+    "ended": "Carrera terminada. Sal y vuelve a entrar para empezar otra."
   }
 }

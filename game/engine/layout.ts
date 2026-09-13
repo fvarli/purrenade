@@ -25,6 +25,8 @@ export interface PlayfieldLayout {
   readonly centreXPx: number
   /** The ground the player stands on, measured from the top. */
   readonly groundYPx: number
+  /** Where the road meets the sea. Obstacles enter the view here. */
+  readonly horizonYPx: number
   /**
    * Baseline pixels to real pixels.
    *
@@ -53,6 +55,14 @@ export interface ViewportSize {
 export const GROUND_Y_RATIO = 0.78
 
 /**
+ * Where the sea meets the sand, derived from the ground so the two cannot drift.
+ *
+ * The player stands at the centre of the promenade band, so the band's top edge
+ * is the same distance above them as the viewport bottom is below.
+ */
+export const HORIZON_Y_RATIO = 2 * GROUND_Y_RATIO - 1
+
+/**
  * Resolve the playfield for a viewport.
  *
  * Desktop caps the column at the approved 460 px and lets the seaside expand
@@ -71,6 +81,7 @@ export function resolveLayout({ widthPx, heightPx }: ViewportSize): PlayfieldLay
     lanePitchPx: roadWidthPx / PLAYFIELD.laneCount,
     centreXPx: columnLeftPx + columnWidthPx / 2,
     groundYPx: heightPx * GROUND_Y_RATIO,
+    horizonYPx: heightPx * HORIZON_Y_RATIO,
     scale: columnWidthPx / PLAYFIELD.baselineWidthPx,
   }
 }
@@ -92,3 +103,36 @@ export function laneToX(layout: PlayfieldLayout, lanePosition: number): number {
 export function heightToY(layout: PlayfieldLayout, heightPx: number): number {
   return layout.groundYPx - heightPx * layout.scale
 }
+
+/**
+ * Where an obstacle sits on screen, from its distance along the road.
+ *
+ * A straight mapping from the player's feet to the horizon. Not perspective —
+ * the road is drawn as a flat band, and a projective curve would imply a
+ * camera the composition does not have. What it must be is **monotonic and
+ * continuous**, so an approaching obstacle never appears to stall or jump.
+ *
+ * Nothing here decides anything. The rules already know whether this obstacle
+ * hit the player; this only says where to draw it.
+ */
+export function distanceToY(layout: PlayfieldLayout, distanceUnits: number): number {
+  const depth = distanceUnits / PLAYFIELD.visibleUnits
+
+  return layout.groundYPx - depth * (layout.groundYPx - layout.horizonYPx)
+}
+
+/**
+ * How much to shrink an obstacle at that distance, so the road reads as deep.
+ *
+ * Presentation only, and clamped so a far obstacle stays large enough to
+ * recognise — an obstacle the player cannot see is an obstacle they cannot
+ * fairly avoid, which would quietly undo the escape-path guarantee.
+ */
+export function distanceScale(distanceUnits: number): number {
+  const depth = Math.min(1, Math.max(0, distanceUnits / PLAYFIELD.visibleUnits))
+
+  return NEAR_SCALE - depth * (NEAR_SCALE - FAR_SCALE)
+}
+
+const NEAR_SCALE = 1
+const FAR_SCALE = 0.45

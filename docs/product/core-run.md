@@ -234,6 +234,21 @@ Collision depends on the obstacle's **class**, never on its artwork. See
 This is the whole reason the jump verb exists: with only `LANE_BLOCKING` obstacles, jumping
 would be decorative.
 
+### 5.4A As implemented at M6
+
+Collision is `occupiedLane` **plus** longitudinal overlap **plus** class. Both extents are open
+intervals, so touching exactly at a boundary is not a collision — one policy at every edge, so a
+value landing on a boundary resolves the same way on every device.
+
+At most **one heart per simulation step**, whatever overlaps, and an obstacle resolves exactly
+once: a cone cannot drain the run over the several steps it takes to pass through the player, and
+a pattern that puts two blockers in one lane costs one heart with the invulnerability window
+covering the rest.
+
+**CR-2 is still OPEN and nothing was invented in its place.** A collision starts the
+invulnerability window and does nothing else: no speed dip, no scroll hitch, and an in-progress
+lane change continues undisturbed.
+
 ### 5.5 Collision feedback — APPROVED
 
 Ayşenur plays the **collision / cry** animation state. Hearts update immediately.
@@ -269,7 +284,7 @@ The geometric threshold is tuning, not product behaviour.
 
 | Parameter | PROPOSED value | Note |
 | --- | --- | --- |
-| `nearMiss.lateralEnvelopeUnits` | `0.55` lane widths | Measured centre-to-centre against the obstacle's lane |
+| `nearMiss.lateralEnvelopeUnits` | `1.25` lane widths | Measured centre-to-centre against the obstacle's lane. Corrected at M6: `0.55` made the adjacent-lane case below unreachable, since an adjacent lane is exactly `1.0` |
 | `nearMiss.longitudinalEnvelopeUnits` | `0.75` | How close along the road counts as "passing" |
 | `nearMiss.verticalClearanceUnits` | `0.40` | For a `JUMPABLE` obstacle cleared by a low jump |
 | `nearMiss.oneEventPerObstacle` | `true` | **APPROVED**, not tunable |
@@ -282,6 +297,18 @@ Two ways to earn one, both intended:
 
 - passing a `LANE_BLOCKING` obstacle in an **adjacent** lane, close to the boundary;
 - clearing a `JUMPABLE` obstacle with **little vertical clearance**.
+
+### 5A.2A As implemented at M6
+
+Evaluated once, at the instant the obstacle's trailing edge reaches
+`nearMiss.longitudinalEnvelopeUnits` behind the player's reference point, and only when nothing
+collided with it. A single evaluation instant is what makes "at most one event" structural.
+
+**One reading was required and is recorded as such.** `nearMiss.verticalClearanceUnits` is
+written in "units", and the domain has no pixels — the jump apex is the only vertical scale it
+owns. It is therefore read as an **apex-normalised fraction**: clearing a `JUMPABLE` obstacle
+while below 0.40 of the apex counts. That is an interpretation of an ambiguous row, not a
+decision, and it belongs with CR-6 when the envelope is tuned.
 
 ### 5A.3 Interaction with the escape-path budget — OPEN (CR-6)
 

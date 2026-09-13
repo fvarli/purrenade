@@ -7,7 +7,7 @@ Sections 1–3 hold the decisions that block or shape milestones. Section 4 hold
 the proposals awaiting review. **Section 6 indexes every remaining open question**
 raised so far, so nothing is recorded only in a document nobody rereads.
 
-**Last reviewed:** 2026-09-13 (M5 game core — see §0AC; no status was promoted).
+**Last reviewed:** 2026-09-13 (M6 obstacles and collision — see §0AD; no status was promoted).
 
 | Status | Meaning |
 | --- | --- |
@@ -40,6 +40,43 @@ two-factor challenge surviving a password reset (§3B, and
 audit found none of them load-bearing for M2's security: OPS-1 in particular is
 now guarded rather than resolved — production cannot reach the unsafe answer by
 accident, but choosing the right store is still an open decision.
+
+---
+
+## 0AD. Implemented at M6 as named parameters — status deliberately unchanged
+
+M6 put the obstacle, collision, difficulty and generation values into running code. **None of
+them is promoted.** They are in `game/domain/tuning.ts`, each with its own `@status`, and a test
+fails if any drifts from the registry in value or in status.
+
+| Ref | Value now in code | Status |
+| --- | --- | --- |
+| — | `world.baseScrollUnitsPerS` 3.0, `visibleUnits` 10, `spawnLookaheadUnits` 14, `despawnBehindUnits` 2 | **PROPOSED** — new at M6; the registry had no absolute scroll speed at all |
+| — | `obstacle.defaultLengthUnits` 0.7, `collision.playerLengthUnits` 0.5 | **PROPOSED** — new at M6; both reduced during the M6 audit to widen the jump window |
+| — | `invuln.postHitMs` 1200, `blinkHz` 10 | **PROPOSED** |
+| DO-3 | The six soft-cap endpoints. `difficulty.tierStartsS` **0/30/60/120/180 is APPROVED** (M6) | **PROPOSED** — ceilings unconfirmed; thresholds resolved |
+| — | `generator.repeatCooldown` 3, `minGapUnits` 6/5.5/5/4.5/4 per tier | **PROPOSED** — the registry said only "per tier" |
+| CR-6 | `nearMiss` lateral 1.25, longitudinal 0.75, vertical 0.40 | **PROPOSED** — lateral corrected at M6; must be tuned with the reaction budget |
+| — | `escape.maxActionsPerPattern` 2, `reactionBudgetMs` 350, `solverGridMs` 100, `solverMaxSteps` 2000 | **PROPOSED** |
+
+Only the hearts model, the two obstacle classes and their clearability are APPROVED.
+
+**Three things the review should look at.**
+
+1. **CR-6 is now concrete.** The near-miss envelope and the reaction budget were tuned as a pair
+   for the first time, and they do pull against each other exactly as §5A.3 predicted: a budget
+   generous enough to make patterns fair puts most passes outside the lateral envelope, so near
+   misses are rare. Both sets stay PROPOSED.
+2. **`escape.maxActionsPerPattern` of 2 constrains the catalogue more than it looks.** A two-lane
+   pair plus a mandatory jump is unsatisfiable from the far lane, because escaping the pair costs
+   both actions. This is a design constraint, not a bug, and it shaped the pattern library.
+3. **GE-1 now has a second dependant.** The scroll speed, the spawn cadence and the jump's
+   coverage of a jumpable obstacle all sit on the fixed step, on top of the airborne-time
+   coupling already recorded.
+
+**Still OPEN and deliberately not implemented:** CR-2 (does a collision dip the speed or
+interrupt a lane change — neither was added), CR-1 (mid-air lane changes, still PROPOSED as
+permitted and relied on by the solver), DO-4 (difficulty influenced by heart count).
 
 ---
 
@@ -137,7 +174,7 @@ Recorded so their history is traceable and they are not reopened by accident.
 | **Loli Bonus queueing is run-scoped** | Only one bonus active at a time; a threshold crossed while active increments `queuedLoliBonuses` **for that run**; **all queue state ends with the run**; nothing carries forward. `loliCyclePaws` stays persistent. **No `owedLoliBonuses` field anywhere.** | [scoring-and-progression](scoring-and-progression.md) §2.4 |
 | **Two achievements removed, one superseded** (was AU-2) | **Çay Molası** and **Trileçe Avcısı** removed as invalid — they need non-mechanics. **Koni Koleksiyoncusu** ("hit 25 cones") **superseded by product review** for rewarding intentional collision. | [achievements-and-unlocks](achievements-and-unlocks.md) §1.3 |
 | **Achievement progression authority** | **Client-reported summary counters alone are insufficient.** The client emits telemetry, the server validates the run, and progression is **derived server-side**. Every achievement is `DERIVED_PERSISTENT` or `DERIVED_TELEMETRY`; `BOUNDED` is not an acceptable model. | [achievements-and-unlocks](achievements-and-unlocks.md) §1.4 |
-| **Difficulty tier labels** | Relabelled **Tier 1–Tier 5** (one-indexed). Thresholds unchanged; Tier 5 begins at 180 s and is terminal. Definitions remain PROPOSED (DO-3). | [difficulty-and-obstacles](difficulty-and-obstacles.md) §2.3 |
+| **Difficulty tier labels** | Relabelled **Tier 1–Tier 5** (one-indexed). Tier 5 begins at 180 s and is terminal. The start times were corrected and **APPROVED at M6**; which patterns each tier admits remains PROPOSED. | [difficulty-and-obstacles](difficulty-and-obstacles.md) §2.3 |
 
 **Retired reference ids.** `ARCH-1`, `ARCH-3`, `AU-2`, `AU-3`, `AU-4`, `AU-7`, `CR-5`, `DO-1`,
 `DO-2`, `DM-5`, `DM-6`, `LB-1`, `LB-2`, `LB-3`, `LB-4`, `SI-1` and `SI-3` are resolved and no
@@ -240,7 +277,7 @@ blocks M1 or v1 (LB-7).
 | — | Hitboxes: AABB at `0.60 ×` sprite width, `0.80 ×` height. |
 | — | Post-hit invulnerability `1200 ms`, blink `10 Hz`, reduced-motion aware, never a full-screen flash. |
 | — | Run start: `1500 ms` readiness beat; no hazard reachable before `2500 ms`. |
-| — | **Near-miss envelope:** lateral `0.55` lanes, longitudinal `0.75`, vertical clearance `0.40`. Tuned **with** the escape-path budget (CR-6). |
+| — | **Near-miss envelope:** lateral `1.25` lanes, longitudinal `0.75`, vertical clearance `0.40`. Tuned **with** the escape-path budget (CR-6). |
 
 ### 4.4 Difficulty
 
@@ -248,7 +285,7 @@ blocks M1 or v1 (LB-7).
 | --- | --- |
 | DO-3 | Soft caps: speed `1.00 → 1.85×`, density `0.25 → 0.55`, decisions/min `14 → 38`; asymptotic, time constant `90 s`. |
 | — | Driven by **elapsed time**, not distance. |
-| — | **Tiers 1–5** at 0 / 25 / 60 / 110 / 180 s; Tier 5 terminal. |
+| — | **Tiers 1–5** at 0 / 30 / 60 / 120 / 180 s; Tier 5 terminal. **APPROVED** at M6. |
 | — | Escape-path budget: max 2 actions per pattern, `350 ms` reaction budget, validated across pattern **joins** and across **both verbs**. |
 
 ### 4.5 Scoring and progression

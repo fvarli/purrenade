@@ -127,10 +127,27 @@ export async function mountRun({ container, seed, onEvent }: MountRunOptions): P
       // allow a small number of those and then start dropping the oldest.
       game.destroy(true)
 
-      if (globalThis.window !== undefined) {
+      /*
+       * Restore after Phaser has finished, not before it has started.
+       *
+       * `Game.destroy` only sets a flag; the real teardown runs on the next
+       * loop step. And `VisibilityHandler` — which assigns these two handlers —
+       * runs from `Game.start`, which is itself deferred behind the texture
+       * manager being ready. So on the "leave the route while Phaser is still
+       * booting" path the synchronous restore was a no-op that ran *before* the
+       * assignment, and the page lost its handlers permanently.
+       *
+       * `queueMicrotask` is not enough — this has to outlive a frame.
+       */
+      const restore = (): void => {
+        if (globalThis.window === undefined) return
+
         globalThis.window.onblur = priorOnBlur
         globalThis.window.onfocus = priorOnFocus
       }
+
+      restore()
+      game.events?.once('destroy', restore)
     },
   }
 }

@@ -382,3 +382,49 @@ describe('leaving while the engine is still loading', () => {
     expect(mountCalls, 'a second start during the first must not build a second engine').toBe(1)
   })
 })
+
+describe('the provisional heart feedback', () => {
+  it('starts at the approved count', () => {
+    const run = surface()
+
+    expect(run.hearts.value).toBe(3)
+  })
+
+  it('follows the coarse event, not the simulation', async () => {
+    // The app must never read run state. `heart_lost` carries the new count,
+    // which is the whole contract between the rules and a heart row.
+    const run = surface()
+
+    await run.start(container())
+
+    emit({ type: 'heart_lost', hearts: 2 })
+
+    expect(run.hearts.value).toBe(2)
+
+    emit({ type: 'heart_lost', hearts: 1 })
+
+    expect(run.hearts.value).toBe(1)
+  })
+
+  it('reports the terminal phase', async () => {
+    const run = surface()
+
+    await run.start(container())
+
+    expect(run.hasEnded.value).toBe(false)
+
+    emit({ type: 'phase_changed', phase: 'ended' })
+
+    expect(run.hasEnded.value).toBe(true)
+  })
+
+  it('resets the heart row when the surface is torn down', async () => {
+    const run = surface()
+
+    await run.start(container())
+    emit({ type: 'heart_lost', hearts: 1 })
+    run.stop()
+
+    expect(run.hearts.value).toBe(3)
+  })
+})

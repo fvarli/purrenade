@@ -1,6 +1,7 @@
 import type Phaser from 'phaser'
 import type { RunLoop } from '../bridge'
-import { GROUND_Y_RATIO, heightToY, laneToX, resolveLayout } from './layout'
+import { PLAYFIELD } from '../bridge'
+import { GROUND_Y_RATIO, distanceScale, distanceToY, heightToY, laneToX, resolveLayout } from './layout'
 import type { PlayfieldLayout } from './layout'
 import { inputForKeyCode, shouldHandleKey } from './input/keyboard'
 import { IDLE_POINTER, pointerCancel, pointerDown, pointerUp } from './input/pointer'
@@ -35,6 +36,8 @@ export const PALETTE = {
   laneLine: 0xB9AFA6,
   player: 0xFF6B4A,
   playerAirborne: 0xFF8FAB,
+  cone: 0xFF8C42,
+  barrier: 0x6A8CAF,
 } as const
 
 /**
@@ -62,6 +65,57 @@ const LANE_LINE_WIDTH_PX = 2
 const PLAYER_RADIUS_LANE_RATIO = 0.3
 /** Above every band, so the player is never occluded by the scenery. */
 const PLAYER_DEPTH = 10
+/** Below the player, above the road. */
+const OBSTACLE_DEPTH = 5
+
+/**
+ * How many obstacle shapes to keep around.
+ *
+ * Pooled rather than created per spawn: the world turns over continuously, and
+ * building and destroying Phaser objects at that rate is how a run starts
+ * stuttering after a minute. The pool is sized well above what the generator
+ * can put on screen — a long-run test asserts the world stays under forty — and
+ * unused slots are simply hidden.
+ */
+const OBSTACLE_POOL_SIZE = 48
+
+/** A lane blocker is tall and narrow; a barrier is low and wide. */
+const CONE_WIDTH_LANE_RATIO = 0.42
+const CONE_HEIGHT_PX = 34
+const BARRIER_WIDTH_LANE_RATIO = 0.86
+const BARRIER_HEIGHT_PX = 14
+
+/** How far the character fades on the dim half of the post-hit pulse. */
+const INVULN_STEADY_ALPHA = 0.45
+
+/*
+ * Reduced motion asks for a *slower, lower-contrast pulse* — not a static dim.
+ *
+ * The first version froze the alpha, which is neither slower nor lower
+ * contrast; it simply removed the cue's motion entirely and happened to use the
+ * same value as the normal pulse's dim half. A 2.5 Hz pulse at a shallower
+ * depth keeps the state legible while staying far below the flash thresholds
+ * associated with photosensitive seizures.
+ */
+const REDUCED_MOTION_BLINK_DIVISOR = 4
+const REDUCED_MOTION_ALPHA = 0.7
+const MS_PER_SECOND = 1000
+
+/**
+ * The reduced-motion preference, read once per scene.
+ *
+ * Presentation only, and deliberately so. Slowing the world for a
+ * reduced-motion player would change how hard the game is, which is not an
+ * accessibility accommodation — it is a different game. What changes is the
+ * blink: a steady dim instead of a pulse, so the state stays legible without
+ * flickering. The road keeps scrolling, because motion that carries gameplay
+ * information is preserved.
+ */
+function readsReducedMotion(): boolean {
+  if (typeof globalThis.matchMedia !== 'function') return false
+
+  return globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
 
 /** Dimming while the run is not live. Enough to read as inactive, not a curtain. */
 const DIM_ROAD_ALPHA = 0.75
@@ -107,6 +161,9 @@ export function createRunScene(
   let sand: Phaser.GameObjects.Rectangle
   let road: Phaser.GameObjects.Rectangle
   let laneLines: Phaser.GameObjects.Rectangle[] = []
+  let obstacleShapes: Phaser.GameObjects.Rectangle[] = []
+
+  const prefersReducedMotion = readsReducedMotion()
   let player: Phaser.GameObjects.Arc
 
   /** Every listener this scene attached, so shutdown can remove all of them. */
@@ -173,6 +230,15 @@ export function createRunScene(
 
       laneLines = LANE_BOUNDARIES.map(() => this.add.rectangle(0, 0, 0, 0, PALETTE.laneLine))
 
+      obstacleShapes = Array.from({ length: OBSTACLE_POOL_SIZE }, () => {
+        const shape = this.add.rectangle(0, 0, 0, 0, PALETTE.cone)
+
+        shape.setDepth(OBSTACLE_DEPTH)
+        shape.setVisible(false)
+
+        return shape
+      })
+
       player = this.add.circle(0, 0, 1, PALETTE.player)
       player.setDepth(PLAYER_DEPTH)
 
@@ -218,12 +284,100 @@ export function createRunScene(
       // state legible while the character art does not exist.
       player.setFillStyle(snapshot.heightPx > 0 ? PALETTE.playerAirborne : PALETTE.player)
 
+      /*
+       * The post-hit blink.
+       *
+       * A partial-alpha pulse on the character, never a full-screen flash: the
+       * tuned rate sits inside the range associated with photosensitive
+       * seizures, so the rule is that it stays on the sprite and stays partial.
+       * Under a reduced-motion preference it becomes a steady dim instead of a
+       * pulse — the state is still visible, it just stops flickering.
+       */
+      const blinkHz = prefersReducedMotion
+        ? PLAYFIELD.blinkHz / REDUCED_MOTION_BLINK_DIVISOR
+        : PLAYFIELD.blinkHz
+
+      const dimAlpha = prefersReducedMotion ? REDUCED_MOTION_ALPHA : INVULN_STEADY_ALPHA
+
+      const blink = snapshot.invulnerable
+        ? (Math.floor(snapshot.elapsedMs / (MS_PER_SECOND / blinkHz)) % 2 === 0 ? dimAlpha : 1)
+        : 1
+
+      /*
+       * The world.
+       *
+       * Read straight off the snapshot and drawn; nothing here decides whether
+       * anything was hit. Slots beyond the current obstacle count are hidden
+       * rather than destroyed, so the pool stays stable across the run.
+       */
+      snapshot.obstacles.forEach((obstacle, index) => {
+        const shape = obstacleShapes[index]
+
+        if (shape === undefined) return
+
+        const depthScale = distanceScale(obstacle.distanceUnits)
+        const isCone = obstacle.kind === 'lane_blocking'
+
+        const widthPx = layout.lanePitchPx
+          * (isCone ? CONE_WIDTH_LANE_RATIO : BARRIER_WIDTH_LANE_RATIO)
+          * depthScale
+
+        const heightPx = (isCone ? CONE_HEIGHT_PX : BARRIER_HEIGHT_PX) * layout.scale * depthScale
+        const groundY = distanceToY(layout, obstacle.distanceUnits)
+
+        /*
+         * Visible only while it is on the road ahead.
+         *
+         * The far edge was checked and the near one was not, so a passed
+         * obstacle kept full size, slid down past the player's feet and
+         * vanished mid-frame instead of leaving at the bottom of the picture.
+         */
+        const onScreen = obstacle.distanceUnits <= PLAYFIELD.visibleUnits
+          && obstacle.distanceUnits + obstacle.lengthUnits > 0
+
+        shape.setVisible(onScreen)
+        shape.setFillStyle(isCone ? PALETTE.cone : PALETTE.barrier)
+        shape.setSize(widthPx, heightPx)
+        // Standing on the road rather than centred on it.
+        shape.setPosition(laneToX(layout, obstacle.lane), groundY - heightPx / 2)
+
+        /*
+         * Nearer obstacles draw on top.
+         *
+         * Every shape shared one depth, so Phaser fell back to display-list
+         * order — which is pool index, which is snapshot order, which is
+         * nearest *first*. The nearest obstacle was painted underneath the one
+         * behind it, visible wherever a pattern puts two in the same lane.
+         */
+        shape.setDepth(OBSTACLE_DEPTH + (PLAYFIELD.visibleUnits - obstacle.distanceUnits))
+      })
+
+      for (let index = snapshot.obstacles.length; index < obstacleShapes.length; index++) {
+        obstacleShapes[index]?.setVisible(false)
+      }
+
+      /*
+       * An obstacle with no shape is an invisible hazard that still costs a
+       * heart. The pool is sized well above anything the generator can produce,
+       * so this is a developer error rather than a runtime condition — but it
+       * must be loud rather than a silent `return`.
+       */
+      if (snapshot.obstacles.length > obstacleShapes.length) {
+        throw new Error(
+          `run scene: ${snapshot.obstacles.length} obstacles exceed the pool of ${obstacleShapes.length}`,
+        )
+      }
+
       // Dimmed while paused or waiting, so the surface reads as not-yet-live
       // without a HUD to say so. The HUD is M7.
       const live = snapshot.phase === 'running'
 
       road.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
-      player.setAlpha(live ? 1 : DIM_PLAYER_ALPHA)
+      player.setAlpha((live ? 1 : DIM_PLAYER_ALPHA) * blink)
+
+      // The hazards dim with the road. They were left at full brightness, so a
+      // paused world sat vividly on top of a greyed-out one.
+      for (const shape of obstacleShapes) shape.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
     }
 
     private handleResize(): void {

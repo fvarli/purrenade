@@ -38,8 +38,8 @@ produces **separate commits in each**; the repositories are never merged.
 | **M2** | Backend auth core | api | M1 | **DELIVERED** | executed M2 |
 | **M3** | 2FA, roles, admin gate, session/device management | api | M2 | **DELIVERED** — absorbed by executed M2 | executed M2 |
 | **M4** | Frontend shell: i18n, tokens, auth UI, profile/settings scaffolding | web | M1, M2 | **DELIVERED** except the profile and settings screens, which M12 owns in full | executed M2 |
-| **M5** | Game core: engine boundary, lanes, input, jump | web | M1 | **IN PROGRESS** | — |
-| **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | Not started | — |
+| **M5** | Game core: engine boundary, lanes, input, jump | web | M1 | **DELIVERED** — frozen at `1658f4b` | — |
+| **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — implemented, audited, remediated | — |
 | **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | Not started | — |
 | **M8** | Interactive tutorial | web | M7 + tutorial design | Not started | — |
 | **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | Not started | — |
@@ -184,7 +184,7 @@ and settings scaffolding; typed API client with error mapping and correlation ID
 
 ---
 
-## M5 — Game core — IN PROGRESS
+## M5 — Game core — DELIVERED
 
 **Deliverables:** the **pure game-rules core** — deterministic, engine-free,
 unit-testable; the Phaser↔Nuxt boundary; three lanes; touch and keyboard input
@@ -202,7 +202,7 @@ the edges; jump arc timing.
 
 ---
 
-## M6 — Obstacles, patterns, collision, hearts, difficulty
+## M6 — Obstacles, patterns, collision, hearts, difficulty — DELIVERED
 
 **Unblocked by M0.5:** the two-class obstacle model is APPROVED
 ([conflict #15](design-reference-conflicts.md) resolved).
@@ -223,6 +223,25 @@ curve.
 - **Near-miss detection is deterministic, fires at most once per obstacle, and awards no score.**
 - Difficulty never exceeds its soft caps.
 - Maximum health is 3 and nothing restores a heart.
+
+**Status:** implemented, adversarially audited, remediated, and remediated again for the
+pre-freeze SSR/auth integration defect the audit surfaced. Complete.
+
+Every number introduced here stays PROPOSED unless the registry says otherwise — shipping one does
+not approve it. The one exception is `difficulty.tierStartsS`, which the product owner approved
+during the M6 remediation: the tier **start times** are now APPROVED, while the soft-cap ceilings
+DO-3 also asks about remain open.
+
+**Two things the implementation had to settle, and both are recorded rather than decided:**
+
+- A two-lane pair and a mandatory jump **cannot share one pattern** under
+  `escape.maxActionsPerPattern` of 2: escaping a pair from the far lane already costs both
+  actions. The solver refused the first draft of `pair-then-barrier` for exactly this reason,
+  and the catalogue was rewritten rather than the budget raised.
+- The jump arc covers a jumpable obstacle by about **50 ms at the base scroll speed** — the
+  overlap window is the obstacle's length plus the player's, 1.8 units, which is 600 ms at
+  3 units/s against a 650 ms arc. It gets *easier* as the run speeds up. Comfortable enough to
+  ship as PROPOSED, tight enough to be worth a look during review.
 
 **Tests:** per-pattern and pattern-join property tests; seeded long-run fuzz with
 a reference solver; invulnerability window; heart-cap invariants.

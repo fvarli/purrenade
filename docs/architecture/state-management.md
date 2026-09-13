@@ -57,6 +57,18 @@ field anywhere in either repository. See
 
 `loliCyclePaws` is the persistent counterpart and remains server-owned.
 
+### 2.3 What M6 added — confirmed
+
+`RunState` grew the world: `obstacles`, `hearts`, `invulnRemainingMs`, `distanceUnits`,
+`nextObstacleId`, `spawn` and `nearMissCount`. None of it is reactive and none of it reaches a
+store. The obstacle array and every obstacle in it are frozen with the state, so a renderer
+holding a snapshot cannot edit the world it is drawing — asserted by a test that expects the
+write to throw.
+
+What crosses to the app is still coarse: `heart_lost` carries the new count, `near_miss` and
+`run_ended` carry nothing. The run route's heart row is driven by those events, never by reading
+run state, so nothing re-renders Vue at the simulation rate.
+
 ### 2.2 As built at M5 — confirmed
 
 The game core shipped without a run store, and nothing about it wanted one.
@@ -67,7 +79,7 @@ The game core shipped without a run store, and nothing about it wanted one.
 | Crossing | What it carries |
 | --- | --- |
 | App → loop | Normalized `InputEvent`s, and explicit `pause()` / `resume()` |
-| Loop → renderer | A frozen `RenderSnapshot` — eight primitive fields in lane units, never pixels, never the state object |
+| Loop → renderer | A frozen `RenderSnapshot` — ten primitive fields in lane units plus a frozen obstacle list, never pixels, never the state object |
 | Loop → app | Coarse `RunEvent`s (`run_started`, `run_interactive`, `phase_changed`) |
 
 The run route holds four reactive fields — `phase`, `loading`, `failed`, and `isPaused`
@@ -115,11 +127,19 @@ while signed in, both are written.
 
 ---
 
-## 6. Hydration and SSR safety — PROPOSED
+## 6. Hydration and SSR safety — IMPLEMENTED
 
 | Rule | Why |
 | --- | --- |
-| Stores are created per request on the server | A module-level singleton leaks one user's state into another's response |
+| Stores are created per request on the server | A module-level singleton leaks one user's state into another's response. `@pinia/nuxt` creates one Pinia per Nuxt app and one Nuxt app per request. |
+| **The auth store is resolved during SSR, from the visitor's own session** | The BFF session is a server-side record in this process and the cookie only a pointer (ADR-0005 §3), so the render *can* resolve it — and must. Not doing so left `status === 'unknown'` for the whole render, and the home page, the layout nav and the `guest`/`verified`/`admin` guards all disagreed with the client. See [ADR-0009](../decisions/ADR-0009-server-rendered-session-awareness.md). |
+| **It resolves through the same `GET /api/auth/me`** | One projection, one code path, one place a field can be added or removed. During SSR the call is dispatched in-process with the visitor's `Cookie` forwarded — no socket, and no second upstream call. |
+| **Only the `Cookie` header is forwarded** | Not the whole inbound set. An inbound `Authorization` must not reach the BFF, and an inbound `content-length` must not be attached to a bodyless internal GET. |
+| **`unknown` is not `guest`** | `guest` is a conclusion. A failed SSR resolution leaves `unknown`, because the client only re-asks from `unknown` — concluding `guest` on the server strands a signed-in visitor with no retry. Degraded availability is not evidence about the visitor. |
+| **The SSR resolution is bounded and observable** | 2.5 s, not `apiTimeoutMs`: this is time-to-first-byte, so a slow API must degrade the page's auth state rather than the page. A failure logs once, with the reason. |
+| **A render never changes anything** | State-changing BFF requests are refused during SSR. That is also what keeps the client-only CSRF cache client-only: the only path that populates it is unreachable on the server. |
+| **Only a credential-free projection crosses into the render** | The Sanctum token stays in the session record. What SSR receives is what the browser already received; the change is *when*, not *what*. Enforced by an E2E check and a CI gate over the server-rendered HTML. |
+| **No SSR page may be cached** | The HTML is user-specific now. No `swr`, no `isr`, no `cache` route rule, and no proxy cache in front of a page route. |
 | Device-mirrored settings are read **client-side only** | They do not exist on the server and would cause a hydration mismatch |
 | Nothing gameplay-related is touched during SSR | The run route is client-only; see [frontend-architecture.md](frontend-architecture.md) §2 |
 

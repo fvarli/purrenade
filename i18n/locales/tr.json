@@ -278,11 +278,15 @@
     "resume": "Devam et",
     "loading": "Oyun motoru yükleniyor…",
     "failed": "Oyun motoru yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
-    "scopeNotice": "Bu sürümde şeritler, zıplama ve duraklatma var. Engeller, canlar, patiler ve SLAYYY sonraki aşamalarda geliyor.",
+    "scopeNotice": "Bu sürümde şeritler, zıplama, engeller, canlar ve duraklatma var. Patiler, Loli ve SLAYYY sonraki aşamalarda geliyor.",
     "phase": {
       "ready": "Hazırlanıyor",
       "running": "Koşuyor",
-      "paused": "Duraklatıldı"
-    }
+      "paused": "Duraklatıldı",
+      "ended": "Bitti"
+    },
+    "hearts": "Can: {count} / {max}",
+    "heartsLabel": "Kalan can",
+    "ended": "Koşu bitti. Yeniden başlamak için ayrıl ve tekrar gir."
   }
 }

@@ -18,11 +18,14 @@ export const LANE_RIGHT: LaneIndex = 2
 /**
  * What a run can be doing.
  *
- * `ENDED` is deliberately absent: a run ends when hearts reach zero, and hearts
- * arrive with collisions at M6. Adding the phase now would mean adding a
- * transition nothing can trigger and a state nothing can test.
+ * `ended` arrives with M6, which is the milestone that can trigger it: a run
+ * ends when hearts reach zero, and until collisions existed the phase would
+ * have been a state nothing could reach and nothing could test.
+ *
+ * It is terminal. There is no revive and no continue in v1, so nothing leads
+ * out of it except starting a new run.
  */
-export type RunPhase = 'ready' | 'running' | 'paused'
+export type RunPhase = 'ready' | 'running' | 'paused' | 'ended'
 
 /**
  * An input after the engine has normalized it.
@@ -67,6 +70,58 @@ export interface LaneTransition {
  * because replay, interpolation between two states, and any future server-side
  * verification all need the previous state to still exist.
  */
+/**
+ * The two obstacle behaviour classes, and the only gameplay semantics there are.
+ *
+ * Behaviour belongs to the class, never to the artwork: the cone and the beach
+ * barrier are v1 art for these two, and a seasonal variant that swaps a cone for
+ * a deckchair changes an asset id and nothing here. Every rule below reasons
+ * over the class, so nothing in the domain can ever branch on a sprite name.
+ *
+ * There is deliberately no third class and no `jumpable` boolean — a boolean
+ * invites a "jumpable *and* dodgeable" state that v1 does not have.
+ */
+export type ObstacleKind = 'lane_blocking' | 'jumpable'
+
+/**
+ * What has already happened between the player and one obstacle.
+ *
+ * This is what makes "at most one near-miss event per obstacle" structural
+ * rather than a debounce: an obstacle leaves `pending` exactly once, and the
+ * transition out is the only place an event can be emitted.
+ */
+export type ObstacleOutcome = 'pending' | 'hit' | 'near_miss' | 'cleared'
+
+/**
+ * One obstacle in the world.
+ *
+ * Plain data in road units. `distanceUnits` is the leading edge measured from
+ * the player's reference point at zero, and it decreases as the world scrolls;
+ * the obstacle occupies `[distanceUnits, distanceUnits + lengthUnits]`.
+ *
+ * No pixels, no sprite, no Phaser handle. The engine converts.
+ */
+export interface Obstacle {
+  /** Deterministic and monotonic within a run. Never a UUID — that would not replay. */
+  readonly id: number
+  readonly kind: ObstacleKind
+  readonly lane: LaneIndex
+  /** The leading edge, in road units ahead of the player. Decreases over time. */
+  readonly distanceUnits: number
+  /** Longitudinal footprint. */
+  readonly lengthUnits: number
+  /** Resolved exactly once, when the obstacle passes the reference point. */
+  readonly outcome: ObstacleOutcome
+}
+
+/** The generator's bookkeeping, carried in the run so a seed replays exactly. */
+export interface SpawnState {
+  /** World distance at which the next pattern is emitted. */
+  readonly nextAtUnits: number
+  /** Recently used pattern ids, most recent first, for `generator.repeatCooldown`. */
+  readonly recentPatternIds: readonly string[]
+}
+
 export interface RunState {
   readonly phase: RunPhase
 
@@ -96,4 +151,32 @@ export interface RunState {
 
   /** The value the run was seeded with, carried so a run can be replayed. */
   readonly seed: number
+
+  // --- M6 -------------------------------------------------------------------
+
+  /** Never above `hearts.max`, never below zero. Nothing in v1 restores one. */
+  readonly hearts: number
+
+  /**
+   * Post-hit invulnerability remaining, in milliseconds. Zero when vulnerable.
+   *
+   * A counter rather than a timestamp, for the same reason every other duration
+   * here is: the domain has no clock, and a paused run must not age.
+   */
+  readonly invulnRemainingMs: number
+
+  /** Everything currently in the world, nearest last. Frozen with the state. */
+  readonly obstacles: readonly Obstacle[]
+
+  /** How far the world has scrolled, in road units. Only ever increases. */
+  readonly distanceUnits: number
+
+  /** The id the next obstacle will take. Deterministic, so a replay matches. */
+  readonly nextObstacleId: number
+
+  /** The generator's cursor and cooldown. */
+  readonly spawn: SpawnState
+
+  /** Statistics only. A near miss awards no score, directly or indirectly. */
+  readonly nearMissCount: number
 }

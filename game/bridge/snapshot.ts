@@ -1,6 +1,6 @@
 import { jumpHeightPx, jumpProgress, laneProgress, occupiedLane } from '../domain'
 import type { LaneIndex, RunState } from '../domain'
-import type { RenderSnapshot } from './types'
+import type { RenderObstacle, RenderSnapshot } from './types'
 
 /**
  * Turning run state into something safe to render.
@@ -33,6 +33,15 @@ function lanePosition(state: RunState): number {
 /** Derive the render snapshot for the current state. */
 export function toRenderSnapshot(state: RunState): RenderSnapshot {
   return Object.freeze({
+    obstacles: Object.freeze(state.obstacles.map(obstacle => Object.freeze({
+      id: obstacle.id,
+      kind: obstacle.kind,
+      lane: obstacle.lane,
+      distanceUnits: obstacle.distanceUnits,
+      lengthUnits: obstacle.lengthUnits,
+    }))),
+    hearts: state.hearts,
+    invulnerable: state.invulnRemainingMs > 0,
     phase: state.phase,
     lanePosition: lanePosition(state),
     occupiedLane: occupiedLane(state) as LaneIndex,
@@ -67,6 +76,9 @@ export function interpolateSnapshot(
   const t = Number.isFinite(alpha) ? (alpha <= 0 ? 0 : alpha >= 1 ? 1 : alpha) : 0
 
   return Object.freeze({
+    obstacles: interpolateObstacles(previous.obstacles, current.obstacles, t),
+    hearts: current.hearts,
+    invulnerable: current.invulnerable,
     phase: current.phase,
     lanePosition: previous.lanePosition + (current.lanePosition - previous.lanePosition) * t,
     occupiedLane: current.occupiedLane,
@@ -76,4 +88,37 @@ export function interpolateSnapshot(
     readyRemainingMs: current.readyRemainingMs,
     elapsedMs: current.elapsedMs,
   })
+}
+
+/**
+ * Blend the world between two simulation steps, matched by id.
+ *
+ * By id and not by index, which is the whole subtlety: obstacles spawn and
+ * despawn between steps, so pairing position 0 with position 0 would smoothly
+ * interpolate one obstacle's distance toward a completely different obstacle's
+ * — a cone visibly sliding across the road as the one in front of it is culled.
+ *
+ * An obstacle that exists only in the newer snapshot appears at its own
+ * position rather than blending in from nowhere; it has just spawned, far
+ * beyond the visible road, so there is nothing to see either way.
+ */
+function interpolateObstacles(
+  previous: readonly RenderObstacle[],
+  current: readonly RenderObstacle[],
+  t: number,
+): readonly RenderObstacle[] {
+  if (previous.length === 0) return current
+
+  const before = new Map(previous.map(obstacle => [obstacle.id, obstacle]))
+
+  return Object.freeze(current.map((obstacle) => {
+    const from = before.get(obstacle.id)
+
+    if (from === undefined) return obstacle
+
+    return Object.freeze({
+      ...obstacle,
+      distanceUnits: from.distanceUnits + (obstacle.distanceUnits - from.distanceUnits) * t,
+    })
+  }))
 }

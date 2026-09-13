@@ -1,6 +1,9 @@
 import { advanceBuffer, applyInput } from './input'
 import { sealState } from './state'
 import { advanceJump } from './jump'
+import { advanceObstacles, advanceSpawning } from './obstacles'
+import { resolveCollisions } from './collision'
+import { TUNING } from './tuning'
 import { advanceLaneTransition } from './lanes'
 import type { InputEvent, RunState } from './types'
 
@@ -46,6 +49,19 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
   }
 
   let next = state
+
+  /*
+   * A run that has ended is over, and no input reopens it.
+   *
+   * This guard used to sit *below* the input loop, which meant `pause` reached
+   * `applyPhaseInput` first and walked the run straight out of its terminal
+   * state into `paused` — with `resumePhase` captured as `ended`. That was
+   * reachable without any test-only code: the app pauses on `blur`,
+   * `visibilitychange` and `pagehide`, so switching tabs on the game-over
+   * screen replaced it with a pause overlay offering a Resume button on a run
+   * with zero hearts.
+   */
+  if (next.phase === 'ended') return sealState(next)
 
   /*
    * Inputs, once, in the order they arrived.
@@ -102,9 +118,54 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
   next = advanceBuffer(next, deltaMs)
 
   // 5. Run time, which only accrues once the run is interactive.
-  return sealState(runningDeltaMs === 0
-    ? next
-    : { ...next, elapsedMs: next.elapsedMs + runningDeltaMs })
+  //
+  // Hoisted above the world so everything downstream reads one consistent
+  // clock. Difficulty is driven by elapsed time, so a tier boundary must be
+  // crossed before the step that depends on it, not after.
+  if (runningDeltaMs !== 0) {
+    next = { ...next, elapsedMs: next.elapsedMs + runningDeltaMs }
+  }
+
+  // 6. The world scrolls, and the generator emits whatever the distance owes.
+  //
+  // Driven by `runningDeltaMs`, not the full delta: during the readiness beat
+  // the player may move, but nothing approaches them.
+  next = advanceObstacles(next, runningDeltaMs)
+  next = advanceSpawning(next)
+
+  // 7. Collision, then near miss, both after movement — occupancy flips at the
+  //    midpoint of a lane change, and the player's position for this step is
+  //    only settled once the transition and the jump have advanced.
+  const resolved = resolveCollisions(next)
+
+  next = resolved.state
+
+  if (resolved.nearMisses > 0) {
+    next = { ...next, nearMissCount: next.nearMissCount + resolved.nearMisses }
+  }
+
+  if (resolved.heartsLost > 0) {
+    const hearts = Math.max(0, next.hearts - resolved.heartsLost)
+
+    next = {
+      ...next,
+      hearts,
+      // A hit starts the invulnerability window and changes nothing else. What
+      // a collision does to an in-progress lane change, and whether it dips the
+      // scroll speed, is CR-2 and still OPEN — so it does neither.
+      invulnRemainingMs: TUNING.invuln.postHitMs,
+    }
+
+    if (hearts === 0) {
+      // Terminal. No revive, no continue: the only way out is a new run.
+      next = { ...next, phase: 'ended', resumePhase: 'running' }
+    }
+  }
+  else if (next.invulnRemainingMs > 0) {
+    next = { ...next, invulnRemainingMs: Math.max(0, next.invulnRemainingMs - runningDeltaMs) }
+  }
+
+  return sealState(next)
 }
 
 function isPhaseInput(input: InputEvent): boolean {

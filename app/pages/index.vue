@@ -20,10 +20,22 @@ useHead({ title: () => t('home.title') })
   <div class="stack home">
     <UiBrandWordmark />
 
+    <!-- Reachable only when the server could not resolve the session — the BFF
+         or the API was unreachable inside the render's deadline. Not the common
+         path: SSR normally knows the visitor before this component renders.
+         Kept because the alternative for that case is the guest branch below,
+         which would tell a signed-in player to sign in.
+
+         The class on it is a test hook, and it has to be: `aria-live="polite"`
+         alone cannot identify this state, because `UiAuthNotice` carries one
+         too, so a test asserting its absence would pass on a page that
+         legitimately contains one. Naming the hook here would defeat it —
+         template comments are emitted into the server HTML, so the string would
+         match itself. -->
     <p
       v-if="auth.status === 'unknown'"
       aria-live="polite"
-      class="text-caption text-center"
+      class="home__resolving text-caption text-center"
     >
       {{ $t('common.loading') }}
     </p>

@@ -6,6 +6,70 @@ This project does not yet have released versions.
 
 ## [Unreleased]
 
+### Fixed — the server now knows who is visiting
+
+- **Server-rendered pages resolve the session.** The auth store was never resolved during SSR, so
+  every page was rendered as "we do not know yet" and rewritten on the client. Vue reported a
+  hydration mismatch and, in a production build, leaves the mismatched DOM in place — so a
+  signed-in player could be left looking at signed-out navigation. The render now resolves the
+  existing BFF session from the visitor's own cookie, in-process, through the same
+  `GET /api/auth/me` the browser uses. No new session mechanism, no backend change, and nothing
+  reaches the browser that it did not already receive — only sooner.
+  See [ADR-0009](docs/decisions/ADR-0009-server-rendered-session-awareness.md).
+- **Deep links to protected pages work when you are signed in.** `verified` and `admin` ran on the
+  server against an unresolved store, redirected to the sign-in screen, and the destination was
+  then dropped — so a bookmark to `/account/security` quietly landed on the home page instead.
+  The guards are unchanged; they simply decide against real state now.
+- **A guest-only screen honours where you were going.** Arriving at the sign-in screen already
+  signed in sends you to the page you asked for rather than to the home page.
+- **An unreachable BFF no longer looks like a signed-out visitor.** A render that cannot resolve
+  the session leaves the state unresolved and says so, rather than concluding "guest" — a
+  conclusion the browser could never revisit.
+
+### Added — M6: obstacles, collision, hearts and difficulty
+
+The foundation becomes a game. Still no score, no paws, no Loli and no SLAYYY — those are M7.
+
+- **Two obstacle classes and nothing else.** `LANE_BLOCKING` is avoided by changing lane and is
+  **not** cleared by being airborne; `JUMPABLE` is cleared while airborne. Every rule reasons over
+  the class, so no gameplay decision can ever depend on a sprite name.
+- **Pattern-driven generation.** An authored, data-only catalogue drawn from weighted per-tier
+  pools with a repeat cooldown, selected by integer weights against the seeded `pattern` stream —
+  the first thing in the game to consume RNG. The `cosmetic` and `collectible` streams stay
+  untouched, and a test proves a decorative change cannot shift the obstacle sequence.
+- **The escape-path guarantee, proven.** A depth-first solver that runs the **real `step()`** over
+  real obstacles at the real scroll speed, so it cannot certify something the rules would kill you
+  on. Every pattern, from every starting lane, at every eligible tier; every ordered pair of
+  patterns across a join — from the state the first pattern genuinely leaves the player in, on the
+  budget the player genuinely gets; every pattern met mid-transition, mid-jump and holding a
+  buffered input; and seeded generation over five simulated minutes per seed, which is what it
+  takes to reach Tier 5 at all.
+- **Difficulty.** A soft-capped asymptotic speed curve driven by elapsed run time, and five tiers
+  gating which patterns are eligible. Tier 5 is terminal. The density and decision-frequency curves
+  are implemented and tested but **not yet consumed** by the generator, which spaces patterns with
+  a per-tier `minGapUnits` floor; connecting them changes difficulty feel and is a product decision
+  (`docs/product/difficulty-and-obstacles.md` §2.2).
+- **Collision, hearts and recovery.** Domain-authoritative: lane occupancy plus longitudinal
+  overlap plus class, never a physics callback. Three hearts, no healing, one heart per step
+  whatever overlaps, an obstacle resolves exactly once, and a post-hit invulnerability window that
+  does not age while paused. A run ends at zero hearts and advances nothing afterwards.
+- **Near miss.** Evaluated once per obstacle at the instant it passes, deterministic, awarding
+  nothing — a statistic, as approved.
+- **The renderer.** Pooled obstacle shapes, distinguishable by both colour and silhouette, drawn
+  from a frozen render snapshot whose obstacle array is matched by id when interpolating. A
+  provisional heart row — not the HUD, which is M7 — with the count as accessible text and spent
+  hearts hollow rather than merely faded.
+
+### Changed — M6
+
+- **Reduced motion now does something on the run route**, because there is finally motion to
+  reduce. The post-hit blink becomes a steady dim instead of a 10 Hz pulse; the road keeps
+  scrolling, because motion that carries gameplay information is not decoration.
+- The literal scan that guards "no gameplay number outside the tuning module" **discovers the
+  rules files instead of listing them**, so a new module is covered by default.
+- The tuning registry check became path-aware: nested groups meant two leaves could be called
+  `base`, and the old leaf-keyed lookup silently paired the wrong statuses.
+
 ### Added — M5: game core
 
 The pure game-rules core, the Phaser boundary, and the run route. No obstacles, no scoring,

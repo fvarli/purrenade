@@ -37,6 +37,17 @@
  */
 
 /** One independent stream. Four 32-bit words, held as unsigned integers. */
+/**
+ * The largest seed these streams can represent without wrapping.
+ *
+ * It lives here rather than with the caller that validates seeds, because it is
+ * a property of *this* generator: every stream is a 32-bit word, and `>>> 0`
+ * is what makes it one. Restated next to the validation it drifts the first
+ * time the word size changes, and it also hid from the literal scan — a leading
+ * `0x` is not a decimal digit.
+ */
+export const MAX_SEED = 0xFFFFFFFF
+
 export interface RngStream {
   readonly a: number
   readonly b: number

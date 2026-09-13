@@ -65,6 +65,41 @@ interface SessionRecord {
 }
 ```
 
+### The session during a server render — IMPLEMENTED
+
+Nuxt renders every route but `/run` on the server, and that render resolves the session the
+same way the browser does. Four facts make it work, and the absence of this section is why
+they were once written down backwards in a code comment:
+
+- **The cookie is there.** `SameSite=Lax` means the browser sends it on a top-level
+  navigation, which is exactly what a page render is.
+- **The record is here.** It lives in this process's `sessions` mount, so `readSession` is a
+  local lookup, not a call to anywhere.
+- **The internal call is not a request.** On the server `$fetch` is Nitro's in-process
+  fetcher: a path beginning `/` is dispatched straight to the handler, with no socket and no
+  TLS. The render asks `GET /api/auth/me` exactly as the browser would, and gets the same
+  credential-free projection.
+- **There is no ambient credential to pick up by mistake.** Nitro keeps no cookie jar. The
+  only cookie in play is the one on the event being rendered, and it is forwarded explicitly
+  — just the `Cookie` header, nothing else.
+
+Three rules follow, and they are enforced by tests rather than by convention:
+
+1. **`unknown` is not `guest`.** A render that cannot reach the BFF leaves the status
+   `unknown` and says so once, with the reason. It never concludes that the visitor is signed
+   out, because the browser is the only party that gets to re-ask.
+2. **A render never changes anything.** State-changing BFF requests are refused during SSR.
+   That is also what keeps the CSRF cache client-only: the only path that populates it is
+   unreachable on the server.
+3. **The wait is bounded.** 2.5 s, not `apiTimeoutMs` — this is time-to-first-byte, so a slow
+   API degrades the page's auth state rather than the page.
+
+Because the store is resolved during the render, it is **serialised into `__NUXT_DATA__`** —
+visible in view-source and in the browser's cache. That does not change what may be held in
+it; it raises the cost of getting it wrong. An E2E case and a CI gate both assert that no
+Sanctum token, session pointer, recovery code, TOTP secret or CSRF secret appears in
+server-rendered HTML. See [ADR-0009](../decisions/ADR-0009-server-rendered-session-awareness.md).
+
 ### Why not h3's `useSession`
 
 h3's built-in session is a **sealed cookie**: the payload is encrypted and sent
@@ -309,7 +344,7 @@ states, and each one has exactly one screen:
 
 | State | Meaning |
 | --- | --- |
-| `unknown` | Before the first `/api/auth/me`. Distinct from `guest` because rendering a login screen to somebody who turns out to be signed in is a visible flash on every page load. |
+| `unknown` | Nobody has answered yet — either before the first `/api/auth/me`, or because the server render could not reach the BFF. Distinct from `guest`, which is a *conclusion*: rendering a login screen to somebody who turns out to be signed in is a visible flash on every page load, and concluding `guest` on the server would make it permanent, because the client only asks again from `unknown`. |
 | `guest` | No session. |
 | `two_factor_required` | Password accepted, code owed. **Not authenticated** — no credential exists yet. |
 | `unverified` | Signed in, address unconfirmed. |

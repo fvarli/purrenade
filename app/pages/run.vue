@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PLAY_COLUMN_MAX_PX } from '~~/game/bridge'
+import { HEARTS, PLAY_COLUMN_MAX_PX } from '~~/game/bridge'
 
 /**
  * The run surface.
@@ -27,7 +27,7 @@ definePageMeta({
 const { t } = useI18n()
 
 const surface = useTemplateRef<HTMLElement>('surface')
-const { phase, loading, failed, isPaused, start, stop, togglePause } = useRunSurface()
+const { phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause } = useRunSurface()
 
 useHead({
   title: () => t('run.title'),
@@ -94,11 +94,34 @@ onBeforeUnmount(stop)
         v-if="!failed"
         type="button"
         variant="quiet"
-        :disabled="loading"
+        :disabled="loading || hasEnded"
         @click="togglePause"
       >
         {{ isPaused ? t('run.resume') : t('run.pause') }}
       </UiAuthButton>
+    </div>
+
+    <div class="run__meta">
+      <!--
+        Provisional M6 feedback, not the HUD.
+
+        M7 owns the real heads-up display. What is needed now is enough to see a
+        heart go, and enough for a screen reader to know it went: the shapes are
+        decorative, and the count beside them is the accessible fact. Hearts are
+        countable shapes rather than a colour bar, so nothing here depends on
+        hue alone.
+      -->
+      <p class="run__hearts">
+        <span aria-hidden="true">
+          <span
+            v-for="index in HEARTS.max"
+            :key="index"
+            class="run__heart"
+            :class="{ 'run__heart--spent': index > hearts }"
+          >♥</span>
+        </span>
+        <span class="run__hearts-count">{{ t('run.hearts', { count: hearts, max: HEARTS.max }) }}</span>
+      </p>
     </div>
 
     <div class="run__foot">
@@ -109,6 +132,10 @@ onBeforeUnmount(stop)
       <UiAuthNotice v-else-if="failed" variant="error">
         {{ t('run.failed') }}
       </UiAuthNotice>
+
+      <p v-else-if="hasEnded" class="run__status run__status--ended" role="status">
+        {{ t('run.ended') }}
+      </p>
 
       <p v-else class="run__status">
         {{ t('run.scopeNotice') }}
@@ -201,6 +228,7 @@ onBeforeUnmount(stop)
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
 }
@@ -220,6 +248,49 @@ onBeforeUnmount(stop)
   color: var(--color-ink);
 }
 
+/*
+ * The heart row sits on its own line, below the controls.
+ *
+ * Four things across a 320 px viewport do not fit, and the first attempt let
+ * the control row wrap instead — which dropped the pause button onto the sea,
+ * out of the chrome and into the middle of the picture. A separate row is
+ * predictable at every width.
+ */
+.run__meta {
+  position: relative;
+  z-index: 1;
+  inline-size: min(100%, var(--run-column));
+  margin-inline: auto;
+  padding: 0 var(--space-4);
+}
+
+.run__hearts {
+  display: flex;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-caption);
+  color: var(--color-ink);
+}
+
+.run__heart {
+  color: var(--color-coral);
+  font-size: 1.1em;
+}
+
+/* Hollow, not merely faded: the difference must survive a greyscale display. */
+.run__heart--spent {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--color-border);
+}
+
+.run__hearts-count {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+}
+
 .run__phase {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
@@ -233,6 +304,11 @@ onBeforeUnmount(stop)
   z-index: 1;
   margin-block-start: auto;
   padding: var(--space-4);
+}
+
+.run__status--ended {
+  font-weight: 700;
+  color: var(--color-ink);
 }
 
 .run__status {

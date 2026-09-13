@@ -278,11 +278,15 @@
     "resume": "Resume",
     "loading": "Loading the game engine…",
     "failed": "The game engine could not load. Refresh the page and try again.",
-    "scopeNotice": "This build has lanes, jumping and pause. Obstacles, hearts, paws and SLAYYY arrive in later milestones.",
+    "scopeNotice": "This build has lanes, jumping, obstacles, hearts and pause. Paws, Loli and SLAYYY arrive in later milestones.",
     "phase": {
       "ready": "Getting ready",
       "running": "Running",
-      "paused": "Paused"
-    }
+      "paused": "Paused",
+      "ended": "Over"
+    },
+    "hearts": "Lives: {count} / {max}",
+    "heartsLabel": "Lives remaining",
+    "ended": "Run over. Leave and enter again to start a new one."
   }
 }

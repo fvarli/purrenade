@@ -78,9 +78,31 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
     const inputs = pending
     pending = []
 
+    const before = state
+
     previous = current
     state = step(state, inputs, STEP_MS)
     current = toRenderSnapshot(state)
+
+    /*
+     * Coarse events, and coarse is the point.
+     *
+     * The app layer learns that a heart went or that the run ended. It does not
+     * learn where the obstacles are — that is the snapshot's job, once per
+     * frame, without touching Vue's reactivity. A `heart_lost` is a moment; an
+     * obstacle position is a picture.
+     */
+    if (state.hearts < before.hearts) {
+      emit({ type: 'heart_lost', hearts: state.hearts })
+    }
+
+    for (let i = before.nearMissCount; i < state.nearMissCount; i++) {
+      emit({ type: 'near_miss' })
+    }
+
+    if (state.phase === 'ended' && before.phase !== 'ended') {
+      emit({ type: 'run_ended' })
+    }
 
     if (state.phase !== lastPhase) {
       // `run_interactive` is the moment hazards become legal, which is the one
@@ -191,6 +213,16 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
      * the same breath as a pause is swallowed rather than fired on resume.
      */
     pause(): void {
+      /*
+       * Drop what is queued here, not on the next paused frame.
+       *
+       * The discard used to live in `frame()`, and `frame()` is exactly what
+       * stops when the window loses focus — the case this whole synchronous
+       * pause path exists for. So a jump queued a moment before a blur survived
+       * the pause and fired on resume, which is the precise defect the ordered
+       * input pass in `step` was written to prevent.
+       */
+      pending = []
       accumulatorMs = 0
       applyControl({ type: 'pause' })
     },

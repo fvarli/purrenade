@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { LANE_CENTER, LANE_LEFT, LANE_RIGHT, STEP_MS, TUNING, createRunState, step } from '../domain'
 import { createRunLoop } from './loop'
 import { interpolateSnapshot, toRenderSnapshot } from './snapshot'
-import type { RunEvent } from './types'
+import type { RenderObstacle, RenderSnapshot, RunEvent } from './types'
 
 /**
  * The boundary, tested in Node.
@@ -61,10 +61,13 @@ describe('toRenderSnapshot', () => {
 
     expect(Object.keys(snapshot).sort()).toEqual([
       'elapsedMs',
+      'hearts',
       'heightPx',
+      'invulnerable',
       'jumpProgress',
       'laneProgress',
       'lanePosition',
+      'obstacles',
       'occupiedLane',
       'phase',
       'readyRemainingMs',
@@ -413,5 +416,228 @@ describe('pause and resume do not depend on the loop they control', () => {
     loop.resume()
 
     expect(loop.debugState().elapsedMs).toBe(before)
+  })
+})
+
+describe('the world crosses the boundary safely', () => {
+  /** Advance a fresh loop far enough that obstacles exist. */
+  function withObstacles(): ReturnType<typeof createRunLoop> {
+    const loop = createRunLoop({ seed: 5 })
+
+    for (let i = 0; i < 900; i++) loop.frame(STEP_MS)
+
+    return loop
+  }
+
+  it('carries obstacles in road units, frozen, with no rule fields', () => {
+    const snapshot = withObstacles().snapshot()
+
+    expect(snapshot.obstacles.length).toBeGreaterThan(0)
+    expect(Object.isFrozen(snapshot.obstacles)).toBe(true)
+
+    for (const obstacle of snapshot.obstacles) {
+      expect(Object.isFrozen(obstacle)).toBe(true)
+      // `outcome` is a rule. A renderer that could read it could start deciding.
+      expect(Object.keys(obstacle).sort()).toEqual(
+        ['distanceUnits', 'id', 'kind', 'lane', 'lengthUnits'],
+      )
+    }
+  })
+
+  it('does not let a renderer edit the world it is drawing', () => {
+    const loop = withObstacles()
+    const snapshot = loop.snapshot()
+    const before = loop.debugState().obstacles.length
+
+    expect(() => {
+      ;(snapshot.obstacles as RenderObstacle[]).push({
+        id: -1, kind: 'lane_blocking', lane: 0, distanceUnits: 0, lengthUnits: 1,
+      })
+    }).toThrow(TypeError)
+
+    expect(() => {
+      ;(snapshot.obstacles[0] as unknown as { distanceUnits: number }).distanceUnits = -99
+    }).toThrow(TypeError)
+
+    expect(loop.debugState().obstacles.length).toBe(before)
+  })
+
+  it('interpolates obstacles by id, never by position in the array', () => {
+    /*
+     * Index pairing looks fine until an obstacle is culled mid-frame: position
+     * zero then refers to a different obstacle, and the one behind it visibly
+     * slides across the road toward where the culled one used to be.
+     */
+    const a: RenderSnapshot = { ...BLANK, obstacles: Object.freeze([
+      Object.freeze({ id: 1, kind: 'lane_blocking' as const, lane: 0, distanceUnits: 10, lengthUnits: 1 }),
+      Object.freeze({ id: 2, kind: 'jumpable' as const, lane: 2, distanceUnits: 20, lengthUnits: 1 }),
+    ]) }
+
+    // Obstacle 1 has been culled; only 2 remains, and it has moved.
+    const b: RenderSnapshot = { ...BLANK, obstacles: Object.freeze([
+      Object.freeze({ id: 2, kind: 'jumpable' as const, lane: 2, distanceUnits: 18, lengthUnits: 1 }),
+    ]) }
+
+    const blended = interpolateSnapshot(a, b, 0.5)
+
+    expect(blended.obstacles).toHaveLength(1)
+    expect(blended.obstacles[0]!.id).toBe(2)
+    // Halfway between 20 and 18 — not halfway between 10 and 18.
+    expect(blended.obstacles[0]!.distanceUnits).toBeCloseTo(19, 9)
+  })
+
+  it('emits a coarse event when a heart goes, and when the run ends', () => {
+    const events: RunEvent[] = []
+    const loop = createRunLoop({ seed: 5, onEvent: event => events.push(event) })
+
+    for (let i = 0; i < 30_000 && loop.phase() !== 'ended'; i++) loop.frame(STEP_MS)
+
+    const hearts = events.filter(event => event.type === 'heart_lost')
+
+    expect(hearts.length).toBe(3)
+    expect(hearts.at(-1)).toEqual({ type: 'heart_lost', hearts: 0 })
+    expect(events.filter(event => event.type === 'run_ended')).toHaveLength(1)
+  })
+
+  it('does not put gameplay geometry into the event stream', () => {
+    const events: RunEvent[] = []
+    const loop = createRunLoop({ seed: 5, onEvent: event => events.push(event) })
+
+    for (let i = 0; i < 2000; i++) loop.frame(STEP_MS)
+
+    const serialised = JSON.stringify(events)
+
+    expect(serialised).not.toContain('distanceUnits')
+    expect(serialised).not.toContain('lane')
+  })
+})
+
+const BLANK: RenderSnapshot = Object.freeze({
+  phase: 'running' as const,
+  lanePosition: 1,
+  occupiedLane: 1 as const,
+  heightPx: 0,
+  jumpProgress: 0,
+  laneProgress: 1,
+  readyRemainingMs: 0,
+  elapsedMs: 0,
+  obstacles: Object.freeze([]),
+  hearts: 3,
+  invulnerable: false,
+})
+
+describe('the world does not depend on the display', () => {
+  /*
+   * The same run, driven through the real loop at six refresh rates plus
+   * jitter. Collision and near-miss outcomes must not depend on a monitor.
+   *
+   * Compared on authoritative state, never on interpolated pixels: the whole
+   * point of the fixed step is that what the player *sees* is smoothed while
+   * what the rules *do* is quantised, so the smoothing is the one thing that is
+   * allowed to differ.
+   */
+  function drive(frameMs: readonly number[], seconds: number): string {
+    const loop = createRunLoop({ seed: 31 })
+
+    let elapsed = 0
+    let index = 0
+
+    while (elapsed < seconds * 1000) {
+      const delta = frameMs[index % frameMs.length]!
+
+      loop.frame(delta)
+      elapsed += delta
+      index++
+    }
+
+    const state = loop.debugState()
+
+    return JSON.stringify({
+      hearts: state.hearts,
+      nearMiss: state.nearMissCount,
+      phase: state.phase,
+      spawned: state.nextObstacleId,
+      obstacles: state.obstacles.map(o => [o.id, o.kind, o.lane, o.outcome]),
+    })
+  }
+
+  const rates: Record<string, readonly number[]> = {
+    '60Hz': [1000 / 60],
+    '90Hz': [1000 / 90],
+    '120Hz': [1000 / 120],
+    '144Hz': [1000 / 144],
+    '165Hz': [1000 / 165],
+    '240Hz': [1000 / 240],
+    jitter: [12, 4, 33, 8, 21, 6, 17],
+  }
+
+  it('reaches the same authoritative state at every refresh rate', () => {
+    const seconds = 20
+    const reference = drive(rates['120Hz']!, seconds)
+
+    for (const [name, frames] of Object.entries(rates)) {
+      expect(drive(frames, seconds), `${name} diverged from 120Hz`).toBe(reference)
+    }
+  })
+
+  it('does not spawn a burst after a long stall', () => {
+    // The loop discards time it cannot honestly simulate, and generation
+    // follows the same clock — so a backgrounded tab cannot come back to a wall
+    // of hazards it never scrolled past.
+    const steady = createRunLoop({ seed: 31 })
+    const stalled = createRunLoop({ seed: 31 })
+
+    for (let i = 0; i < 600; i++) {
+      steady.frame(STEP_MS)
+      stalled.frame(STEP_MS)
+    }
+
+    const before = stalled.debugState().nextObstacleId
+
+    stalled.frame(30_000)
+
+    const spawnedByTheStall = stalled.debugState().nextObstacleId - before
+
+    // At most what the bounded catch-up could honestly have scrolled past.
+    expect(spawnedByTheStall).toBeLessThanOrEqual(2)
+  })
+})
+
+describe('pausing discards what was queued', () => {
+  it('does not fire a gameplay input that was queued just before a pause', () => {
+    /*
+     * The queue used to be cleared by the next *paused frame* — and `frame()`
+     * is exactly what stops when the window loses focus, which is the case the
+     * synchronous pause path exists for. So a jump queued a moment before a
+     * blur survived the pause and fired on resume: the player looked away and
+     * came back mid-air.
+     */
+    const loop = createRunLoop({ seed: 1 })
+
+    for (let i = 0; i < 400; i++) loop.frame(STEP_MS)
+
+    expect(loop.phase()).toBe('running')
+
+    loop.enqueue({ type: 'jump' })
+
+    // No frame between the two — the blur case exactly.
+    loop.pause()
+    loop.resume()
+    loop.frame(STEP_MS)
+
+    expect(loop.debugState().jumpElapsedMs, 'a queued input must not survive a pause').toBeNull()
+  })
+
+  it('still applies an input queued after the resume', () => {
+    const loop = createRunLoop({ seed: 1 })
+
+    for (let i = 0; i < 400; i++) loop.frame(STEP_MS)
+
+    loop.pause()
+    loop.resume()
+    loop.enqueue({ type: 'jump' })
+    loop.frame(STEP_MS)
+
+    expect(loop.debugState().jumpElapsedMs).not.toBeNull()
   })
 })

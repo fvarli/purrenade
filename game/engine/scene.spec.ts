@@ -12,26 +12,36 @@
 import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { PALETTE, createRunScene } from './scene'
-import { createRunLoop } from '../bridge'
+import { createRunLoop, PLAYFIELD } from '../bridge'
 
 /** A minimal event emitter, which is all the scene needs from Phaser's. */
+/**
+ * Phaser's emitter, including the part this fake used to leave out.
+ *
+ * `on(event, fn, context)` binds `context` as the handler's `this`, and the
+ * scene relies on that for `handleResize`. The fake dropped the third argument,
+ * so the resize path could never have been exercised here at all — it threw on
+ * `this.scale` the moment a test tried.
+ */
+interface Handler { fn: (...args: unknown[]) => void, context?: unknown }
+
 function emitter() {
-  const handlers = new Map<string, Array<(...args: unknown[]) => void>>()
+  const handlers = new Map<string, Handler[]>()
 
   return {
-    on(event: string, fn: (...args: unknown[]) => void) {
-      handlers.set(event, [...(handlers.get(event) ?? []), fn])
+    on(event: string, fn: (...args: unknown[]) => void, context?: unknown) {
+      handlers.set(event, [...(handlers.get(event) ?? []), { fn, context }])
       return this
     },
-    once(event: string, fn: (...args: unknown[]) => void) {
-      return this.on(event, fn)
+    once(event: string, fn: (...args: unknown[]) => void, context?: unknown) {
+      return this.on(event, fn, context)
     },
     off(event: string, fn: (...args: unknown[]) => void) {
-      handlers.set(event, (handlers.get(event) ?? []).filter(h => h !== fn))
+      handlers.set(event, (handlers.get(event) ?? []).filter(h => h.fn !== fn))
       return this
     },
     emit(event: string, ...args: unknown[]) {
-      for (const fn of [...(handlers.get(event) ?? [])]) fn(...args)
+      for (const h of [...(handlers.get(event) ?? [])]) h.fn.call(h.context, ...args)
       return this
     },
     count(event: string) {
@@ -40,14 +50,42 @@ function emitter() {
   }
 }
 
-function shape() {
-  const self = {
-    setPosition: () => self,
-    setSize: () => self,
+/**
+ * A shape that remembers what was done to it.
+ *
+ * The original returned bare self-references, so even if `update()` had been
+ * called nothing could be asserted — which is why the entire render path, the
+ * pool, the depth order and the dimming went untested and four defects lived
+ * there.
+ */
+interface FakeShape {
+  x: number
+  y: number
+  width: number
+  height: number
+  depth: number
+  alpha: number
+  fill: number
+  visible: boolean
+  setPosition: (x: number, y: number) => FakeShape
+  setSize: (w: number, h: number) => FakeShape
+  setRadius: (r: number) => FakeShape
+  setDepth: (d: number) => FakeShape
+  setAlpha: (a: number) => FakeShape
+  setFillStyle: (c: number) => FakeShape
+  setVisible: (v: boolean) => FakeShape
+}
+
+function shape(): FakeShape {
+  const self: FakeShape = {
+    x: 0, y: 0, width: 0, height: 0, depth: 0, alpha: 1, fill: 0, visible: true,
+    setPosition: (x, y) => { self.x = x; self.y = y; return self },
+    setSize: (w, h) => { self.width = w; self.height = h; return self },
     setRadius: () => self,
-    setDepth: () => self,
-    setAlpha: () => self,
-    setFillStyle: () => self,
+    setDepth: (d) => { self.depth = d; return self },
+    setAlpha: (a) => { self.alpha = a; return self },
+    setFillStyle: (c) => { self.fill = c; return self },
+    setVisible: (v) => { self.visible = v; return self },
   }
 
   return self
@@ -64,15 +102,19 @@ function fakePhaser(size = { width: 390, height: 844 }) {
   const events = emitter()
   const input = emitter()
   const scale = Object.assign(emitter(), size)
+  const made: FakeShape[] = []
 
   class Scene {
     events = events
     input = input
     scale = scale
-    add = { rectangle: shape, circle: shape }
+    add = {
+      rectangle: (..._args: unknown[]) => { const s = shape(); made.push(s); return s },
+      circle: (..._args: unknown[]) => { const s = shape(); made.push(s); return s },
+    }
   }
 
-  return { phaser: { Scene } as never, events, input, scale }
+  return { phaser: { Scene } as never, events, input, scale, made }
 }
 
 function keydownListenerCount(): number {
@@ -101,7 +143,7 @@ function trackDocumentListeners(): void {
 }
 
 function mountScene(size?: { width: number, height: number }) {
-  const { phaser, events, input, scale } = fakePhaser(size)
+  const { phaser, events, input, scale, made } = fakePhaser(size)
   const loop = createRunLoop({ seed: 1 })
   const pauseRequests: number[] = []
 
@@ -112,8 +154,23 @@ function mountScene(size?: { width: number, height: number }) {
 
   scene.create()
 
-  return { events, input, scale, loop, pauseRequests }
+  const rendered = scene as unknown as { update: (t: number, d: number) => void }
+
+  /*
+   * The pooled obstacle rectangles, in creation order.
+   *
+   * Derived from the end of the display list rather than from a hardcoded
+   * offset: the player circle is created last, and the pool is the run of
+   * rectangles immediately before it. A count of backdrop shapes written down
+   * here would go quietly wrong the first time the scene gains a shape.
+   */
+  const pool = (): FakeShape[] => made.slice(made.length - 1 - POOL_SIZE, made.length - 1)
+
+  return { events, input, scale, loop, pauseRequests, made, pool, frame: (ms: number) => rendered.update(0, ms) }
 }
+
+/** `OBSTACLE_POOL_SIZE` in scene.ts. */
+const POOL_SIZE = 48
 
 describe('the scene releases everything it took', () => {
   it('removes its document keydown listener when Phaser destroys the scene', () => {
@@ -306,5 +363,168 @@ describe('the scene palette is the token palette', () => {
       .map(({ name, hex }) => `${name}: #${hex} is in no token`)
 
     expect(orphans).toEqual([])
+  })
+})
+
+describe('the scene draws the world it is given', () => {
+  /*
+   * A step at which the road is carrying two obstacles at once, one of each
+   * class, with the run still live.
+   *
+   * Chosen by measurement, not by guesswork. The first version of these tests
+   * sampled a step with a single obstacle on screen, so the loop comparing one
+   * obstacle against the next never executed and the test passed against a
+   * deliberately broken painter's order. Every test below asserts that it found
+   * what it came for before it asserts anything about it.
+   */
+  const TWO_OBSTACLES_STEP = 1660
+
+  /** A step at which one obstacle has gone by but has not yet despawned. */
+  const PASSED_OBSTACLE_STEP = 760
+
+  function atTwoObstacles() {
+    const scene = mountScene()
+
+    for (let i = 0; i < TWO_OBSTACLES_STEP; i++) scene.frame(1000 / 120)
+
+    const snapshot = scene.loop.snapshot()
+    const shapes = scene.pool()
+    const drawn = snapshot.obstacles.map((obstacle, index) => ({ obstacle, shape: shapes[index]! }))
+
+    expect(snapshot.phase, 'the sample must be taken from a live run').toBe('running')
+    expect(drawn.filter(d => d.shape.visible).length, 'the sample must show two obstacles').toBe(2)
+
+    return { scene, snapshot, shapes, drawn, visible: drawn.filter(d => d.shape.visible) }
+  }
+
+  it('gives every on-road obstacle a shape and hides the rest of the pool', () => {
+    const { snapshot, shapes, drawn } = atTwoObstacles()
+
+    for (const { obstacle, shape } of drawn) {
+      const onRoad = obstacle.distanceUnits <= PLAYFIELD.visibleUnits
+        && obstacle.distanceUnits + obstacle.lengthUnits > 0
+
+      expect(shape.visible, `obstacle at ${obstacle.distanceUnits} units`).toBe(onRoad)
+    }
+
+    const unused = shapes.slice(snapshot.obstacles.length)
+
+    expect(unused.length).toBeGreaterThan(0)
+    expect(unused.every(s => !s.visible), 'an unused pool slot must not linger on screen').toBe(true)
+  })
+
+  it('hides an obstacle the player has already passed', () => {
+    /*
+     * The far edge was checked and the near one was not, so an obstacle that
+     * had gone by kept full size and slid down past the player's feet until the
+     * domain despawned it. There is a real window for this: the domain keeps a
+     * passed obstacle until it is `world.despawnBehindUnits` behind.
+     */
+    const scene = mountScene()
+
+    for (let i = 0; i < PASSED_OBSTACLE_STEP; i++) scene.frame(1000 / 120)
+
+    const snapshot = scene.loop.snapshot()
+    const shapes = scene.pool()
+    const passed = snapshot.obstacles
+      .map((obstacle, index) => ({ obstacle, shape: shapes[index]! }))
+      .filter(d => d.obstacle.distanceUnits + d.obstacle.lengthUnits <= 0)
+
+    expect(snapshot.phase).toBe('running')
+    expect(passed.length, 'the sample must contain a passed obstacle').toBe(1)
+    expect(passed[0]!.shape.visible, 'a passed obstacle must leave the screen').toBe(false)
+  })
+
+  it('draws nearer obstacles on top of further ones', () => {
+    /*
+     * Every shape shared one depth, so Phaser fell back to display-list order —
+     * pool index, which is nearest first — and painted the nearest obstacle
+     * underneath the one behind it.
+     */
+    const { visible } = atTwoObstacles()
+
+    const sorted = [...visible].sort((a, b) => a.obstacle.distanceUnits - b.obstacle.distanceUnits)
+    const nearer = sorted[0]!
+    const further = sorted[1]!
+
+    expect(nearer.obstacle.distanceUnits, 'the two must be at different distances')
+      .toBeLessThan(further.obstacle.distanceUnits)
+    expect(nearer.shape.depth, 'the nearer obstacle must draw on top')
+      .toBeGreaterThan(further.shape.depth)
+  })
+
+  it('distinguishes the two obstacle classes by colour', () => {
+    const { visible } = atTwoObstacles()
+
+    const cones = visible.filter(d => d.obstacle.kind === 'lane_blocking')
+    const barriers = visible.filter(d => d.obstacle.kind !== 'lane_blocking')
+
+    expect(cones.length, 'the sample must contain a lane blocker').toBe(1)
+    expect(barriers.length, 'and something jumpable').toBe(1)
+    expect(PALETTE.cone).not.toBe(PALETTE.barrier)
+
+    expect(cones[0]!.shape.fill).toBe(PALETTE.cone)
+    expect(barriers[0]!.shape.fill).toBe(PALETTE.barrier)
+  })
+
+  it('dims the hazards along with the road when the run is not live', () => {
+    const { scene, visible } = atTwoObstacles()
+
+    expect(visible.every(d => d.shape.alpha === 1)).toBe(true)
+
+    scene.loop.pause()
+    scene.frame(1000 / 120)
+
+    expect(scene.loop.snapshot().phase).toBe('paused')
+    expect(
+      visible.every(d => d.shape.alpha < 1),
+      'a paused world must not sit bright on a dimmed road',
+    ).toBe(true)
+  })
+
+  it('stands every obstacle on the road inside the play column', () => {
+    const { visible } = atTwoObstacles()
+
+    for (const { shape } of visible) {
+      expect(shape.x).toBeGreaterThan(0)
+      expect(shape.x).toBeLessThan(390)
+      expect(shape.width).toBeGreaterThan(0)
+      expect(shape.height).toBeGreaterThan(0)
+    }
+  })
+
+  it('re-places the hazards when the viewport changes', () => {
+    const { scene, visible } = atTwoObstacles()
+    const before = visible.map(d => d.shape.x)
+
+    Object.assign(scene.scale, { width: 800, height: 600 })
+    scene.scale.emit('resize')
+
+    const after = visible.map(d => d.shape.x)
+
+    // A wider viewport centres a capped play column, so the road moves right
+    // and every hazard standing on it moves with it.
+    for (let i = 0; i < after.length; i++) expect(after[i]).toBeGreaterThan(before[i]!)
+  })
+
+  it('refuses to run out of pool rather than dropping a hazard on the floor', () => {
+    /*
+     * An obstacle without a shape is an invisible hazard that still costs a
+     * heart. The pool cannot overflow from real generation, so this drives the
+     * guard directly — it used to be a silent `return`.
+     */
+    const scene = mountScene()
+
+    for (let i = 0; i < TWO_OBSTACLES_STEP; i++) scene.frame(1000 / 120)
+
+    const snapshot = scene.loop.snapshot()
+    const overfull = {
+      ...snapshot,
+      obstacles: Array.from({ length: POOL_SIZE + 1 }, () => snapshot.obstacles[0]!),
+    }
+
+    vi.spyOn(scene.loop, 'snapshot').mockReturnValue(overfull)
+
+    expect(() => scene.frame(1000 / 120)).toThrow(/exceed the pool/)
   })
 })

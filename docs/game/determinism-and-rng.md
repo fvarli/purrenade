@@ -43,7 +43,7 @@ The game domain is a pure function of its inputs. Concretely, inside
 | Aspect | Approach |
 | --- | --- |
 | Algorithm | A small, fast, well-distributed PRNG with explicit state (e.g. a 128-bit xorshift family). **Not** the platform RNG. |
-| State location | **Inside `RunState`**, threaded through `step()`. Not a module-level singleton. **As of M5 nothing draws from the streams**, so `step()` does not yet advance them; the first consumer arrives with pattern generation at M6. |
+| State location | **Inside `RunState`**, threaded through `step()`. Not a module-level singleton. **As of M6 the `pattern` stream is consumed** — weighted pattern selection is its first and only consumer, and `step()` advances it whenever a pattern is emitted. `collectible` and `cosmetic` remain untouched, which is the point of separating them: a decorative change cannot shift the obstacle sequence, and a test asserts exactly that. |
 | Seed source | A cryptographically strong value at run start — from the **server** if the run-token model is adopted, otherwise locally generated |
 | Seed recording | The seed is part of the run summary, so any run can be replayed for debugging or validation |
 | Streams | Separate, independently-seeded streams for **pattern selection**, **collectible placement** and **cosmetic variation**, derived from the run seed |

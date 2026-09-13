@@ -1,4 +1,4 @@
-import type { InputEvent, LaneIndex, RunPhase } from '../domain'
+import type { InputEvent, LaneIndex, ObstacleKind, RunPhase } from '../domain'
 
 /**
  * The only vocabulary `game/domain` and `game/engine` share.
@@ -9,7 +9,7 @@ import type { InputEvent, LaneIndex, RunPhase } from '../domain'
  */
 
 /** Engine → domain. Re-exported so the engine never imports the domain directly. */
-export type { InputEvent, LaneIndex, RunPhase }
+export type { InputEvent, LaneIndex, ObstacleKind, RunPhase }
 
 /**
  * Domain → engine.
@@ -23,6 +23,21 @@ export type { InputEvent, LaneIndex, RunPhase }
  * renderer that might hold onto it for a frame. The mutable state object never
  * leaves the domain.
  */
+/**
+ * One obstacle, as much as a renderer is allowed to know.
+ *
+ * Deliberately not the domain's `Obstacle`: the outcome field is a rule, and a
+ * renderer that could read it would be a renderer that could start deciding
+ * things. Position is in road units — the engine converts to pixels.
+ */
+export interface RenderObstacle {
+  readonly id: number
+  readonly kind: ObstacleKind
+  readonly lane: LaneIndex
+  readonly distanceUnits: number
+  readonly lengthUnits: number
+}
+
 export interface RenderSnapshot {
   readonly phase: RunPhase
 
@@ -52,6 +67,21 @@ export interface RenderSnapshot {
 
   /** Run time in milliseconds. Does not advance while paused. */
   readonly elapsedMs: number
+
+  /**
+   * The world, nearest last, frozen along with every obstacle in it.
+   *
+   * A frozen array *and* frozen elements, not just a frozen wrapper: a renderer
+   * holds a snapshot for the length of a frame, and one that could splice this
+   * array would be editing the world the rules are running.
+   */
+  readonly obstacles: readonly RenderObstacle[]
+
+  /** Hearts remaining, so the app can show them without reading run state. */
+  readonly hearts: number
+
+  /** Post-hit invulnerability, as a fact rather than as a timer. */
+  readonly invulnerable: boolean
 }
 
 /**
@@ -70,6 +100,9 @@ export type RunEvent =
   | { readonly type: 'run_started' }
   | { readonly type: 'run_interactive' }
   | { readonly type: 'phase_changed', readonly phase: RunPhase }
+  | { readonly type: 'heart_lost', readonly hearts: number }
+  | { readonly type: 'near_miss' }
+  | { readonly type: 'run_ended' }
 
 /** What the app hands the engine when it mounts a run. */
 export interface RunEventSink {

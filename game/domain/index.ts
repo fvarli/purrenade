@@ -32,4 +32,23 @@ export type {
   LaneTransition,
   RunPhase,
   RunState,
+  Obstacle,
+  ObstacleKind,
+  ObstacleOutcome,
+  SpawnState,
 } from './types'
+
+// --- M6 -----------------------------------------------------------------
+
+export { tierAt, softCap, speedMultiplier, scrollUnitsPerS, densityTarget, decisionsPerMinute, minGapUnits } from './difficulty'
+export type { Tier } from './difficulty'
+
+export { PATTERNS, poolForTier } from './patterns'
+export type { Pattern, PatternEntry } from './patterns'
+
+export { advanceObstacles, advanceSpawning, selectPattern, eligiblePatterns, firstHazardDistanceUnits, scrollDeltaUnits } from './obstacles'
+
+export { resolveCollisions, isDamaging, overlapsLongitudinally } from './collision'
+
+export { findEscapePath } from './escape'
+export type { EscapeQuery, EscapeResult } from './escape'

@@ -12,7 +12,7 @@
  * adaptations, not rules.
  */
 
-export { GESTURE, PLAYFIELD, PLAY_COLUMN_MAX_PX } from './engine-config'
+export { GESTURE, HEARTS, PLAYFIELD, PLAY_COLUMN_MAX_PX } from './engine-config'
 export type { GestureConfig, PlayfieldConfig } from './engine-config'
 
 export { createRunLoop } from './loop'
@@ -23,6 +23,8 @@ export { toRenderSnapshot, interpolateSnapshot } from './snapshot'
 export type {
   InputEvent,
   LaneIndex,
+  ObstacleKind,
+  RenderObstacle,
   RenderSnapshot,
   RunEvent,
   RunEventSink,

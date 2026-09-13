@@ -31,6 +31,12 @@ export interface PlayfieldConfig {
   readonly maxColumnPx: number
   /** The road's share of the play column. */
   readonly roadWidthRatio: number
+  /** How much road is visible ahead, in units. Sets the depth of the view. */
+  readonly visibleUnits: number
+  /** An obstacle's longitudinal footprint, for drawing it at the right depth. */
+  readonly obstacleLengthUnits: number
+  /** The tuned post-hit blink rate. Presentation reads it; the domain owns the state. */
+  readonly blinkHz: number
 }
 
 export interface GestureConfig {
@@ -48,6 +54,9 @@ export const PLAYFIELD: PlayfieldConfig = Object.freeze({
   baselineWidthPx: TUNING.layout.baselineViewportWidthPx,
   maxColumnPx: TUNING.layout.desktopPlayColumnPx,
   roadWidthRatio: TUNING.road.widthRatio,
+  visibleUnits: TUNING.world.visibleUnits,
+  obstacleLengthUnits: TUNING.obstacle.defaultLengthUnits,
+  blinkHz: TUNING.invuln.blinkHz,
 })
 
 export const GESTURE: GestureConfig = Object.freeze({
@@ -65,3 +74,15 @@ export const GESTURE: GestureConfig = Object.freeze({
  * notice it drifting.
  */
 export const PLAY_COLUMN_MAX_PX = PLAYFIELD.maxColumnPx
+
+/**
+ * The heart model, for the app layer's provisional feedback.
+ *
+ * Projected rather than re-exported, and carrying no state: the count itself
+ * arrives as a `heart_lost` event. This is only so a heart row can render the
+ * right number of shapes before anything has happened.
+ */
+export const HEARTS = Object.freeze({
+  start: TUNING.hearts.start,
+  max: TUNING.hearts.max,
+})

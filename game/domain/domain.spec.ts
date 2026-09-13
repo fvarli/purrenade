@@ -485,19 +485,39 @@ describe('purity and determinism', () => {
     expect(() => step(runningState(), [], -1)).toThrow(RangeError)
   })
 
-  it('survives a long run without drifting or throwing', () => {
+  it('runs five simulated minutes without drifting or throwing', () => {
+    /*
+     * This asserted `phase === 'running'` until M6, and that was true only
+     * because nothing could hurt a player who never moved. Now a player who
+     * ignores the road loses three hearts and the run ends — the milestone
+     * working, not a regression. What the test is for is that five minutes of
+     * simulation stays finite and never throws.
+     */
     let state = createRunState({ seed: 7 })
 
-    // Five simulated minutes at the fixed step.
     const steps = Math.ceil((5 * 60 * 1000) / STEP_MS)
 
     for (let i = 0; i < steps; i++) {
       state = step(state, i % 41 === 0 ? [{ type: 'jump' }] : [], STEP_MS)
     }
 
-    expect(state.phase).toBe('running')
     expect(Number.isFinite(state.elapsedMs)).toBe(true)
-    expect(state.elapsedMs).toBeGreaterThan(4 * 60 * 1000)
+    expect(Number.isFinite(state.distanceUnits)).toBe(true)
+    expect(state.hearts).toBeGreaterThanOrEqual(0)
+    expect(state.hearts).toBeLessThanOrEqual(TUNING.hearts.max)
+  })
+
+  it('ends the run of a player who never avoids anything', () => {
+    let state = createRunState({ seed: 7 })
+
+    const steps = Math.ceil((2 * 60 * 1000) / STEP_MS)
+
+    for (let i = 0; i < steps && state.phase !== 'ended'; i++) {
+      state = step(state, [], STEP_MS)
+    }
+
+    expect(state.phase).toBe('ended')
+    expect(state.hearts).toBe(0)
   })
 })
 

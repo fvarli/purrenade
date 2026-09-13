@@ -40,6 +40,13 @@
   --color-green: #6fbf8b;
   --color-green-deep: #3e7d58;
   --color-sky-soft: #c9ecf2;
+
+  /* Obstacle classes. Two colours because there are two behaviours: a player
+     must be able to tell "change lane" from "jump" at a glance, and hue is the
+     fastest channel for that. Shape carries it too — see game/engine/scene.ts —
+     so the distinction is never colour alone. */
+  --color-cone: #ff8c42;
+  --color-barrier: #6a8caf;
   --color-coral-deep: #c3502f;
   --color-lilac: #c9a0e8;
   --color-white: #ffffff;

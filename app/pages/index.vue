@@ -46,6 +46,21 @@ useHead({ title: () => t('home.title') })
         {{ $t('home.adminEnrolmentRequired') }}
       </UiAuthNotice>
 
+      <!-- The run surface. Verified players only, matching the approved
+           navigation map, where Run sits in the authenticated branch. -->
+      <div v-if="auth.isVerified" class="home__play">
+        <UiAuthButton
+          type="button"
+          @click="navigateTo('/run')"
+        >
+          {{ $t('home.playAction') }}
+        </UiAuthButton>
+
+        <p class="text-caption text-muted text-center">
+          {{ $t('home.playHint') }}
+        </p>
+      </div>
+
       <div class="row row--wrap home__actions">
         <NuxtLink
           class="home__link"
@@ -94,6 +109,12 @@ useHead({ title: () => t('home.title') })
   font-size: var(--type-title);
   font-weight: 800;
   text-align: center;
+}
+
+.home__play {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
 }
 
 .home__actions {

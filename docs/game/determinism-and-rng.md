@@ -33,7 +33,7 @@ The game domain is a pure function of its inputs. Concretely, inside
 | `Date.now()`, `performance.now()` | Time enters only as an explicit `deltaMs` |
 | Variable-delta physics | **Fixed-step** simulation with an accumulator |
 | Iterating an unordered collection where order affects outcome | Deterministic, stable ordering |
-| Floating-point accumulation of authoritative counters | Integer accumulators for score and paws |
+| Floating-point accumulation of authoritative counters | Integer accumulators for score and paws. **Scope, as of M5:** this rule governs *counters* — score, paws, hearts — none of which exist yet. The run clock (`elapsedMs`) and the three duration accumulators are floats, deliberately: they are driven by a constant `STEP_MS`, IEEE-754 addition is deterministic, and a 100 000-step run reproduces bit-for-bit. When score becomes a function of elapsed time at M7, the counter it feeds must still be an integer. |
 | Reading anything ambient (DOM, network, storage, locale) | Pass it in |
 
 ---
@@ -43,7 +43,7 @@ The game domain is a pure function of its inputs. Concretely, inside
 | Aspect | Approach |
 | --- | --- |
 | Algorithm | A small, fast, well-distributed PRNG with explicit state (e.g. a 128-bit xorshift family). **Not** the platform RNG. |
-| State location | **Inside `RunState`**, advanced by `step()`. Not a module-level singleton. |
+| State location | **Inside `RunState`**, threaded through `step()`. Not a module-level singleton. **As of M5 nothing draws from the streams**, so `step()` does not yet advance them; the first consumer arrives with pattern generation at M6. |
 | Seed source | A cryptographically strong value at run start — from the **server** if the run-token model is adopted, otherwise locally generated |
 | Seed recording | The seed is part of the run summary, so any run can be replayed for debugging or validation |
 | Streams | Separate, independently-seeded streams for **pattern selection**, **collectible placement** and **cosmetic variation**, derived from the run seed |
@@ -108,7 +108,7 @@ letting it accumulate.
 | Test | Assertion |
 | --- | --- |
 | Replay equivalence | The same seed and input log produce a byte-identical final `RunState` |
-| Step independence | Splitting one step into two half-steps produces the same result within tolerance |
+| Step independence | ~~Splitting one step into two half-steps produces the same result within tolerance~~ — **withdrawn at M5.** The design cannot have this property and should not claim it: every duration threshold (`advanceJump`, `advanceLaneTransition`) settles on the first step at or past its target and discards the overshoot, so the step size is observable by construction. A fixed step is the guarantee; step independence is not. |
 | No ambient access | A static check rejects `Math.random`, `Date.now` and `performance.now` inside `game/domain/` |
 | Stream isolation | Changing the cosmetic stream leaves pattern and collectible draws unchanged |
 | Catch-up bound | A simulated 30-second stall does not kill the player |

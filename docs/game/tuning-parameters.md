@@ -30,7 +30,8 @@ parameters, not scattered magic numbers."* This document is that registry.
 
 | Parameter | Value | Status | Notes |
 | --- | --- | --- | --- |
-| `layout.baselineViewport` | 390 × 844 | **APPROVED** | 21 v0.3 mobile artboards |
+| `layout.baselineViewportWidthPx` | 390 | **APPROVED** | 21 v0.3 mobile artboards |
+| `layout.baselineViewportHeightPx` | 844 | **APPROVED** | 21 v0.3 mobile artboards |
 | `layout.desktopPlayColumnPx` | 460 | **APPROVED** | v0.3 desktop board |
 | `road.widthRatio` | 0.72 | PROPOSED | Fraction of the play column; measure against v0.3 in M5 |
 | `lane.count` | 3 | **APPROVED** | LEFT / CENTER / RIGHT |
@@ -49,13 +50,26 @@ parameters, not scattered magic numbers."* This document is that registry.
 
 **No swipe-down/slide mechanic exists in v1 — APPROVED.**
 
+> **Interaction found at M5, needs review with §3.** `input.bufferMs` (120) is shorter than
+> `lane.transitionMs` (160), so an input queued in the **first 40 ms** of a lane change ages out
+> before that change settles and is dropped. The buffer therefore covers the last 120 ms of a
+> transition, not all of it.
+>
+> That may well be right — an input 160 ms early is arguably a mis-input, not an early one — but it
+> is a consequence of two independently-chosen PROPOSED numbers rather than a decision anybody
+> made. The behaviour is implemented as specified and pinned by a test
+> (`game/domain/domain.spec.ts`, *"expires an input queued earlier than the buffer window
+> reaches"*), so changing either value will show up as a failing test rather than a silent change
+> in feel. **Review the pair together**, as core-run.md §5A already requires for the near-miss
+> envelope.
+
 ## 3. Lane movement
 
 | Parameter | Value | Status | Notes |
 | --- | --- | --- | --- |
 | `lane.transitionMs` | 160 | PROPOSED | |
 | `lane.easing` | ease-out | PROPOSED | |
-| `lane.occupancySwitchAt` | 0.5 of the transition | PROPOSED | Collision lane changes at the midpoint |
+| `lane.occupancySwitchAtRatio` | 0.5 of the transition | PROPOSED | Collision lane changes at the midpoint |
 | `lane.midAirChangeAllowed` | true | PROPOSED | See [core-run](../product/core-run.md) §3.3 |
 
 ## 4A. Obstacle classes
@@ -120,6 +134,7 @@ Only `airborneMs` and `apexHeightPx` are stored. The rest are computed.
 | `run.firstHazardMinMs` | 2500 | PROPOSED | No hazard reachable before this |
 | `run.resumeReadyMs` | 800 | PROPOSED | Shortened beat after unpause |
 | `sim.fixedStepHz` | 120 | PROPOSED | Fixed-step simulation with an accumulator |
+| `sim.maxCatchUpSteps` | 8 | PROPOSED | Steps one frame may owe before the excess is discarded, not simulated |
 
 ## 7. Difficulty
 

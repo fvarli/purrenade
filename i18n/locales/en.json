@@ -14,8 +14,10 @@
     "title": "Seaside",
     "greeting": "Welcome back, {name}!",
     "guestLede": "The seaside is waiting. Sign in to get started.",
-    "milestoneNotice": "The game is not here yet. For now, your account and its security are ready.",
-    "adminEnrolmentRequired": "Two-factor authentication is mandatory for administrators. Turn it on to reach the admin area."
+    "milestoneNotice": "The foundation is playable: lanes, jumping and pause. Obstacles, hearts and paws are on the way.",
+    "adminEnrolmentRequired": "Two-factor authentication is mandatory for administrators. Turn it on to reach the admin area.",
+    "playAction": "Start a run",
+    "playHint": "Engine foundation: lanes, jumping, pause."
   },
   "auth": {
     "signOut": "Sign out",
@@ -266,6 +268,21 @@
         "body": "An unexpected error occurred. Try again in a moment."
       },
       "action": "Back to the start"
+    }
+  },
+  "run": {
+    "title": "Run",
+    "surfaceLabel": "Seaside festival run surface: three lanes, character in the centre.",
+    "leave": "← Leave",
+    "pause": "Pause",
+    "resume": "Resume",
+    "loading": "Loading the game engine…",
+    "failed": "The game engine could not load. Refresh the page and try again.",
+    "scopeNotice": "This build has lanes, jumping and pause. Obstacles, hearts, paws and SLAYYY arrive in later milestones.",
+    "phase": {
+      "ready": "Getting ready",
+      "running": "Running",
+      "paused": "Paused"
     }
   }
 }

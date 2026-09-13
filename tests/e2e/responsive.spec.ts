@@ -67,7 +67,8 @@ for (const viewport of VIEWPORTS) {
       })
     }
 
-    test('the verification screen keeps six code boxes reachable', async ({ page }) => {
+    // @stack — needs a pending registration, so it needs the API.
+    test('@stack the verification screen keeps six code boxes reachable', async ({ page }) => {
       // The tightest layout in the product: six 44px boxes plus gaps, inside the
       // card's padding, at 360px.
       await page.goto('/auth/login')

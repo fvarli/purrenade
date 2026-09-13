@@ -68,3 +68,7 @@ Thumbs.db
 *.key
 *.crt
 certs/
+
+# A saved Playwright session. Holds a live BFF session cookie for a local test
+# account — a credential, not test output.
+tests/e2e/.auth/

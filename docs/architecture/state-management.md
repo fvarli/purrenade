@@ -57,6 +57,28 @@ field anywhere in either repository. See
 
 `loliCyclePaws` is the persistent counterpart and remains server-owned.
 
+### 2.2 As built at M5 — confirmed
+
+The game core shipped without a run store, and nothing about it wanted one.
+
+`RunState` is created by `createRunLoop` in `game/bridge/loop.ts`, threaded through
+`step()`, and never leaves the loop. What the app layer receives is deliberately thin:
+
+| Crossing | What it carries |
+| --- | --- |
+| App → loop | Normalized `InputEvent`s, and explicit `pause()` / `resume()` |
+| Loop → renderer | A frozen `RenderSnapshot` — eight primitive fields in lane units, never pixels, never the state object |
+| Loop → app | Coarse `RunEvent`s (`run_started`, `run_interactive`, `phase_changed`) |
+
+The run route holds four reactive fields — `phase`, `loading`, `failed`, and `isPaused`
+derived from `phase` — so it can label a button and say what went wrong. **None of them
+is a gameplay field**, which is the part that matters: nothing in `RunState` is reactive,
+nothing re-renders at 120 Hz, and `app/**` cannot import `game/domain` at all, statically
+or dynamically, because ESLint rejects both. The rule in §2 is enforced rather than
+trusted.
+
+---
+
 ## 3. Server-authoritative progression — APPROVED
 
 The client displays progression; the **server decides** it.

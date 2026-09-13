@@ -92,6 +92,18 @@ export default defineNuxtConfig({
     },
   },
 
+  // The run route is client-only.
+  //
+  // A canvas cannot be server-rendered, and Phaser reads `window` at import
+  // time — so an SSR pass over this route would fail at build, not at runtime.
+  // Marking it here rather than relying on a `<ClientOnly>` wrapper also keeps
+  // the page's own chunk out of the server bundle.
+  //
+  // frontend-architecture.md §2.
+  routeRules: {
+    '/run': { ssr: false },
+  },
+
   nitro: {
     // ---------------------------------------------------------------------
     // The BFF session store

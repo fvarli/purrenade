@@ -25,13 +25,35 @@ export default defineConfig({
   },
   projects: [
     {
+      // Signs in once and saves the session. Without it every authenticated
+      // test would log in for itself and trip the real login rate limiter,
+      // which is five per minute per identifier.
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+      use: { channel: 'chrome' },
+    },
+    {
+      // The anonymous pass: sign-in, registration, the guards. These must run
+      // with no session, so they deliberately do not adopt the saved state.
       name: 'chrome',
+      testIgnore: [/auth\.setup\.ts/, /run-surface\.spec\.ts/, /run-lifecycle\.spec\.ts/],
       use: {
         // The system Chrome, not Playwright's bundled build. These tests are an
         // acceptance pass against the machine's real stack, so the real browser
         // is the right engine — and it avoids pinning a second ~170MB Chromium
         // download to the toolchain for a suite that is not a CI gate.
         channel: 'chrome',
+      },
+    },
+    {
+      // The authenticated pass: the run surface, which lives behind the
+      // verified-account guard.
+      name: 'chrome-auth',
+      testMatch: /run-(surface|lifecycle)\.spec\.ts/,
+      dependencies: ['setup'],
+      use: {
+        channel: 'chrome',
+        storageState: 'tests/e2e/.auth/state.json',
       },
     },
   ],

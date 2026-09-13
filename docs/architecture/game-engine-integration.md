@@ -176,10 +176,77 @@ payoff for the boundary.
 
 ---
 
+## 7A. Implementation status — M5
+
+The layering in §1 and the contracts in §2 and §3 are implemented. What exists:
+
+| Layer | Status |
+| --- | --- |
+| `game/domain` | Lanes, jump, input buffering, pause, the seeded generator, the tuning module. `step()` is pure and tested in Node. |
+| `game/bridge` | Render snapshot, interpolation, and the fixed-step loop. |
+| `game/engine` | The Phaser scene, the layout mapping, keyboard and swipe normalization. |
+| `app/pages/run.vue` | Client-only, mounts and tears down the engine, pauses when unwatched. |
+
+Three things are worth recording because they were decided by building it:
+
+**The fixed-step loop lives in the bridge, not the engine.** None of it is
+Phaser-shaped, and its two stall protections — clearing the accumulator on
+pause, bounding catch-up — are worth testing in Node rather than by
+backgrounding a browser tab.
+
+**Pause and resume are applied synchronously, not queued as inputs.** Queuing
+them produced a deadlock: a queued transition is applied by the next `frame()`,
+and `frame()` is driven by the renderer's loop, which Phaser stops on window
+blur. A run paused by that blur could not be resumed, because the resume was
+waiting for the loop that pausing had stopped. Control operations must not
+depend on the thing they control.
+
+**Resume is never automatic.** Losing visibility pauses a run; regaining it does
+not resume one. A tab returning to the foreground while the player is looking
+elsewhere would otherwise restart a live run nobody is watching.
+
+Not implemented, by milestone: obstacles, collision, hearts and difficulty
+(**M6**); paws, SLAYYY, the Loli Bonus, scoring and the HUD (**M7**). The RNG
+streams exist and are tested but nothing draws from them until M6 spawns
+something.
+
+---
+
+## 7B. Two things M5 deliberately does not do
+
+**Reduced motion is not implemented on the run route, and nothing claims it is.**
+Nothing in `game/` or `app/pages/run.vue` reads `prefers-reduced-motion`; the only
+handling in the repository collapses the CSS motion tokens (`tokens.css`), and the run
+route uses none of them. At M5 that is honest rather than a gap: the scene draws static
+rectangles and a circle, and the only movement on screen is the player responding to
+input, which is not decoration and must not be reduced. The contract becomes real at M6,
+when the road scrolls and obstacles approach — and `accessibility.md` already requires
+that the setting *"demonstrably changes behaviour, including inside the canvas"*. That
+test belongs with the motion it tests.
+
+**The airborne duration is quantised to the step rate, and only exact at 120 Hz.**
+Measured from the domain, not the renderer:
+
+| Step rate | Airborne | Error against the approved 650 ms |
+| --- | --- | --- |
+| 60 Hz | 666.67 ms | +16.67 |
+| 90 Hz | 655.56 ms | +5.56 |
+| **120 Hz** | **650.00 ms** | **0.00** |
+| 144 Hz | 652.78 ms | +2.78 |
+| 240 Hz | 654.17 ms | +4.17 |
+
+This is inherent to a fixed step: a jump lands on the first whole step at or past its
+target. It is exact today only because `650 / (1000 / 120)` is exactly 78. **That couples
+an APPROVED product value to GE-1, which is still OPEN** — changing the step rate moves
+the approved number by up to 17 ms. Recorded rather than fixed, because the fix is a
+product decision about which of the two values is load-bearing.
+
+---
+
 ## 8. Open questions
 
 | Ref | Question |
 | --- | --- |
-| GE-1 | Fixed-step rate (PROPOSED 120 Hz) |
-| GE-2 | Whether the render snapshot is rebuilt per frame or diffed |
+| GE-1 | Fixed-step rate (PROPOSED 120 Hz). **Implemented at 120 Hz as a named tuning parameter at M5; shipping it does not approve it**, and the question stays open until the rate is reviewed against a real device. |
+| GE-2 | Whether the render snapshot is rebuilt per frame or diffed. **Rebuilt, as of M5** — an engineering choice, not a product one: the snapshot is eight primitive fields, and diffing it would cost more than building it. Revisit only if profiling on a real device says otherwise. |
 | GE-3 | Whether the domain also runs server-side for validation — see [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md). If it ever does, the domain must be portable, which is an additional reason to keep it free of browser APIs. |

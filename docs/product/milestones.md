@@ -31,27 +31,55 @@ produces **separate commits in each**; the repositories are never merged.
 
 ## Overview
 
-| M | Milestone | Repos | Depends on |
-| --- | --- | --- | --- |
-| **M0** | Documentation foundation, API contract, ADRs | both | — |
-| **M1** | Runtime pre-flight and repository bootstrap | both | M0 |
-| **M2** | Backend auth core | api | M1 |
-| **M3** | 2FA, roles, admin gate, session/device management | api | M2 |
-| **M4** | Frontend shell: i18n, tokens, auth UI, profile/settings scaffolding | web | M1, M2 |
-| **M5** | Game core: engine boundary, lanes, input, jump | web | M1 |
-| **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 |
-| **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 |
-| **M8** | Interactive tutorial | web | M7 + tutorial design |
-| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 |
-| **M10** | Leaderboards | both | M9 |
-| **M11** | Achievements and character unlocks | both | M9 |
-| **M12** | Support screens, PWA, accessibility, responsive/desktop | web | M4, M7 |
-| **M13** | Admin panel | both | M3, M10 |
-| **M14** | Hardening: performance, security, observability, KVKK, release readiness | both | all |
+| M | Milestone | Repos | Depends on | Status | Delivered in |
+| --- | --- | --- | --- | --- | --- |
+| **M0** | Documentation foundation, API contract, ADRs | both | — | **DELIVERED** | M0, then M0.5 and M0.6 |
+| **M1** | Runtime pre-flight and repository bootstrap | both | M0 | **DELIVERED** | M1, completed by M1C |
+| **M2** | Backend auth core | api | M1 | **DELIVERED** | executed M2 |
+| **M3** | 2FA, roles, admin gate, session/device management | api | M2 | **DELIVERED** — absorbed by executed M2 | executed M2 |
+| **M4** | Frontend shell: i18n, tokens, auth UI, profile/settings scaffolding | web | M1, M2 | **DELIVERED** except the profile and settings screens, which M12 owns in full | executed M2 |
+| **M5** | Game core: engine boundary, lanes, input, jump | web | M1 | **IN PROGRESS** | — |
+| **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | Not started | — |
+| **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | Not started | — |
+| **M8** | Interactive tutorial | web | M7 + tutorial design | Not started | — |
+| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | Not started | — |
+| **M10** | Leaderboards | both | M9 | Not started | — |
+| **M11** | Achievements and character unlocks | both | M9 | Not started | — |
+| **M12** | Support screens, PWA, accessibility, responsive/desktop | web | M4, M7 | Not started | — |
+| **M13** | Admin panel | both | M3, M10 | Not started | — |
+| **M14** | Hardening: performance, security, observability, KVKK, release readiness | both | all | Not started | — |
+
+### Delivery history, and why the numbers do not line up
+
+The **M** identifiers above are canonical and do not change. Roughly forty cross-references in both
+repositories point at them — "resolved at M2", "blocks M9", "to be contracted at M13" — and
+renumbering would invalidate every one of those while fixing nothing.
+
+Delivery did not follow them one-for-one, and this table records what actually happened:
+
+| Delivery label | What it was | Roadmap milestones it delivered |
+| --- | --- | --- |
+| M0 | Documentation foundation | M0 |
+| M0.5 | Decision pass — ADR-0005 accepted, obstacle model and other blockers resolved | *(unblocked M2, M3, M6)* |
+| M0.6 | Decision normalization — leaderboard, unlock and admin-scope decisions | *(unblocked M10, M11, M13)* |
+| M1 | Repository bootstrap | M1 |
+| M1C | Runtime completion — root route, readiness probe, systemd services | M1 |
+| **M2** | Authentication and access foundation | **M2 and M3**, plus most of M4 |
+
+So the scope written under **M3** — TOTP enrolment, challenge and disable; recovery codes; the
+`player`/`admin` roles; mandatory admin 2FA; session listing and revocation — shipped inside the
+commit labelled M2, and is documented as M2 throughout both repositories. M3 is **delivered by
+absorption**, not skipped and not outstanding. No empty milestone is manufactured to occupy the
+number, and no frozen commit is re-labelled.
+
+M0.5, M0.6 and M1C were execution-only passes. They are not roadmap milestones and never became
+entries in this table.
+
+**The next implementation milestone is M5, Game core.**
 
 ---
 
-## M0 — Documentation foundation ✅ current
+## M0 — Documentation foundation — DELIVERED
 
 **Deliverables:** repository hygiene; documentation structure in both
 repositories; Product/Game Specification v1 draft; API contract draft; ADR-0001…
@@ -70,7 +98,7 @@ commits, pushes.
 
 ---
 
-## M1 — Runtime pre-flight and repository bootstrap
+## M1 — Runtime pre-flight and repository bootstrap — DELIVERED
 
 **Pre-flight, before installing anything:**
 - Re-verify current stable versions and their **mutual compatibility**. Findings
@@ -93,7 +121,7 @@ dependency/license inventory started.
 
 ---
 
-## M2 — Backend auth core
+## M2 — Backend auth core — DELIVERED
 
 **Unblocked by M0.5:** [ADR-0005](../decisions/ADR-0005-authentication-and-2fa-strategy.md) is
 now **Accepted** — Nuxt BFF with server-managed session cookies over a token-capable Laravel
@@ -118,7 +146,12 @@ secrets and recovery codes untouched, and the next login still requires the 2FA 
 
 ---
 
-## M3 — 2FA, roles, admin gate, sessions
+## M3 — 2FA, roles, admin gate, sessions — DELIVERED (absorbed by executed M2)
+
+> Delivered inside the commit labelled **M2** and documented as M2 throughout both repositories.
+> Every deliverable below has code and tests; every acceptance criterion is covered by the frozen
+> suite. Kept here unchanged, with its canonical number, because other documents reference it.
+
 
 **Deliverables:** TOTP enrolment, challenge, and disable; recovery codes
 (generation, single use, regeneration); roles `player` and `admin`; **mandatory
@@ -137,7 +170,7 @@ attempts fail.
 
 ---
 
-## M4 — Frontend shell
+## M4 — Frontend shell — DELIVERED except the profile and settings screens
 
 **Deliverables:** locked design tokens; typography; i18n with tr/en/es and
 instant switching; auth screens 02–07 wired to M2; language selection; profile
@@ -151,7 +184,7 @@ and settings scaffolding; typed API client with error mapping and correlation ID
 
 ---
 
-## M5 — Game core
+## M5 — Game core — IN PROGRESS
 
 **Deliverables:** the **pure game-rules core** — deterministic, engine-free,
 unit-testable; the Phaser↔Nuxt boundary; three lanes; touch and keyboard input

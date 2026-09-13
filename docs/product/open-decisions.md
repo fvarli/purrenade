@@ -7,7 +7,7 @@ Sections 1–3 hold the decisions that block or shape milestones. Section 4 hold
 the proposals awaiting review. **Section 6 indexes every remaining open question**
 raised so far, so nothing is recorded only in a document nobody rereads.
 
-**Last reviewed:** 2026-09-12 (M0.6 decision normalization).
+**Last reviewed:** 2026-09-13 (M5 game core — see §0AC; no status was promoted).
 
 | Status | Meaning |
 | --- | --- |
@@ -40,6 +40,45 @@ two-factor challenge surviving a password reset (§3B, and
 audit found none of them load-bearing for M2's security: OPS-1 in particular is
 now guarded rather than resolved — production cannot reach the unsafe answer by
 accident, but choosing the right store is still an open decision.
+
+---
+
+## 0AC. Implemented at M5 as named parameters — status deliberately unchanged
+
+The game-core milestone put the following PROPOSED values into running code. They
+live in one frozen module, `game/domain/tuning.ts`, each leaf annotated with its own
+`@status`, and a test (`game/domain/tuning.spec.ts`, run by CI) fails if a tunable exists in
+code without a row in [`../game/tuning-parameters.md`](../game/tuning-parameters.md), or carries a
+status the registry does not agree with.
+
+**Being implemented does not promote any of them.** They are listed here so the
+adversarial audit can still change every one, and so nobody later reads "it is in the
+code" as "it was approved". Only the product owner promotes a status.
+
+| Ref | Value now in code | Status |
+| --- | --- | --- |
+| CR-3 | `road.widthRatio 0.72`, lane pitch = road width / 3 | **PROPOSED** |
+| GE-1 | Fixed step `120 Hz` (`sim.fixedStepHz`), catch-up bounded to `sim.maxCatchUpSteps` | **OPEN** — implemented, not decided. The M5 audit found this is **not independent of the approved 650 ms jump**: airborne time is quantised to whole steps, so it is exact at 120 Hz and drifts up to +16.7 ms at 60 Hz. Deciding the rate decides the arc. |
+| — | Lane transition `160 ms`, occupancy switching at the midpoint | **PROPOSED** |
+| — | Input buffer depth 1, `input.bufferMs 120` | **PROPOSED**, and see the note below |
+| — | Swipe: min `24 px`, max `400 ms`, axis dominance `1.5` | **PROPOSED** |
+| — | Jump apex `96 px`; gravity and initial velocity **derived** from it and from the airborne target | **PROPOSED** |
+| — | Run start: `1500 ms` readiness beat | **PROPOSED** |
+
+Only `jump.airborneMs = 650` and the three-lane count are APPROVED, and the arc is
+built so the approved number cannot drift: `airborneMs` and `apexHeightPx` are the
+only stored figures, and gravity and launch velocity are computed from them.
+
+**One interaction the review should look at.** `input.bufferMs` (120) is shorter than
+`lane.transitionMs` (160), so an input buffered during the first 40 ms of a lane change
+expires before the change completes and is silently dropped. Both numbers are PROPOSED
+and each is defensible alone; the pair is not obviously right. Pinned by a test so a
+change to either is visible.
+
+CR-1 (mid-air lane changes) is implemented as proposed — a lane change may start while
+airborne. CR-4 (a shortened readiness beat on resume) is **not** implemented: resume
+returns directly to running. It belongs with the pause presentation, which M5 does not
+build.
 
 ---
 
@@ -265,8 +304,8 @@ that owns it, and listed here so this register is the complete live list.
 | AC-4 | [accessibility.md](accessibility.md) | Are subtitles/captions needed for any audio? (None is known to carry meaning) |
 | DO-5 | [difficulty-and-obstacles.md](difficulty-and-obstacles.md) | Whether patterns may span a SLAYYY activation boundary without adjustment |
 | DO-6 | [difficulty-and-obstacles.md](difficulty-and-obstacles.md) | Whether additional art variants are needed per class beyond the cone and the beach barrier |
-| GE-1 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Fixed-step rate (PROPOSED 120 Hz) |
-| GE-2 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Whether the render snapshot is rebuilt per frame or diffed |
+| GE-1 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Fixed-step rate (PROPOSED 120 Hz). Implemented at 120 Hz at M5 as a tuning parameter; still OPEN — see §0AC |
+| GE-2 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Whether the render snapshot is rebuilt per frame or diffed. **Answered at M5: rebuilt** — eight primitive fields, cheaper to build than to diff. An engineering choice; no product review needed |
 | GE-3 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Whether the domain also runs server-side for validation — see [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md). If it ever does, the domain must be portable, which is an additional reason to keep it free of browser APIs. |
 | LB-6 | [leaderboards.md](leaderboards.md) | Is there a friends-only or regional board? Nothing suggests one; recorded so it is not assumed |
 | LB-8 | [leaderboards.md](leaderboards.md) | Opt-out surface: where the setting lives and what an opted-out player sees (§5.4) |

@@ -6,6 +6,70 @@ This project does not yet have released versions.
 
 ## [Unreleased]
 
+### Added — M5: game core
+
+The pure game-rules core, the Phaser boundary, and the run route. No obstacles, no scoring,
+no HUD — those are M6 and M7.
+
+- **`game/domain`** — a deterministic, engine-free rules core. `step(state, inputs, deltaMs)` is a
+  pure function over plain data: three lanes with edge no-ops, a jump whose arc is derived from the
+  approved 650 ms airborne target, a depth-1 input buffer, a readiness beat, and pause. No Phaser,
+  no DOM, no Vue, no `Math.random`, no wall-clock time — all enforced by ESLint, not convention.
+- **A seeded PRNG** with three independent streams (pattern, collectible, cosmetic) whose cursors
+  live in the run state, so a run replays identically from its seed.
+- **`game/bridge`** — the only place the rules and the renderer meet: normalized input events in, a
+  frozen render snapshot in lane units out, and coarse run events to the app. It also owns the
+  fixed-step loop, with bounded catch-up and no time banked across a pause.
+- **`game/engine`** — a Phaser adapter behind a lazy `import('phaser')`, with keyboard and pointer
+  input normalized before they cross the bridge.
+- **`/run`** — client-only, guarded by the verified-account route middleware, mounting the engine
+  on entry and destroying it on leave. The guard is convenience, not authorization: nothing on this
+  route reaches privileged data, and the server remains the only access control. Escape pauses and resumes; losing visibility or focus pauses and never silently resumes.
+- **The tuning module** — every gameplay number in one frozen object, each carrying its own approval
+  status, cross-checked against `docs/game/tuning-parameters.md` by a test. Shipping a PROPOSED value does not
+  approve it; see `docs/product/open-decisions.md` §0AC.
+
+### Fixed — M5
+
+- **Pause could deadlock the run.** Pause and resume were queued as inputs, so a resume needed a
+  frame from the loop that pausing had stopped — and Phaser stops that loop when the window blurs. A
+  run paused by losing focus could not be resumed. Control transitions now apply synchronously.
+- **`/run` was seven pixels taller than the viewport.** `<canvas>` is inline by default, so the line
+  box reserved descender space and made the page scrollable — meaning a gameplay key could scroll it.
+- **The CI gate for "Phaser must not enter a non-run bundle"** could not fail. It grepped a build
+  that had never imported Phaser. It now asserts one lazily-loaded carrier chunk with no static
+  importer, and was verified against four deliberately broken builds.
+
+### Changed — M5: documentation drift
+
+The executed milestone labels had drifted from the roadmap's numbering — the commit labelled M2
+delivered roadmap M2 and M3 and most of M4. `docs/product/milestones.md` now carries a delivery
+history and per-milestone status. Canonical roadmap numbers are unchanged and no frozen milestone
+was re-labelled.
+
+### Added — M2 (delivery label): authentication and access foundation
+
+Delivered roadmap **M2 and M3** together, plus most of roadmap **M4**. See
+`docs/product/milestones.md` for the delivery history and why the labels and the roadmap numbers
+do not line up one-for-one.
+
+- **The Nitro BFF** — server-side session in unstorage behind an opaque `__Host-` cookie, a
+  synchroniser CSRF token, a closed upstream endpoint table, and a construct-only header
+  allow-list. The browser never holds a bearer token.
+- **Auth screens** — sign in, register, verify email, two-factor challenge, forgot and reset
+  password, account security, and an admin surface that exists to prove access control works.
+- **The frontend shell** — design tokens, typography, tr/en/es with instant switching, the typed
+  BFF client with RFC 9457 error mapping and correlation ids.
+
+### Added — M1C (delivery label): runtime completion
+
+- Systemd user services for both repositories, port-conflict detection in `bin/dev`.
+
+### Added — M1 (delivery label): repository bootstrap
+
+- Nuxt 4 skeleton, TypeScript, ESLint with the architectural boundary rules, Vitest, Playwright,
+  CI, `.env.example`. No product code.
+
 ### Changed — M0.6: decision normalization
 
 **Newly APPROVED**

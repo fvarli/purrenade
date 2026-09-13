@@ -61,8 +61,16 @@ a:focus-visible {
   text-decoration: underline;
 }
 
+/*
+ * `display: block` matters more than it looks. An inline replaced element sits
+ * on the text baseline, so the line box reserves descender space beneath it —
+ * seven pixels of page that nothing occupies. On the run route that was enough
+ * to make the document taller than the viewport, which made the page scrollable,
+ * which meant a gameplay key could scroll it.
+ */
 img,
-svg {
+svg,
+canvas {
   display: block;
   max-width: 100%;
 }

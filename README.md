@@ -3,8 +3,10 @@
 Browser-first, mobile-first responsive casual **endless score-attack runner**.
 Nuxt · Vue · TypeScript · Phaser.
 
-> **Status: bootstrapped (M1).** The framework, toolchain and quality gates are in place.
-> **No product features exist yet** — screens begin at M4, gameplay at M5.
+> **Status: authentication shipped; game core in progress.** The framework, toolchain and
+> quality gates are in place, and the authentication surface — sign-in, registration, email
+> verification, two-factor, account security and the admin gate — is implemented behind the
+> Nitro BFF. Gameplay begins at **M5**, which is the milestone under way.
 
 ## Local setup
 
@@ -89,9 +91,15 @@ around**. See [`docs/product/design-reference-conflicts.md`](docs/product/design
 
 ## Development status
 
-See [`docs/product/milestones.md`](docs/product/milestones.md). The current
-milestone is **M0 — documentation foundation**. Framework bootstrap happens in
-M1 and requires explicit approval.
+See [`docs/product/milestones.md`](docs/product/milestones.md), whose overview table carries the
+delivery status of every milestone and records why the delivery labels and the roadmap numbers do
+not line up one-for-one.
+
+Delivered: **M0** (documentation), **M1** (bootstrap), **M2** and **M3** (authentication and
+access — both shipped in the commit labelled M2), and most of **M4** (the frontend shell, less the
+profile and settings screens that M12 owns).
+
+In progress: **M5 — game core**.
 
 ## License
 

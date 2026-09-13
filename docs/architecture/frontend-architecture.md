@@ -96,6 +96,50 @@ tests/
 `game/domain/` is deliberately a sibling of `app/`, not a folder inside it. The
 separation is structural so that "just import Phaser here" is visibly wrong.
 
+### 3.1 As built at M5
+
+The shape above is the plan for the finished game. What exists after the game-core
+milestone is the subset the rules needed, plus one file the plan did not name:
+
+```
+game/
+  domain/     tuning.ts  rng.ts  types.ts  state.ts  lanes.ts  jump.ts
+              input.ts   step.ts  index.ts
+  bridge/     types.ts  snapshot.ts  loop.ts  index.ts
+  engine/     index.ts  layout.ts  scene.ts  input/{keyboard,pointer}.ts
+```
+
+`collision.ts`, `difficulty.ts`, `patterns.ts` and `scoring.ts` belong to M6 and M7
+and are deliberately absent — an empty file is a worse placeholder than none.
+
+**`bridge/loop.ts` is the addition.** The fixed-step accumulator that turns variable
+display frames into fixed simulation steps is not part of the rules and is not
+Phaser-shaped, so it sits in the bridge with the rest of the boundary. Putting it in
+the engine would have made the loop's invariants — bounded catch-up, no banked time
+across a pause — testable only in a browser.
+
+The separation is no longer only structural. **Six ESLint boundary blocks enforce it**,
+and each was mutation-tested against both the alias and the relative spelling of the
+import it forbids:
+
+| Layer | May not reach |
+| --- | --- |
+| `game/domain` | Phaser, Vue, Pinia, Nuxt's virtual modules, the bridge, the engine, the DOM, the network, `Math.random`, `Date.now`, `performance.now`, `new Date()` |
+| `game/bridge` | Phaser, Vue, Pinia, Nuxt, the engine, `Math.random`, `Date.now` |
+| `game/engine` | Vue, Pinia, Nuxt, **and `game/domain`** — what a renderer needs is projected as `PLAYFIELD` and `GESTURE` in `game/bridge/engine-config.ts` |
+| `app/**` | Phaser, `game/domain` |
+| `server/**` | Phaser, `game/domain`, `game/engine` |
+
+Dynamic `import()` is covered too. `no-restricted-imports` visits only static import and
+export declarations, so a `no-restricted-syntax` rule sits alongside each block; without
+it the whole boundary was one `await import()` away from being advisory. The globs name
+every extension the bundler loads rather than `.ts` alone, because a `.js` file beside a
+`.ts` one was unrestricted.
+
+A CI gate additionally asserts Phaser lives in exactly one chunk, that nothing imports it
+statically, and that **the only thing that imports it dynamically is the run route** — the
+last of which is the property the gate's name always claimed and did not test.
+
 ---
 
 ## 4. TypeScript — PROPOSED

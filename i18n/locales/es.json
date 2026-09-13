@@ -14,8 +14,10 @@
     "title": "La playa",
     "greeting": "¡Bienvenida de nuevo, {name}!",
     "guestLede": "La playa te espera. Inicia sesión para empezar.",
-    "milestoneNotice": "El juego aún no está aquí. Por ahora, tu cuenta y su seguridad están listas.",
-    "adminEnrolmentRequired": "La verificación en dos pasos es obligatoria para administradores. Actívala para acceder al área de administración."
+    "milestoneNotice": "La base ya se puede jugar: carriles, salto y pausa. Los obstáculos, las vidas y las huellas están en camino.",
+    "adminEnrolmentRequired": "La verificación en dos pasos es obligatoria para administradores. Actívala para acceder al área de administración.",
+    "playAction": "Empezar una carrera",
+    "playHint": "Base del motor: carriles, salto, pausa."
   },
   "auth": {
     "signOut": "Cerrar sesión",
@@ -266,6 +268,21 @@
         "body": "Se ha producido un error inesperado. Inténtalo de nuevo en un momento."
       },
       "action": "Volver al inicio"
+    }
+  },
+  "run": {
+    "title": "Carrera",
+    "surfaceLabel": "Superficie de carrera del festival costero: tres carriles, personaje en el centro.",
+    "leave": "← Salir",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "loading": "Cargando el motor del juego…",
+    "failed": "No se ha podido cargar el motor del juego. Actualiza la página e inténtalo de nuevo.",
+    "scopeNotice": "Esta versión tiene carriles, salto y pausa. Los obstáculos, las vidas, las huellas y SLAYYY llegarán en fases posteriores.",
+    "phase": {
+      "ready": "Preparándose",
+      "running": "En marcha",
+      "paused": "En pausa"
     }
   }
 }

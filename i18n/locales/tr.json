@@ -14,8 +14,10 @@
     "title": "Sahil",
     "greeting": "Tekrar hoş geldin, {name}!",
     "guestLede": "Sahil seni bekliyor. Başlamak için giriş yap.",
-    "milestoneNotice": "Oyun henüz burada değil. Şimdilik hesabın ve güvenliğin hazır.",
-    "adminEnrolmentRequired": "Admin rolünde 2FA zorunludur. Yönetim ekranına ulaşmak için önce iki adımlı doğrulamayı aç."
+    "milestoneNotice": "Oyunun temeli hazır: şeritler, zıplama ve duraklatma. Engeller, canlar ve patiler yolda.",
+    "adminEnrolmentRequired": "Admin rolünde 2FA zorunludur. Yönetim ekranına ulaşmak için önce iki adımlı doğrulamayı aç.",
+    "playAction": "Koşuya başla",
+    "playHint": "Motor temeli: şeritler, zıplama, duraklatma."
   },
   "auth": {
     "signOut": "Çıkış yap",
@@ -266,6 +268,21 @@
         "body": "Beklenmedik bir hata oluştu. Birazdan tekrar deneyin."
       },
       "action": "Ana sayfaya dön"
+    }
+  },
+  "run": {
+    "title": "Koşu",
+    "surfaceLabel": "Sahil Festivali koşu alanı: üç şerit, karakter ortada.",
+    "leave": "← Çıkış",
+    "pause": "Duraklat",
+    "resume": "Devam et",
+    "loading": "Oyun motoru yükleniyor…",
+    "failed": "Oyun motoru yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
+    "scopeNotice": "Bu sürümde şeritler, zıplama ve duraklatma var. Engeller, canlar, patiler ve SLAYYY sonraki aşamalarda geliyor.",
+    "phase": {
+      "ready": "Hazırlanıyor",
+      "running": "Koşuyor",
+      "paused": "Duraklatıldı"
     }
   }
 }

@@ -26,6 +26,59 @@ This project does not yet have released versions.
   the session leaves the state unresolved and says so, rather than concluding "guest" — a
   conclusion the browser could never revisit.
 
+### Added — M7: scoring, Paw Tokens, the Loli Bonus and SLAYYY
+
+The game becomes a score-attack game. Still no persistence of any kind — no run
+submission, no leaderboard, no unlocks; those are M9 and later.
+
+- **A deterministic score, accumulated as integers.** Distance earns points at a rate derived
+  from the real scroll speed, so the score tracks the world rather than the clock and speeds up
+  exactly as the run does. It accumulates in **thousandths** and the SLAYYY meter in
+  **millionths**, because a float counter is the one thing determinism cannot survive. The
+  displayed total is the sum of its floored parts, so the three components always add up to the
+  number on screen.
+- **Paw Tokens.** Collectible groups of up to three drawn from the `collectible` RNG stream —
+  the second stream in the game to be consumed, and still isolated from obstacles: spawning
+  draws a fixed two values and then rotates to a clear lane rather than redrawing, so the draw
+  count cannot depend on the world. A collected token is removed in the same step, which is what
+  makes "counted exactly once" structural rather than asserted.
+- **The Loli Bonus.** Every 200 paws in a run starts an 8-second companion that pulls nearby
+  tokens toward the player. Overflow is preserved exactly by integer division, so 198 + 5 leaves
+  a cycle of 3 and a single threshold crossing that collects 600 paws at once earns three
+  bonuses rather than one. A threshold crossed while the companion is already out is **queued**,
+  never concurrent, and the queue dies with the run.
+- **SLAYYY.** A meter that charges from time and from paws, **never** activates itself, and is
+  spent whole by the player pressing `E` or the on-screen control. For five seconds the score
+  doubles, hits cannot land, and the world is restyled — fill only, so an obstacle's class is
+  untouched and nothing about what kills you changes. The meter does not charge while it is
+  being spent, and that is a property of the function rather than a value someone could re-tune.
+  The approved target is that the first activation becomes available around **35–45 seconds** of
+  a representative healthy run — a target for a range of play, not a timer. Measured, a healthy
+  run arms at 38–43 seconds, sooner for a player who collects well and around 62 seconds for one
+  who collects nothing.
+- **A Paw Token is never left sitting inside a hazard.** Obstacles and tokens are generated
+  on independent schedules, so an obstacle could land on a token that already existed —
+  sometimes in a position where taking the paw cost a heart no matter how it was played.
+  Those tokens are removed. A token under a *jumpable* barrier stays: clearing it and taking
+  the paw in one jump is a good moment rather than a trap.
+- **Touch reaches the game everywhere it should.** The playfield fills the screen and the
+  readouts sit on top of it, which meant a swipe starting on the score, the hearts or the
+  notice at the bottom did nothing at all — about a third of the screen, including the strip
+  a thumb naturally rests on. Only the controls take touches now; everything else passes them
+  through to the game.
+- **Using an on-screen control hands the keyboard back.** Gameplay keys are suppressed while a
+  control has focus, and a button keeps focus after a click — so tapping SLAYYY used to leave
+  the player unable to move, jump or fire for the whole five seconds the power was running. The
+  pause control had carried the same defect since the game core shipped. Both now return focus
+  to the play surface through one shared path, and both are covered in a real browser.
+- **The heads-up display.** Score, paws, the distance to the next Loli Bonus, hearts and the
+  SLAYYY control, on one column that fits 320 px without a horizontal scrollbar, in Turkish,
+  English and Spanish, with the control a real `<button>` carrying a live `aria-label` rather
+  than a div that listens for taps.
+- **Loli grants nothing but the magnet.** No invulnerability, no multiplier, no extra life. The
+  maximum multiplier in the game is ×2 and it never compounds: SLAYYY during a Loli Bonus is
+  still ×2, and it is the only place in the codebase that decides so.
+
 ### Added — M6: obstacles, collision, hearts and difficulty
 
 The foundation becomes a game. Still no score, no paws, no Loli and no SLAYYY — those are M7.
@@ -48,7 +101,7 @@ The foundation becomes a game. Still no score, no paws, no Loli and no SLAYYY �
   gating which patterns are eligible. Tier 5 is terminal. The density and decision-frequency curves
   are implemented and tested but **not yet consumed** by the generator, which spaces patterns with
   a per-tier `minGapUnits` floor; connecting them changes difficulty feel and is a product decision
-  (`docs/product/difficulty-and-obstacles.md` §2.2).
+  (`docs/product/difficulty-and-obstacles.md` §2.1).
 - **Collision, hearts and recovery.** Domain-authoritative: lane occupancy plus longitudinal
   overlap plus class, never a physics callback. Three hearts, no healing, one heart per step
   whatever overlaps, an obstacle resolves exactly once, and a post-hit invulnerability window that

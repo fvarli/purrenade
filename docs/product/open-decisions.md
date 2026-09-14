@@ -43,6 +43,30 @@ accident, but choosing the right store is still an open decision.
 
 ---
 
+## 0AE. Decided at the M7 adversarial review — now APPROVED
+
+Three decisions were taken by the product owner during M7's review rather than by
+implementation. They are recorded here because the register, not a milestone narrative, is
+the live list — and because milestone-exit gate **M-C** requires every decision taken during
+a milestone to appear in it.
+
+| Ref | Decision | Status | Owning document |
+| --- | --- | --- | --- |
+| **PD-M7-1** | **A collected Paw Token is worth `10`.** Identical whether the player walked into it or Loli's magnet brought it to them. Replaces a PROPOSED `5`. | **APPROVED / LOCKED** | [scoring-and-progression](scoring-and-progression.md) §1.1 |
+| **PD-M7-2** | **First SLAYYY availability targets 35–45 s of a representative healthy run.** A UX target for a *range of play*, **not a timer**: readiness arises only from deterministic meter accumulation, collecting paws reaches it sooner, collecting none reaches it later, and the meter never fires itself. The charge **rates** that serve it remain PROPOSED — see SP-1. | **APPROVED** (target) | [scoring-and-progression](scoring-and-progression.md) §3.2 |
+| **PD-M7-3** | **A Paw Token never requires unavoidable damage to collect.** The collectible counterpart of the escape-path guarantee. The *invariant* is locked; the mechanism upholding it is not — `paw.droppedWhenBlocked` stays PROPOSED precisely so it can be replaced. A `JUMPABLE` overlap is not a violation. | **APPROVED / LOCKED** | [tuning-parameters](../game/tuning-parameters.md), "Values that are NOT tunable" |
+
+PD-M7-3 was not a proposal anyone had written down before the review: the review measured
+230 same-lane token/obstacle overlaps across twelve seeds, 156 of them lane-blocking, and 58
+in which the obstacle's damage window strictly contained the token's collection window — bait
+that could not be taken at all without losing a heart. The invariant is the decision; the
+reconciliation is the current answer to it.
+
+**Everything else M7 introduced stays PROPOSED**, including all three magnet distances, every
+SLAYYY charge rate, and the paw spawn parameters. Shipping a value does not approve it.
+
+---
+
 ## 0AD. Implemented at M6 as named parameters — status deliberately unchanged
 
 M6 put the obstacle, collision, difficulty and generation values into running code. **None of
@@ -203,7 +227,7 @@ These stop work when their milestone is reached.
 | Ref | Decision | Source |
 | --- | --- | --- |
 | **#6** | Is there an approved **brand tagline**? *"Run Cute. Live Bright."* appears only on the ChatGPT board. If approved, is it localized? | [conflicts #6](design-reference-conflicts.md) |
-| **SP-2** | **Bonus score sources.** Near-miss is now excluded, leaving the component with **no defined source at all**. Removing it from the score composition is a legitimate outcome. | [scoring-and-progression](scoring-and-progression.md) §6 |
+| **SP-2** | **Bonus score sources.** Near-miss is now excluded, leaving the component with **no defined source at all**. Removing it from the score composition is a legitimate outcome. **M7 implemented the component and left it empty:** `score.bonusMilli` exists, is summed into the displayed total and is always zero, because nothing in the game is specified to write to it. A test asserts it stays zero across a long run, so the day a source is added it is added deliberately. | [scoring-and-progression](scoring-and-progression.md) §6 |
 | **TU-2** | Is the first-time tutorial **mandatory or skippable**? | [tutorial](tutorial.md) §4 |
 | **TU-3** | Does the **tutorial paw count** toward progression? PROPOSED: no, so the tutorial cannot be farmed. | [tutorial](tutorial.md) §3.1 |
 | **TU-4** | Is there a separate **first-SLAYYY coach mark**? | [tutorial](tutorial.md) §2 |
@@ -292,13 +316,13 @@ blocks M1 or v1 (LB-7).
 
 | Ref | Proposal |
 | --- | --- |
-| SP-1 | **SLAYYY charge model:** max 100; `+1.4`/s; `+0.45`/paw; no decay; first activation ≈ 40 s. |
+| SP-1 | **SLAYYY charge rates:** max 100; `+1.6`/s; `+1.3`/paw; no decay. **Partly resolved at the M7 review.** This row used to carry a rate set *and* a "first activation around 40 s" estimate that contradicted each other — implemented as written, the meter armed at about 69 s. The product owner has now APPROVED the **target**: first availability around **35-45 s of a representative healthy run**, as a UX range rather than a timer. The rates were retuned to serve it and the result measured across four scenarios (§3.2). The rates themselves remain PROPOSED, so this row stays open for them. |
 | SP-3 | The ×2 multiplier applies to **distance, collectible and bonus** alike. |
 | SP-4 | **Loli grants no score multiplier.** Maximum multiplier is ×2; multipliers take the maximum, never the product. |
-| SP-5 | The in-run paw HUD switches to `n/200` within 25 of the threshold. |
-| SP-6 | `10` points/second at base speed; `5` per paw; integer, floored. |
-| SP-7 | Whether the HUD shows a queued-bonus indicator when `queuedLoliBonuses > 0`. |
-| — | Loli magnet radius `1.5` lanes, pull `6.0` lane-units/s, Paw Tokens only. |
+| SP-5 | The in-run paw HUD shows `loliCyclePaws` and switches to `n/200` within 25 of the threshold. Implemented as written from the M7 review; it had been showing `runPaws` in the plain form, which is the same number until the first bonus and wrong after it. |
+| SP-6 | `10` points/second at base speed; integer, floored. **The per-paw half is resolved:** `score.perPaw` is **APPROVED / LOCKED at `10`** by the product owner at the M7 review, replacing a PROPOSED `5`. The distance rate and the rounding rule stay open. |
+| SP-7 | Whether the HUD shows a queued-bonus indicator when `queuedLoliBonuses > 0`. **Not implemented at M7** — the HUD shows the active companion and nothing about the queue, because the question is open. |
+| — | Loli magnet: `1.5` lanes **laterally**, `10` units **up the road**, pull `6.0` lane-units/s, Paw Tokens only. The longitudinal reach was added at the M7 review — without it the magnet repositioned tokens beyond the visible road, where the pull rate's "slow enough to be visible" intent cannot apply. |
 
 ### 4.6 Product and platform
 
@@ -339,6 +363,7 @@ that owns it, and listed here so this register is the complete live list.
 | AA-4 | [art-asset-requirements.md](art-asset-requirements.md) | Who produces the production character art, and on what schedule |
 | AC-3 | [accessibility.md](accessibility.md) | Is there a low-motion gameplay variant beyond decoration reduction? |
 | AC-4 | [accessibility.md](accessibility.md) | Are subtitles/captions needed for any audio? (None is known to carry meaning) |
+| AC-5 | [accessibility.md](accessibility.md) | `--text-secondary` measures 3.2–4.1 : 1 and misses the AC-1 AA floor at caption size (§5A). Re-derive the token, or move every small-text usage to `--color-ink`? Found at M7; **M12 owns it**. |
 | DO-5 | [difficulty-and-obstacles.md](difficulty-and-obstacles.md) | Whether patterns may span a SLAYYY activation boundary without adjustment |
 | DO-6 | [difficulty-and-obstacles.md](difficulty-and-obstacles.md) | Whether additional art variants are needed per class beyond the cone and the beach barrier |
 | GE-1 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Fixed-step rate (PROPOSED 120 Hz). Implemented at 120 Hz at M5 as a tuning parameter; still OPEN — see §0AC |

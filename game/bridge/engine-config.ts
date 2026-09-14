@@ -37,6 +37,8 @@ export interface PlayfieldConfig {
   readonly obstacleLengthUnits: number
   /** The tuned post-hit blink rate. Presentation reads it; the domain owns the state. */
   readonly blinkHz: number
+  /** A Paw Token's longitudinal footprint, for the same depth reasoning. */
+  readonly pawLengthUnits: number
 }
 
 export interface GestureConfig {
@@ -57,6 +59,7 @@ export const PLAYFIELD: PlayfieldConfig = Object.freeze({
   visibleUnits: TUNING.world.visibleUnits,
   obstacleLengthUnits: TUNING.obstacle.defaultLengthUnits,
   blinkHz: TUNING.invuln.blinkHz,
+  pawLengthUnits: TUNING.paw.lengthUnits,
 })
 
 export const GESTURE: GestureConfig = Object.freeze({
@@ -85,4 +88,18 @@ export const PLAY_COLUMN_MAX_PX = PLAYFIELD.maxColumnPx
 export const HEARTS = Object.freeze({
   start: TUNING.hearts.start,
   max: TUNING.hearts.max,
+})
+
+/**
+ * The M7 numbers the HUD needs, projected rather than re-exported.
+ *
+ * `app/` may not import `game/domain`, and a stylesheet or a component holding
+ * its own copy of "200" is a second source of truth for a number the registry
+ * owns. Same mechanism as `HEARTS`: carry the value across the boundary once.
+ */
+export const PROGRESS = Object.freeze({
+  /** Paw Tokens per Loli Bonus. */
+  loliThreshold: TUNING.paw.loliThreshold,
+  /** How close to the threshold the HUD starts showing `n/200`. */
+  hudThresholdProximity: TUNING.paw.hudThresholdProximity,
 })

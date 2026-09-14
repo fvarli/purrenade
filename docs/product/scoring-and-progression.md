@@ -19,16 +19,41 @@ Score, Paw Tokens, the Loli Bonus, SLAYYY, and how they interact.
 score** — see [core-run.md](core-run.md) §5A. As of M0.5 the *bonus* component has no defined
 source; see §6.
 
-### 1.1 Rates — PROPOSED
+### 1.1 Rates — one APPROVED, the rest PROPOSED
 
-| Parameter | PROPOSED | Note |
-| --- | --- | --- |
-| `score.distancePerSecond` | `10` at base speed | Scales with actual scroll speed, so a faster run scores faster |
-| `score.perPaw` | `5` | |
-| `score.rounding` | floor, integer only | Displayed score is always an integer; no fractional accumulation is shown |
+| Parameter | Value | Status | Note |
+| --- | --- | --- | --- |
+| `score.distancePerSecond` | `10` at base speed | PROPOSED | Scales with actual scroll speed, so a faster run scores faster |
+| `score.perPaw` | `10` | **APPROVED / LOCKED** | Decided by the product owner at the M7 adversarial review, replacing a PROPOSED `5`. One normally collected token, magnet-collected or not |
+| `score.rounding` | floor, integer only | PROPOSED | Displayed score is always an integer; no fractional accumulation is shown |
 
-The v0.3 boards show scores in the 1,200–5,900 range for a session, which these
-rates reproduce for runs of roughly 1.5–5 minutes.
+`score.perPaw` is the only APPROVED rate. It is worth **10 whether the player
+walked into the token or Loli's magnet brought it to them** — §4 grants the
+magnet reach and nothing else — and it is multiplied by SLAYYY exactly like the
+other two components, never twice and never by four.
+
+**The calibration claim this table used to carry no longer holds, and the
+distance rate is why.** It said the v0.3 boards' **1,200–5,900** per session was
+reproduced by runs of roughly 1.5–5 minutes. Measured after the paw value
+doubled, a representative healthy run scores:
+
+| Run length | Score |
+| --- | --- |
+| 1.5 min | 1,740 – 1,890 |
+| 3 min | 4,020 – 4,300 |
+| 5 min | 7,310 – 7,620 |
+
+So the board range now corresponds to roughly **1 – 4 minutes**, not 1.5 – 5.
+The low end still lands; the high end overshoots by about a quarter. Approving
+`perPaw` at `10` was a deliberate product decision and this is its arithmetic
+consequence, not a defect — but **`score.distancePerSecond` is still PROPOSED at
+`10`**, and it is the lever that would bring the top of the range back if the
+board figures are meant to be authoritative. That belongs to SP-6, which stays
+open for exactly this.
+
+(The measurement revives the player on death, so the 5-minute row assumes
+surviving five minutes. A real session of that length is rarer than the table
+makes it look.)
 
 ### 1.2 Multiplier scope — PROPOSED
 
@@ -188,19 +213,48 @@ full charge *arms* it; the player fires it.
 Accessibility requirements for the armed control (hit area, labelling, focus,
 contrast) are in [accessibility.md](accessibility.md).
 
-### 3.2 Charge model — PROPOSED
+### 3.2 Charge model — rates PROPOSED, the target they serve APPROVED
 
-The exact charge model was explicitly deferred by the approved brief. This is a
-reviewable proposal, not a decision.
+**APPROVED at the M7 review:** the first activation opportunity should normally
+become available **around 35–45 seconds of a representative healthy run**.
+
+That is a UX target for a *range of play*, not a timer, and it is deliberately
+not expressible as one:
+
+- READY arises only from the meter filling. Elapsed time is never itself the
+  activation condition, and nothing in the domain reads a clock.
+- A player who collects paws reaches it **sooner**; one who collects none
+  reaches it **later**. Both are correct outcomes, not deviations.
+- The meter only ever *arms*. §3.1 is unchanged: the player fires it.
+
+The rates below are one way to hit that target and remain **PROPOSED**.
 
 | Parameter | PROPOSED | Rationale |
 | --- | --- | --- |
 | `slayyy.chargeMax` | `100` | Unitless meter |
-| `slayyy.chargePerSecond` | `1.4` | Guarantees the power is reachable in a passive run |
-| `slayyy.chargePerPaw` | `0.45` | Rewards engagement with the collectible loop |
-| `slayyy.decay` | none | A decaying meter punishes cautious play and is hard to read at a glance |
+| `slayyy.chargePerSecond` | `1.6` | The floor: reachable in about 62 s even if the player collects nothing |
+| `slayyy.chargePerPaw` | `1.3` | Rewards engagement with the collectible loop — worth about a third of a healthy player's fill, where `0.45` was worth about a fourteenth |
+| `slayyy.decayPerSecond` | `0` | A decaying meter punishes cautious play and is hard to read at a glance |
 | `slayyy.durationMs` | `5000` | APPROVED ≈ 5 s |
-| First activation available at | ≈ 40 s of ordinary play | Late enough to matter, early enough to be seen in a first run |
+
+#### Measured, not estimated
+
+| Scenario | First READY | Paws by then |
+| --- | --- | --- |
+| Collects nothing at all (tokens removed) | 62.5 s | 0 |
+| Dodges hazards, avoids tokens | 45.4 – 51.1 s | 14 – 21 |
+| **Representative healthy run** | **38.1 – 42.9 s** | 25 – 30 |
+| Crosses the road for every token | 36.5 – 38.9 s | 29 – 32 |
+
+Running time only — the readiness beat and any pause are excluded, exactly as
+the charge itself excludes them. Three seeds per scenario, measured by a test
+that plays the game rather than staging a state.
+
+**What that test actually asserts is narrower than this table.** It holds the
+approved window — the healthy scenario inside 35–45 s — the ordering between the
+styles, and the no-collection floor at `chargeMax / chargePerSecond`. The three
+ranges above are recorded measurements, not assertions, and will need re-taking
+after any retune.
 
 Charge does **not** accrue while SLAYYY is active, and it does not carry across
 runs. Re-activation within a single run is permitted once the meter refills.
@@ -232,8 +286,9 @@ exit ("puf") — are listed in [art-asset-requirements.md](art-asset-requirement
 | Parameter | PROPOSED | Note |
 | --- | --- | --- |
 | `loli.durationMs` | `8000` | APPROVED ≈ 8 s |
-| `loli.magnetRadiusUnits` | `1.5` lanes | Reaches the adjacent lane but not across the whole road |
-| `loli.magnetPullPerSecond` | `6.0` lane-units/s | Fast enough to feel magnetic, slow enough to be visible |
+| `loli.magnetRadiusUnits` | `1.5` lanes | **Lateral.** Reaches the adjacent lane from either edge lane; from the centre it reaches both |
+| `loli.magnetReachUnits` | `10` units | **Longitudinal.** How far up the road Loli notices a token. Set to the visible road, so "nearby" means "on screen" |
+| `loli.magnetPullPerSecond` | `6.0` lane-units/s | Fast enough to feel magnetic, slow enough to be visible — which requires the reach above, or the movement happens off-screen |
 | `loli.eligibleCollectibles` | Paw Tokens only | The only collectible in v1 |
 
 The magnet **never pulls the player**, never alters obstacles, and never changes
@@ -307,11 +362,11 @@ Per-run paw telemetry is still recorded even when no threshold is crossed.
 
 | Ref | Question |
 | --- | --- |
-| SP-1 | The SLAYYY charge model (§3.2) — PROPOSED, awaiting review |
+| SP-1 | The SLAYYY charge **rates** (§3.2) — PROPOSED. The 35-45 s availability target they serve is APPROVED |
 | SP-2 | Bonus score sources (§6) — near-miss is now excluded, leaving none defined |
 | SP-3 | Does the ×2 multiplier apply to collectible and bonus score, or distance only? (§1.2) |
 | SP-4 | Confirmation of the "Loli grants no multiplier" overlap resolution (§5.1) |
 | SP-5 | In-run paw HUD presentation near the threshold (§2.3) |
 | SP-7 | Whether the HUD shows a queued-bonus indicator when `queuedLoliBonuses > 0` (§2.4) |
 | SP-8 | Whether an activation that is cut short by run end still counts (PROPOSED: yes — it started) |
-| SP-6 | Scoring rates (§1.1) |
+| SP-6 | Scoring rates (§1.1) — the distance rate and the rounding rule only. `score.perPaw` is APPROVED at `10` |

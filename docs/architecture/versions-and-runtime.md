@@ -35,7 +35,7 @@ These are the versions **actually resolved into `package-lock.json`**, verified 
 | Vitest | **5.0.0** + `@nuxt/test-utils` 4.3.2 | |
 | ESLint | **10.10.0** + `@nuxt/eslint` 1.17.0 | |
 | vue-tsc | **3.3.11** | |
-| Playwright | 1.63.0 | installed for M12; no e2e specs yet |
+| Playwright | 1.63.0 | nine e2e specs across three projects; the anonymous one is a CI job |
 
 ### Why TypeScript is pinned to `~6.0.3`
 

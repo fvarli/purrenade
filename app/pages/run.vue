@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { HEARTS, PLAY_COLUMN_MAX_PX } from '~~/game/bridge'
+import { HEARTS, PLAY_COLUMN_MAX_PX, PROGRESS } from '~~/game/bridge'
 
 /**
  * The run surface.
  *
  * Board 10 in the approved inventory, reached from the authenticated branch of
- * the navigation map. What exists at M5 is the engine boundary and the movement
- * rules: three lanes, input, jump, pause. Obstacles are M6, the HUD and
- * everything it shows are M7, and submitting a result is M9 — so the page says
- * so rather than presenting an empty score.
+ * the navigation map. The engine boundary and the movement rules arrived at M5,
+ * obstacles and hearts at M6, and the heads-up display with everything it shows
+ * at M7. Submitting a result is M9, so the page still says so rather than
+ * implying the number it shows goes anywhere.
  *
  * **Client-only.** A canvas cannot be server-rendered and Phaser reads `window`
  * at import time, so `nuxt.config.ts` marks this route `ssr: false`.
@@ -27,7 +27,92 @@ definePageMeta({
 const { t } = useI18n()
 
 const surface = useTemplateRef<HTMLElement>('surface')
-const { phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause } = useRunSurface()
+const {
+  phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause,
+  score, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
+} = useRunSurface()
+
+/**
+ * The paw readout switches to `n / 200` near the threshold.
+ *
+ * `paw.hudThresholdProximity` is PROPOSED at 25, and the v0.3 boards show both
+ * presentations — a bare count most of the time, the fraction when a bonus is
+ * close enough to play for.
+ *
+ * **Both presentations show `loliCyclePaws`**, which is what
+ * `scoring-and-progression.md` §2.3 specifies: progress toward the next bonus
+ * is the thing the readout is for, and the fraction near the threshold is the
+ * same number in a different dress. This showed `runPaws` until the M7 review —
+ * identical until the first bonus, and then permanently wrong, because a player
+ * on their second cycle saw a total that no longer had anything to do with the
+ * `/ 200` they were about to see.
+ */
+const nearThreshold = computed(
+  () => cyclePaws.value >= PROGRESS.loliThreshold - PROGRESS.hudThresholdProximity,
+)
+
+/**
+ * One key for the label, the state name never reaches the player.
+ *
+ * While charging the label carries the percentage, because `accessibility.md`
+ * §3.1 requires the control to communicate progress and §4.1 forbids that cue
+ * from resting on the fill's colour. Armed and active have no number: there is
+ * nothing left to fill, and "100%" beside "ready" reads as noise.
+ */
+const slayyyLabel = computed(() => (
+  slayyy.value === 'ready'
+    ? t('run.slayyyReady')
+    : slayyy.value === 'active'
+      ? t('run.slayyyActive')
+      : t('run.slayyyCharging', { percent: slayyyPercent.value })
+))
+
+/**
+ * What a screen reader is told, and when.
+ *
+ * The accessible *name* changing does not announce anything — a name is read
+ * when the control is reached, and a player watching the road is not on it. So
+ * the two moments that matter get a polite live region of their own, and the
+ * charging percentage deliberately stays out of it: announcing every tick of a
+ * meter that takes a minute to fill would make the run unusable.
+ */
+const slayyyAnnouncement = computed(() => (
+  slayyy.value === 'charging' ? '' : slayyyLabel.value
+))
+
+/**
+ * Hand the keyboard back to the game after using an on-screen control.
+ *
+ * Gameplay keys are suppressed while a control has focus — `shouldHandleKey`
+ * refuses every binding but Escape when `document.activeElement` claims
+ * activation — and a `<button>` keeps focus after a click. So tapping Pause,
+ * Resume or SLAYYY left the player unable to move, jump or fire until they
+ * clicked the canvas, and the SLAYYY case did it for the five seconds the power
+ * was running. Escape alone stayed reachable, which is why this survived M6: the
+ * exemption that rescued the pause trap hid the rest of it.
+ *
+ * One function for all three controls rather than a per-button workaround. It
+ * moves focus, never removes it, so there is no moment with nothing focused and
+ * no trap — the surface is `tabindex="0"` and Tab still reaches every control
+ * from there. `preventScroll` keeps the page from jumping on a short viewport,
+ * and the surface's ring is `:focus-visible`, so a mouse click restores play
+ * silently while a keyboard activation still shows where focus went.
+ */
+function returnFocusToSurface(): void {
+  surface.value?.focus({ preventScroll: true })
+}
+
+/** Pause or resume, then give the keyboard back. */
+function pauseFromControl(): void {
+  togglePause()
+  returnFocusToSurface()
+}
+
+/** Fire SLAYYY, then give the keyboard back — before the window starts running. */
+function slayyyFromControl(): void {
+  activateSlayyy()
+  returnFocusToSurface()
+}
 
 useHead({
   title: () => t('run.title'),
@@ -95,21 +180,81 @@ onBeforeUnmount(stop)
         type="button"
         variant="quiet"
         :disabled="loading || hasEnded"
-        @click="togglePause"
+        @click="pauseFromControl"
       >
         {{ isPaused ? t('run.resume') : t('run.pause') }}
       </UiAuthButton>
     </div>
 
+    <!--
+      The heads-up display.
+
+      Four facts, one row each on a narrow screen, all inside the same play
+      column as the rest of the chrome. Every one of them is real text as well
+      as a shape: `accessibility.md` §4 requires gameplay state to exist as DOM
+      outside the canvas, and none of it may rest on hue alone.
+    -->
+    <div class="run__hud">
+      <p class="run__score">
+        <span class="run__score-label">{{ t('run.scoreLabel') }}</span>
+        <span class="run__score-value">{{ score }}</span>
+      </p>
+
+      <p class="run__paws">
+        <span aria-hidden="true" class="run__paw-glyph">🐾</span>
+        <span>{{ nearThreshold
+          ? t('run.cycleProgress', { count: cyclePaws, total: PROGRESS.loliThreshold })
+          : t('run.paws', { count: cyclePaws })
+        }}</span>
+      </p>
+
+      <p v-if="loliActive" class="run__loli" role="status">
+        <span aria-hidden="true">🐈</span>
+        {{ t('run.loliActive') }}
+      </p>
+    </div>
+
+    <div class="run__slayyy">
+      <!--
+        A real button, not a bar with a tap handler.
+
+        `accessibility.md` §3.1 is explicit: the armed control is focusable and
+        labelled, and its accessible name carries both state and action. The
+        meter behind it is decorative — the state is in the text, so a player
+        who cannot see the fill still knows the power is available.
+      -->
+      <button
+        type="button"
+        class="run__slayyy-button"
+        :class="`run__slayyy-button--${slayyy}`"
+        :style="{ '--slayyy-fill': `${slayyyPercent}%` }"
+        :disabled="loading || hasEnded || slayyy !== 'ready'"
+        :aria-label="slayyyLabel"
+        @click="slayyyFromControl"
+      >
+        <span aria-hidden="true" class="run__slayyy-mark">✨</span>
+        <span class="run__slayyy-text">{{ slayyyLabel }}</span>
+      </button>
+
+      <!--
+        The global `sr-only` utility, not a page-local copy: this is exactly the
+        case `base.css` documents it for — live-region text a screen reader
+        needs and the design does not show.
+      -->
+      <p class="sr-only" role="status">
+        {{ slayyyAnnouncement }}
+      </p>
+    </div>
+
     <div class="run__meta">
       <!--
-        Provisional M6 feedback, not the HUD.
+        Hearts, the fourth HUD fact.
 
-        M7 owns the real heads-up display. What is needed now is enough to see a
-        heart go, and enough for a screen reader to know it went: the shapes are
-        decorative, and the count beside them is the accessible fact. Hearts are
-        countable shapes rather than a colour bar, so nothing here depends on
-        hue alone.
+        Separate from `.run__hud` only because it predates it and its own tests
+        address it by that class; it is part of the same display and sits in the
+        same column. The shapes are decorative and the count beside them is the
+        accessible fact. Countable shapes rather than a colour bar, so nothing
+        here depends on hue alone.
       -->
       <p class="run__hearts">
         <span aria-hidden="true">
@@ -222,15 +367,39 @@ onBeforeUnmount(stop)
   margin-inline: auto;
 }
 
+/*
+ * The chrome rows do not take touches; their controls do.
+ *
+ * `.run__surface` is `position: absolute; inset: 0`, so the canvas is the whole
+ * viewport and every row below is painted *over* the playfield. Without this,
+ * each row is also a hit target: a touch starting on one has that row as its
+ * `event.target`, Phaser's `pointerdown` only fires when the target is the
+ * canvas, and the gesture never begins. At 360x640 that made roughly the top
+ * quarter and the entire bottom third of the screen dead to swipes — including
+ * the strip a thumb naturally rests on. Keyboard play was unaffected, which is
+ * why it went unnoticed through two milestones.
+ *
+ * So every row is transparent to pointers and each genuinely interactive child
+ * opts back in. The rule is deliberately on the children rather than on a
+ * wrapper: anything new added to these rows is inert until someone says it
+ * should not be, which is the safe default for a layer sitting on the game.
+ */
 .run__chrome {
   position: relative;
   z-index: 1;
+  pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
 
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
+}
+
+.run__exit,
+.run__chrome button,
+.run__slayyy-button {
+  pointer-events: auto;
 }
 
 .run__exit {
@@ -256,9 +425,169 @@ onBeforeUnmount(stop)
  * out of the chrome and into the middle of the picture. A separate row is
  * predictable at every width.
  */
+/*
+ * The HUD rows.
+ *
+ * Same column idiom as the chrome and the hearts: `min(100%, --run-column)`
+ * centred, so on a wide monitor the readouts stay beside the 460 px playfield
+ * instead of drifting to the window edges. `flex-wrap` rather than a fixed
+ * layout, because Turkish and Spanish run longer than English and a HUD that
+ * only fits in one language is a HUD that is broken in two.
+ */
+.run__hud {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  inline-size: min(100%, var(--run-column));
+  margin-inline: auto;
+  padding: 0 var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.run__score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.run__score-label {
+  font-size: var(--type-caption);
+  /* Ink for the same reason as the SLAYYY control: `--text-secondary` is
+     3.81:1 on the page ground, and 13px is small text. The hierarchy is
+     carried by size and weight against the value beside it, not by fading
+     the label below the contrast floor. */
+  color: var(--color-ink);
+}
+
+.run__score-value {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 800;
+  color: var(--color-ink);
+  /* Tabular figures, so a rising score does not jitter the row beside it. */
+  font-variant-numeric: tabular-nums;
+}
+
+.run__paws,
+.run__loli {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--type-caption);
+  color: var(--color-ink);
+}
+
+.run__paw-glyph {
+  font-size: 1.1em;
+}
+
+.run__slayyy {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  inline-size: min(100%, var(--run-column));
+  margin-inline: auto;
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+/*
+ * The activation control.
+ *
+ * Three states, and each is distinguishable without colour: charging is
+ * outlined and quiet, ready is filled and carries the sparkle, active is
+ * filled and says so. The text changes in every state, which is what a screen
+ * reader and a greyscale display both rely on.
+ */
+.run__slayyy-button {
+  /*
+   * The fill is a background layer, and it is deliberately the *second* cue.
+   * `accessibility.md` §4.1 requires the meter to be readable without relying
+   * on colour, so the percentage is in the label and this only reinforces it —
+   * remove the fill entirely and the control still tells you where it is.
+   */
+  background-image: linear-gradient(
+    to right,
+    var(--color-pink-soft) 0 var(--slayyy-fill, 0%),
+    transparent var(--slayyy-fill, 0%)
+  );
+  background-repeat: no-repeat;
+
+  /*
+   * No double-tap zoom, no drag-scroll from the control.
+   *
+   * The surface sets `touch-action: none`; the button is its sibling and
+   * inherits nothing. Two quick presses — which is exactly what a player does
+   * when the first appears not to fire — zoomed the page mid-run, and a finger
+   * that drifted vertically scrolled it. `manipulation` keeps the tap and drops
+   * the gestures nobody asked for.
+   */
+  touch-action: manipulation;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  /* `background-color`, never the shorthand: the shorthand would reset the
+     fill layer declared above and the meter would silently stop showing. */
+  background-color: transparent;
+  /*
+   * Ink, not `--text-secondary`.
+   *
+   * The muted grey is 3.81:1 on the page and 3.34:1 over a filled meter, and
+   * this is 13px bold — small text, so WCAG 2.2 1.4.3 wants 4.5:1 and neither
+   * figure reaches it. Ink is 13.4:1 and 11.7:1 respectively. The disabled
+   * state is carried by the border, the fill and the word "charging", none of
+   * which needs the text to be hard to read.
+   */
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--type-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: not-allowed;
+  transition: background var(--motion-base) var(--ease-out),
+    color var(--motion-base) var(--ease-out),
+    border-color var(--motion-base) var(--ease-out);
+}
+
+.run__slayyy-button--ready {
+  border-color: var(--color-pink-deep);
+  /* `background`, not `background-color`: the shorthand clears the fill layer,
+     which is at 100% here and would otherwise draw over the flat colour. */
+  background: var(--color-pink);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.run__slayyy-button--active {
+  border-color: var(--color-lilac);
+  /* Same reason as above: the meter is spent, and the shorthand clears it. */
+  background: var(--color-lilac);
+  color: var(--color-ink);
+}
+
+.run__slayyy-mark {
+  font-size: 1.1em;
+}
+
+.run__slayyy-button:disabled {
+  opacity: 0.85;
+}
+
 .run__meta {
   position: relative;
   z-index: 1;
+  pointer-events: none;
   inline-size: min(100%, var(--run-column));
   margin-inline: auto;
   padding: 0 var(--space-4);
@@ -302,6 +631,7 @@ onBeforeUnmount(stop)
 .run__foot {
   position: relative;
   z-index: 1;
+  pointer-events: none;
   margin-block-start: auto;
   padding: var(--space-4);
 }

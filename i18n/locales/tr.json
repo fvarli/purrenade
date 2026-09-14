@@ -278,7 +278,7 @@
     "resume": "Devam et",
     "loading": "Oyun motoru yükleniyor…",
     "failed": "Oyun motoru yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
-    "scopeNotice": "Bu sürümde şeritler, zıplama, engeller, canlar ve duraklatma var. Patiler, Loli ve SLAYYY sonraki aşamalarda geliyor.",
+    "scopeNotice": "Bu sürümde şeritler, zıplama, engeller, canlar, skor, Pati Jetonları, Loli Bonusu ve SLAYYY var. İlerlemenin kaydedilmesi sonraki aşamada geliyor.",
     "phase": {
       "ready": "Hazırlanıyor",
       "running": "Koşuyor",
@@ -287,6 +287,18 @@
     },
     "hearts": "Can: {count} / {max}",
     "heartsLabel": "Kalan can",
-    "ended": "Koşu bitti. Yeniden başlamak için ayrıl ve tekrar gir."
+    "ended": "Koşu bitti. Yeniden başlamak için ayrıl ve tekrar gir.",
+    "score": "Skor: {score}",
+    "scoreLabel": "Skor",
+    "paws": "Pati: {count}",
+    "pawsLabel": "Toplanan Pati Jetonu",
+    "cycleProgress": "Loli'ye {count} / {total}",
+    "loliActive": "Loli geldi",
+    "slayyyLabel": "SLAYYY",
+    "slayyyChargeLabel": "SLAYYY doluluğu",
+    "slayyyCharging": "SLAYYY doluyor — %{percent}",
+    "slayyyReady": "SLAYYY hazır — etkinleştir",
+    "slayyyActive": "SLAYYY etkin",
+    "slayyyHint": "Etkinleştirmek için E'ye bas veya dokun"
   }
 }

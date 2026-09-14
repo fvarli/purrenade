@@ -192,8 +192,10 @@ obstacles freehand, because freehand composition cannot be proven safe.
 1. Determine the current tier from elapsed run time.
 2. Select a pattern from the tier's weighted pool, excluding recently used
    patterns (`generator.repeatCooldown`, PROPOSED `3`).
-3. Compute the **gap** before the pattern from the current density and decision
-   frequency targets.
+3. Compute the **gap** before the pattern. *As built at M6 this reads the per-tier
+   `generator.minGapUnits` floor, not the density or decision-frequency curves —
+   those are computed and consumed by nothing. See the implementation note under
+   §2.1.*
 4. **Validate the escape path** (§5). If validation fails, the pattern is
    rejected and the next candidate is drawn.
 5. Emit the pattern; sprinkle collectibles per

@@ -12,7 +12,7 @@
  * adaptations, not rules.
  */
 
-export { GESTURE, HEARTS, PLAYFIELD, PLAY_COLUMN_MAX_PX } from './engine-config'
+export { GESTURE, HEARTS, PLAYFIELD, PLAY_COLUMN_MAX_PX, PROGRESS } from './engine-config'
 export type { GestureConfig, PlayfieldConfig } from './engine-config'
 
 export { createRunLoop } from './loop'

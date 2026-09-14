@@ -184,10 +184,10 @@ Only `airborneMs` and `apexHeightPx` are stored. The rest are computed.
 | `difficulty.speed.base` | 1.00× | PROPOSED | |
 | `difficulty.speed.ceiling` | 1.85× | PROPOSED | Soft cap |
 | `difficulty.speed.timeConstantS` | 90 | PROPOSED | |
-| `difficulty.density.base` | 0.25 | PROPOSED | Fraction of road length occupied |
-| `difficulty.density.ceiling` | 0.55 | PROPOSED | |
-| `difficulty.decisionsPerMin.base` | 14 | PROPOSED | |
-| `difficulty.decisionsPerMin.ceiling` | 38 | PROPOSED | |
+| `difficulty.density.base` | 0.25 | PROPOSED | Fraction of road length occupied. **Computed by `densityTarget` and consumed by nothing** — spacing comes from `generator.minGapUnits`. Wiring it would change difficulty feel, which is a product decision (DO-3) |
+| `difficulty.density.ceiling` | 0.55 | PROPOSED | Same: computed, not consumed |
+| `difficulty.decisionsPerMin.base` | 14 | PROPOSED | **Computed by `decisionsPerMinute` and consumed by nothing**, exactly as the density pair above |
+| `difficulty.decisionsPerMin.ceiling` | 38 | PROPOSED | Same: computed, not consumed |
 | `difficulty.tierStartsS` | 0, 30, 60, 120, 180 | **APPROVED** | Seconds. Tier 1…Tier 5; **Tier 5 is terminal**. Corrected and approved at M6 — see the note below |
 
 Curve: `value(t) = ceiling - (ceiling - base) × exp(-t / timeConstant)`.
@@ -222,33 +222,85 @@ Curve: `value(t) = ceiling - (ceiling - base) × exp(-t / timeConstant)`.
 
 | Parameter | Value | Status | Notes |
 | --- | --- | --- | --- |
-| `score.distancePerSecond` | 10 at base speed | PROPOSED | **Not implemented** — later milestone. Scales with actual scroll speed |
-| `score.perPaw` | 5 | PROPOSED | **Not implemented** — later milestone. |
-| `score.rounding` | floor, integer | PROPOSED | **Not implemented** — later milestone. |
-| `score.slayyyMultiplier` | **2** | **APPROVED** | **Not implemented** — later milestone. |
-| `score.multiplierScope` | distance + collectible + bonus | PROPOSED | **Not implemented** — later milestone. |
-| `score.multiplierComposition` | **max, never product** | PROPOSED | **Not implemented** — later milestone. Maximum multiplier in v1 is ×2 |
-| `score.comboSystem` | **none** | **APPROVED** | **Not implemented** — later milestone. |
+| `score.distancePerSecond` | 10 at base speed | PROPOSED | Scales with actual scroll speed |
+| `score.perPaw` | **10** | **APPROVED** | **LOCKED.** Decided by the product owner at the M7 adversarial review, replacing a PROPOSED `5`. One normally collected token, magnet-collected or not; ×2 while SLAYYY is active, like every other component |
+| `score.rounding` | floor, integer | PROPOSED | |
+| `score.slayyyMultiplier` | **2** | **APPROVED** | |
+| `score.multiplierScope` | distance + collectible + bonus | PROPOSED | |
+| `score.multiplierComposition` | **max, never product** | PROPOSED | Maximum multiplier in v1 is ×2 |
+| `score.comboSystem` | **none** | **APPROVED** | |
 
 ## 10. Paws and Loli Bonus
 
 | Parameter | Value | Status | Notes |
 | --- | --- | --- | --- |
-| `paw.loliThreshold` | **200** | **APPROVED** | **Not implemented** — later milestone. |
-| `paw.overflowPreserved` | **true** | **APPROVED** | **Not implemented** — later milestone. 198 + 5 → bonus, cycle = 3 |
-| `paw.magnetCollectedCountsNormally` | **true** | **APPROVED** | **Not implemented** — later milestone. |
-| `paw.hudThresholdProximity` | 25 | PROPOSED | **Not implemented** — later milestone. When the HUD switches to `n/200` |
-| `loli.durationMs` | **8000** | **APPROVED** | **Not implemented** — later milestone. ≈ 8 s |
-| `loli.grantsInvulnerability` | **false** | **APPROVED** | **Not implemented** — later milestone. |
-| `loli.grantsScoreMultiplier` | false | PROPOSED | **Not implemented** — later milestone. Keeps the maximum multiplier at ×2 |
-| `loli.magnetRadiusUnits` | 1.5 lanes | PROPOSED | **Not implemented** — later milestone. |
-| `loli.magnetPullPerSecond` | 6.0 lane-units/s | PROPOSED | **Not implemented** — later milestone. |
-| `loli.eligibleCollectibles` | Paw Tokens only | PROPOSED | **Not implemented** — later milestone. The only collectible in v1 |
-| `loli.concurrentInstances` | **1** | **APPROVED** | **Not implemented** — later milestone. Two Loli companions never run concurrently |
+| `paw.loliThreshold` | **200** | **APPROVED** | |
+| `paw.overflowPreserved` | **true** | **APPROVED** | 198 + 5 → bonus, cycle = 3 |
+| `paw.magnetCollectedCountsNormally` | **true** | **APPROVED** | |
+| `paw.droppedWhenBlocked` | **true** | PROPOSED | **The mechanism, not the rule.** The rule — *a Paw Token never requires unavoidable damage to collect* — is an **APPROVED/LOCKED invariant**, listed under "Values that are NOT tunable". This row records only how it is currently upheld: a pending token that a **`LANE_BLOCKING`** obstacle has landed on is removed. It stays PROPOSED because the mechanism may be replaced; the invariant may not. A `JUMPABLE` overlap is kept deliberately — collection never consults `isAirborne`, so the player clears the barrier and takes the token in the same jump. See the note below |
+
+> **Why tokens are reconciled against the road, found at the M7 adversarial review.**
+> Obstacle patterns and token groups run on **independent schedules into the same band** —
+> both originate near `world.spawnLookaheadUnits`, tokens every `paw.groupGapUnits`,
+> patterns every `pattern.lengthUnits + generator.minGapUnits` — and the obstacle generator
+> has never read the token list. `clearLanes` can only check the road as it stands when a
+> group is emitted, so an obstacle emitted a few steps later lands on a token that already
+> exists.
+>
+> Measured over twelve seeds and forty thousand steps each: **230** same-lane overlaps,
+> **156** of them lane-blocking, and **58 in which the obstacle's damage window strictly
+> contained the token's collection window** — bait that could not be taken at all without
+> losing a heart. The first arrives **15.3 s into seed 1, in Tier 1**, roughly one per 25 s
+> of play. Of the 230, **215 came from an obstacle that did not exist when the token was
+> placed**, which is why no spawn-time check can solve it: widening `clearLanes` by the
+> player's half-extent was tried and changed **not one placement** across 120 000 steps.
+>
+> Reconciling afterwards rather than teaching the obstacle generator about tokens keeps the
+> two RNG streams independent — G23 still holds, because this reads the obstacle list and
+> consumes no randomness.
+| `paw.hudThresholdProximity` | 25 | PROPOSED | When the HUD switches to `n/200` |
+| `paw.lengthUnits` | 0.5 | PROPOSED | New at M7. Longitudinal footprint, matched to the player's own |
+| `paw.collectLateralUnits` | 0.5 | PROPOSED | New at M7. Lateral reach for collection, centre to centre |
+| `paw.perPatternMax` | 3 | PROPOSED | New at M7. Most tokens one group may carry |
+| `paw.spacingUnits` | 1.2 | PROPOSED | New at M7. Gap between tokens within a group |
+| `paw.groupGapUnits` | 8 | PROPOSED | New at M7. Road distance between one group and the next. No document specifies a paw spawn model, so the whole cadence is proposed here |
+| `loli.durationMs` | **8000** | **APPROVED** | ≈ 8 s |
+| `loli.enteringMs` | 600 | PROPOSED | New at M7. The "puf" entrance, before the magnet engages. The art brief names an entry state; its length was never specified |
+| `loli.exitingMs` | 500 | PROPOSED | New at M7. The exit flourish, after the magnet disengages |
+| `loli.grantsInvulnerability` | **false** | **APPROVED** | |
+| `loli.grantsScoreMultiplier` | false | PROPOSED | Keeps the maximum multiplier at ×2 |
+| `loli.magnetRadiusUnits` | 1.5 lanes | PROPOSED | **Lateral** reach: which lanes Loli can serve |
+| `loli.magnetReachUnits` | 10 units | PROPOSED | New at the M7 review. **Longitudinal** reach: how far up the road she notices. Matches `world.visibleUnits` by intent — see the note below |
+| `loli.magnetPullPerSecond` | 6.0 lane-units/s | PROPOSED | Closes the lateral gap; the token's progress down the road is left to the world's scroll |
+| `loli.eligibleCollectibles` | Paw Tokens only | PROPOSED | The only collectible in v1 |
+| `loli.concurrentInstances` | **1** | **APPROVED** | Two Loli companions never run concurrently |
 | `queuedLoliBonuses` | run-scoped counter, `0..n` | **APPROVED** | **`RunState` only.** Never persisted, never in the API `Progression` schema, never a database column. Not a boolean — more than one may queue within a run. |
-| `loli.queueSurvivesRunEnd` | **false** | **APPROVED** | **Not implemented** — later milestone. All active and queued bonus state ends with the run |
-| `loli.activationCountedOn` | **ENTERING/ACTIVE transition** | **APPROVED** | **Not implemented** — later milestone. An activation counts only when the bonus **actually starts**. A threshold earned but never started is **not** an activation. |
-| `loli.thresholdEarnedIsNotActivation` | **true** | **APPROVED** | **Not implemented** — later milestone. Invariant, not tunable. See [scoring-and-progression](../product/scoring-and-progression.md) §2.4. |
+| `loli.queueSurvivesRunEnd` | **false** | **APPROVED** | All active and queued bonus state ends with the run |
+| `loli.activationCountedOn` | **ENTERING/ACTIVE transition** | **APPROVED** | An activation counts only when the bonus **actually starts**. A threshold earned but never started is **not** an activation. |
+| `loli.thresholdEarnedIsNotActivation` | **true** | **APPROVED** | Invariant, not tunable. See [scoring-and-progression](../product/scoring-and-progression.md) §2.4. |
+
+> **Why the magnet gained a second bound at the M7 review.**
+> It was implemented with a lateral radius and no longitudinal term, on the reading
+> that "1.5 **lanes**" names an axis. That reading does not survive contact with the
+> numbers. Tokens exist from `spawnLookaheadUnits` 14 down to `-despawnBehindUnits`,
+> the visible road is `visibleUnits` 10, and the lateral radius of 1.5 covers *every*
+> lane from the centre one — so the magnet was repositioning tokens across a band of
+> road about four units deep that the player cannot see, and `magnetPullPerSecond` is
+> specified as *"slow enough to be visible"*. Every off-screen token finished its
+> entire lateral move before it appeared, which makes the pull rate unobservable and
+> the word "nearby" untrue.
+>
+> **What did not change: nothing about what the player collects.** Collection is
+> already gated on longitudinal overlap, so a distant token was never collectible —
+> it was aligned early and then travelled normally. This was a readability defect,
+> not a fairness or scoring one, and the fix is scoped to match.
+>
+> Two independent bounds rather than one Euclidean radius, because the axes answer
+> different questions — sideways is *which lanes Loli serves*, forward is *how far
+> ahead she notices* — and a single radius would force one of the two to be wrong.
+> **Both numbers stay PROPOSED.** `magnetReachUnits` was set to `visibleUnits` by
+> intent, not derived from it: the day the camera changes is not the day the magnet
+> should.
 
 ## 10A. Audio
 
@@ -265,17 +317,46 @@ Curve: `value(t) = ceiling - (ceiling - base) × exp(-t / timeConstant)`.
 
 | Parameter | Value | Status | Notes |
 | --- | --- | --- | --- |
-| `slayyy.durationMs` | **5000** | **APPROVED** | **Not implemented** — later milestone. ≈ 5 s |
-| `slayyy.grantsInvulnerability` | **true** | **APPROVED** | **Not implemented** — later milestone. |
-| `slayyy.heals` | **false** | **APPROVED** | **Not implemented** — later milestone. |
-| `slayyy.autoActivate` | **false** | **APPROVED** | **Not implemented** — later milestone. Never fires on its own |
-| `slayyy.chargeMax` | 100 | PROPOSED | **Not implemented** — later milestone. |
-| `slayyy.chargePerSecond` | 1.4 | PROPOSED | **Not implemented** — later milestone. |
-| `slayyy.chargePerPaw` | 0.45 | PROPOSED | **Not implemented** — later milestone. |
-| `slayyy.decayPerSecond` | 0 | PROPOSED | **Not implemented** — later milestone. No decay |
-| `slayyy.chargesWhileActive` | false | PROPOSED | **Not implemented** — later milestone. |
-| `slayyy.carriesAcrossRuns` | **false** | **APPROVED** | **Not implemented** — later milestone. Run-local |
-| `slayyy.desktopKey` | `E` | **APPROVED** | **Not implemented** — later milestone. |
+| `slayyy.durationMs` | **5000** | **APPROVED** | ≈ 5 s |
+| `slayyy.grantsInvulnerability` | **true** | **APPROVED** | |
+| `slayyy.heals` | **false** | **APPROVED** | |
+| `slayyy.autoActivate` | **false** | **APPROVED** | Never fires on its own |
+| `slayyy.chargeMax` | 100 | PROPOSED | |
+| `slayyy.chargePerSecond` | 1.6 | PROPOSED | Retuned at the M7 review, from `1.4`. See the note below |
+| `slayyy.chargePerPaw` | 1.3 | PROPOSED | Retuned at the M7 review, from `0.45`, which made the collectible loop worth about 7 % of a fill |
+| `slayyy.decayPerSecond` | 0 | PROPOSED | No decay. **Declared and read by nothing** — the absence of decay is structural, not a value the code consults |
+| `slayyy.chargesWhileActive` | false | PROPOSED | Structural, like `nearMiss.awardsScore`: `addCharge` returns its argument unchanged while the phase is `active`. There is deliberately no leaf in `TUNING` — a knob here would be a way to switch off a specification sentence |
+| `slayyy.carriesAcrossRuns` | **false** | **APPROVED** | Run-local |
+| `slayyy.desktopKey` | `E` | **APPROVED** | |
+
+> **The first activation is an APPROVED UX target, and the rates are what serve it.**
+> The product owner approved, at the M7 review, that the first activation should normally
+> become available **around 35–45 s of a representative healthy run**. That is a target for
+> a *range of play*, not a timer: nothing in the domain knows the number, READY arises only
+> from the meter filling, and a player who collects more arrives sooner.
+>
+> The rates were chosen against measurement, not arithmetic. Four scripted players, three
+> seeds each, running-time only (the readiness beat and any pause are excluded, exactly as
+> the charge itself excludes them):
+>
+> | Scenario | First READY | Paws taken by then |
+> | --- | --- | --- |
+> | Collects nothing at all (tokens removed) | **62.5 s** | 0 |
+> | Dodges hazards, avoids tokens | **45.4 – 51.1 s** | 14 – 21 |
+> | **Representative healthy run** | **38.1 – 42.9 s** | 25 – 30 |
+> | Crosses the road for every token | **36.5 – 38.9 s** | 29 – 32 |
+>
+> Held by `game/domain/slayyy-readiness.spec.ts`, which plays the game rather than staging a
+> state, and fails if the healthy case leaves the window in either direction.
+>
+> **What the previous rates got wrong was the balance, not just the total.** At `0.45` per paw
+> against a meter of 100, a healthy player's whole collection effort was worth about **7 %** of
+> a fill — the rate was nominally *"rewards engagement with the collectible loop"* and in
+> practice indistinguishable from standing still. It is now about **35 %**, which is what makes
+> the spread above exist at all.
+>
+> **Both rates remain PROPOSED.** The 35–45 s *target* is APPROVED; these two numbers are one
+> way to hit it and SP-1 still owns them.
 
 ## 12. Rendering (engine-side, not game rules)
 
@@ -298,6 +379,13 @@ because making them configurable implies they may change:
   preserved.
 - SLAYYY never auto-activates.
 - Every generated pattern has a valid escape path.
+- **A Paw Token never requires unavoidable damage to collect.** The collectible
+  counterpart of the escape-path guarantee, and APPROVED/LOCKED at the M7 review.
+  The *invariant* is fixed; the mechanism that upholds it is not — today a pending
+  token that a `LANE_BLOCKING` obstacle has landed on is removed from the world,
+  and a different implementation may replace that so long as the guarantee holds.
+  A `JUMPABLE` overlap is explicitly **not** a violation: clearing the barrier and
+  taking the token in the same jump is legitimate play.
 - No combo system; no swipe-down/slide.
 - There are exactly **two** obstacle classes, and an obstacle's class never changes.
 - A near miss awards **no** score, and fires at most **once per obstacle**.

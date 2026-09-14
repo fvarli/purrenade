@@ -1,5 +1,6 @@
 import { canStartLaneChange, startLaneChange } from './lanes'
 import { canJump, startJump } from './jump'
+import { activateSlayyy, canActivateSlayyy } from './slayyy'
 import { TUNING } from './tuning'
 import type { InputEvent, RunState } from './types'
 
@@ -26,6 +27,8 @@ function isActionable(state: RunState, event: InputEvent): boolean {
       return canStartLaneChange(state)
     case 'jump':
       return canJump(state)
+    case 'slayyy':
+      return canActivateSlayyy(state)
     case 'pause':
     case 'resume':
       // Never buffered. A pause the player has to wait for is a pause that did
@@ -49,13 +52,23 @@ function applyActionable(state: RunState, event: InputEvent): RunState {
       return startLaneChange(state, 1)
     case 'jump':
       return startJump(state)
+    case 'slayyy':
+      return activateSlayyy(state)
     case 'pause':
     case 'resume':
       return state
   }
 }
 
-/** Can this kind of input wait? */
+/**
+ * Can this kind of input wait?
+ *
+ * SLAYYY deliberately cannot. A buffered activation would fire up to 120 ms
+ * after the press, spending an APPROVED five-second power at a moment the
+ * player did not choose — and `slayyy.autoActivate` is APPROVED `false`, which
+ * is a statement about *who* decides, not merely about full meters. A press
+ * while the meter is still charging is a no-op the player can see and repeat.
+ */
 function isBufferable(event: InputEvent): boolean {
   return event.type === 'move_left' || event.type === 'move_right' || event.type === 'jump'
 }

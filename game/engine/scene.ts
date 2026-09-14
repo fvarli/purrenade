@@ -38,6 +38,22 @@ export const PALETTE = {
   playerAirborne: 0xFF8FAB,
   cone: 0xFF8C42,
   barrier: 0x6A8CAF,
+
+  // --- M7 -------------------------------------------------------------------
+  paw: 0xD96A8C,
+  loli: 0xFFFFFF,
+  loliMark: 0xFF8C42,
+  /*
+   * The SLAYYY variants.
+   *
+   * "Cones become flowers" is APPROVED; the barrier's variant is AA-1 and still
+   * OPEN, so this is a restrained recolour rather than an invented design — the
+   * silhouette, the size and the class are all untouched, which is the part
+   * that matters for readability.
+   */
+  slayyyCone: 0xC9A0E8,
+  slayyyBarrier: 0x7FD1C7,
+  sparkle: 0xFFC93C,
 } as const
 
 /**
@@ -78,6 +94,28 @@ const OBSTACLE_DEPTH = 5
  * unused slots are simply hidden.
  */
 const OBSTACLE_POOL_SIZE = 48
+
+/**
+ * Paw Tokens on screen at once.
+ *
+ * Sized the same way the obstacle pool is: a long-run domain test asserts the
+ * token array stays under forty, and this sits above that. Overflow throws
+ * rather than dropping a token silently — an uncollectable paw that is visibly
+ * absent is a bug report; one that is invisible is a mystery.
+ */
+const PAW_POOL_SIZE = 48
+
+/** A token is a small disc, a little under half a lane wide. */
+const PAW_RADIUS_LANE_RATIO = 0.16
+/** Between the road and the obstacles, so a token never hides a hazard. */
+const PAW_DEPTH = 4
+
+/** The companion, drawn beside the player rather than on top of them. */
+const LOLI_RADIUS_LANE_RATIO = 0.22
+const LOLI_MARK_RADIUS_LANE_RATIO = 0.1
+const LOLI_LANE_OFFSET = 0.55
+const LOLI_DEPTH = 9
+const LOLI_LIFT_PX = 6
 
 /** A lane blocker is tall and narrow; a barrier is low and wide. */
 const CONE_WIDTH_LANE_RATIO = 0.42
@@ -162,6 +200,9 @@ export function createRunScene(
   let road: Phaser.GameObjects.Rectangle
   let laneLines: Phaser.GameObjects.Rectangle[] = []
   let obstacleShapes: Phaser.GameObjects.Rectangle[] = []
+  let pawShapes: Phaser.GameObjects.Arc[] = []
+  let loliBody: Phaser.GameObjects.Arc
+  let loliMark: Phaser.GameObjects.Arc
 
   const prefersReducedMotion = readsReducedMotion()
   let player: Phaser.GameObjects.Arc
@@ -239,6 +280,32 @@ export function createRunScene(
         return shape
       })
 
+      pawShapes = Array.from({ length: PAW_POOL_SIZE }, () => {
+        const shape = this.add.circle(0, 0, 1, PALETTE.paw)
+
+        shape.setDepth(PAW_DEPTH)
+        shape.setVisible(false)
+
+        return shape
+      })
+
+      /*
+       * The companion, as two circles.
+       *
+       * Provisional and deliberately replaceable: no production Loli sprite
+       * exists yet, and fabricating a detailed one here would mean shipping an
+       * unapproved asset as though it were the design. A white body with a
+       * ginger mark carries the established direction — predominantly white,
+       * ginger markings — without pretending to be final art.
+       */
+      loliBody = this.add.circle(0, 0, 1, PALETTE.loli)
+      loliBody.setDepth(LOLI_DEPTH)
+      loliBody.setVisible(false)
+
+      loliMark = this.add.circle(0, 0, 1, PALETTE.loliMark)
+      loliMark.setDepth(LOLI_DEPTH + 1)
+      loliMark.setVisible(false)
+
       player = this.add.circle(0, 0, 1, PALETTE.player)
       player.setDepth(PLAYER_DEPTH)
 
@@ -264,6 +331,9 @@ export function createRunScene(
 
       player.setRadius(layout.lanePitchPx * PLAYER_RADIUS_LANE_RATIO)
       player.setPosition(layout.centreXPx, layout.groundYPx)
+
+      loliBody.setRadius(layout.lanePitchPx * LOLI_RADIUS_LANE_RATIO)
+      loliMark.setRadius(layout.lanePitchPx * LOLI_MARK_RADIUS_LANE_RATIO)
     }
 
     /**
@@ -335,8 +405,21 @@ export function createRunScene(
         const onScreen = obstacle.distanceUnits <= PLAYFIELD.visibleUnits
           && obstacle.distanceUnits + obstacle.lengthUnits > 0
 
+        /*
+         * SLAYYY beautifies, and beautification is a fill.
+         *
+         * The class, the footprint, the lane and the silhouette are all read
+         * from the same snapshot fields as before — only the colour changes. A
+         * cone that becomes a flower is still `LANE_BLOCKING`, and a renderer
+         * that changed its size here would be a renderer quietly changing what
+         * the collision rules already decided.
+         */
+        const pretty = snapshot.slayyy.phase === 'active'
+
         shape.setVisible(onScreen)
-        shape.setFillStyle(isCone ? PALETTE.cone : PALETTE.barrier)
+        shape.setFillStyle(isCone
+          ? (pretty ? PALETTE.slayyyCone : PALETTE.cone)
+          : (pretty ? PALETTE.slayyyBarrier : PALETTE.barrier))
         shape.setSize(widthPx, heightPx)
         // Standing on the road rather than centred on it.
         shape.setPosition(laneToX(layout, obstacle.lane), groundY - heightPx / 2)
@@ -368,8 +451,86 @@ export function createRunScene(
         )
       }
 
-      // Dimmed while paused or waiting, so the surface reads as not-yet-live
-      // without a HUD to say so. The HUD is M7.
+      /*
+       * Paw Tokens.
+       *
+       * `laneOffset` rather than a lane index: the Loli magnet moves a token
+       * between lanes, and the domain reports where it actually is. Drawn below
+       * the obstacles so a token can never hide a hazard.
+       */
+      snapshot.pawTokens.forEach((token, index) => {
+        const shape = pawShapes[index]
+
+        if (shape === undefined) return
+
+        const depthScale = distanceScale(token.distanceUnits)
+        const onScreen = token.distanceUnits <= PLAYFIELD.visibleUnits
+          && token.distanceUnits + PLAYFIELD.pawLengthUnits > 0
+
+        shape.setVisible(onScreen)
+        shape.setRadius(layout.lanePitchPx * PAW_RADIUS_LANE_RATIO * depthScale)
+        shape.setPosition(
+          laneToX(layout, token.laneOffset),
+          distanceToY(layout, token.distanceUnits) - layout.lanePitchPx * PAW_RADIUS_LANE_RATIO * depthScale,
+        )
+        shape.setDepth(PAW_DEPTH + (PLAYFIELD.visibleUnits - token.distanceUnits) / PLAYFIELD.visibleUnits)
+      })
+
+      for (let index = snapshot.pawTokens.length; index < pawShapes.length; index++) {
+        pawShapes[index]?.setVisible(false)
+      }
+
+      // The same rule the obstacle pool follows: a token with no shape is a
+      // reward the player cannot see and therefore cannot take.
+      if (snapshot.pawTokens.length > pawShapes.length) {
+        throw new Error(
+          `run scene: ${snapshot.pawTokens.length} paw tokens exceed the pool of ${pawShapes.length}`,
+        )
+      }
+
+      /*
+       * The companion.
+       *
+       * Beside the player, never over them, and never over a hazard: it sits
+       * below the player's depth and is offset laterally, so it cannot mask the
+       * thing the player has to react to. It is visible for the whole
+       * lifecycle, riding the entrance and exit in as a scale.
+       */
+      const loliVisible = snapshot.loli.phase !== 'inactive'
+
+      loliBody.setVisible(loliVisible)
+      loliMark.setVisible(loliVisible)
+
+      if (loliVisible) {
+        /*
+         * The "puf" entrance and exit, unless the player asked for less.
+         *
+         * `accessibility.md` §2.2 puts UI transitions on the reduced side of
+         * the line — instant rather than scale — and a companion popping into
+         * existence is decoration, not information. What survives the setting
+         * is the companion *being there*, which is the part that tells the
+         * player the magnet is on.
+         */
+        const grow = prefersReducedMotion
+          ? 1
+          : snapshot.loli.phase === 'entering'
+            ? snapshot.loli.phaseProgress
+            : snapshot.loli.phase === 'exiting'
+              ? 1 - snapshot.loli.phaseProgress
+              : 1
+
+        const side = snapshot.lanePosition <= 1 ? 1 : -1
+        const x = laneToX(layout, snapshot.lanePosition + LOLI_LANE_OFFSET * side)
+        const y = layout.groundYPx - LOLI_LIFT_PX * layout.scale
+
+        loliBody.setRadius(Math.max(0.01, layout.lanePitchPx * LOLI_RADIUS_LANE_RATIO * grow))
+        loliBody.setPosition(x, y)
+
+        loliMark.setRadius(Math.max(0.01, layout.lanePitchPx * LOLI_MARK_RADIUS_LANE_RATIO * grow))
+        loliMark.setPosition(x + layout.lanePitchPx * LOLI_MARK_RADIUS_LANE_RATIO, y - LOLI_LIFT_PX * layout.scale)
+      }
+
+      // Dimmed while paused or waiting, so the surface reads as not-yet-live.
       const live = snapshot.phase === 'running'
 
       road.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
@@ -378,6 +539,10 @@ export function createRunScene(
       // The hazards dim with the road. They were left at full brightness, so a
       // paused world sat vividly on top of a greyed-out one.
       for (const shape of obstacleShapes) shape.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
+      for (const shape of pawShapes) shape.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
+
+      loliBody.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
+      loliMark.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
     }
 
     private handleResize(): void {

@@ -276,6 +276,102 @@ export const TUNING = Object.freeze({
     minGapUnits: Object.freeze([6, 5.5, 5, 4.5, 4]),
   }),
 
+  /**
+   * Score.
+   *
+   * Three components, never a fourth mutable total: the displayed score is the
+   * sum, so it cannot drift away from the parts that produced it.
+   *
+   * `perPaw` is APPROVED; the other two are not. The registry records what the
+   * approved value did to the run totals — the v0.3 boards' 1,200-5,900 range
+   * now spans roughly one to four minutes rather than 1.5 to five — and
+   * `distancePerSecond` is the PROPOSED lever that owns the difference.
+   */
+  score: Object.freeze({
+    /** @status PROPOSED — per second at the base speed; scales with the real scroll rate */
+    distancePerSecond: 10,
+    /** @status APPROVED — awarded once per collected Paw Token, magnet or not */
+    perPaw: 10,
+    /** @status APPROVED — the only multiplier in v1, and it never compounds */
+    slayyyMultiplier: 2,
+  }),
+
+  /**
+   * Paw Tokens: the one collectible in v1.
+   *
+   * Placement is drawn from the **collectible** RNG stream, never the pattern
+   * stream, so adding or retuning tokens cannot move a single obstacle.
+   */
+  paw: Object.freeze({
+    /** @status APPROVED — Paw Tokens per Loli Bonus, with the overflow preserved */
+    loliThreshold: 200,
+    /** @status PROPOSED — how close to the threshold the HUD starts showing n/200 */
+    hudThresholdProximity: 25,
+    /** @status PROPOSED — longitudinal footprint, matched to the player's own */
+    lengthUnits: 0.5,
+    /** @status PROPOSED — lateral reach for collection, centre to centre */
+    collectLateralUnits: 0.5,
+    /** @status PROPOSED — most tokens one pattern may carry */
+    perPatternMax: 3,
+    /** @status PROPOSED — spacing between tokens in a run of them */
+    spacingUnits: 1.2,
+    /** @status PROPOSED — road distance between one token group and the next */
+    groupGapUnits: 8,
+  }),
+
+  /**
+   * The Loli Bonus: a companion, not a coin.
+   *
+   * It magnetises Paw Tokens and does nothing else — no invulnerability, no
+   * extra life, no healing, no multiplier of its own. Overlapping SLAYYY is
+   * allowed and still yields ×2, never ×4.
+   */
+  loli: Object.freeze({
+    /** @status APPROVED — the active companion window, ≈ 8 s */
+    durationMs: 8000,
+    /** @status PROPOSED — the "puf" entrance, before the magnet engages */
+    enteringMs: 600,
+    /** @status PROPOSED — the exit flourish, after the magnet disengages */
+    exitingMs: 500,
+    /** @status PROPOSED — lateral attraction reach, in lane widths */
+    magnetRadiusUnits: 1.5,
+    /**
+     * How far up the road the magnet reaches.
+     *
+     * Chosen to match `world.visibleUnits`, because "attracts nearby paws"
+     * cannot honestly mean a token the player has never seen. Held as its own
+     * value rather than read from `world`: this is a gameplay reach, and the
+     * day the camera changes is not the day the magnet should.
+     *
+     * @status PROPOSED
+     */
+    magnetReachUnits: 10,
+    /** @status PROPOSED — how fast an attracted token closes, in lane-units per second */
+    magnetPullPerSecond: 6,
+    /** @status APPROVED — two companions never run at once; further earns queue */
+    concurrentInstances: 1,
+  }),
+
+  /**
+   * SLAYYY: earned across a run, spent by the player, never automatic.
+   *
+   * The meter is run-local and starts empty every run. Filling it does not fire
+   * it — `autoActivate` is APPROVED false — so a full meter becomes READY and
+   * waits for a deliberate press.
+   */
+  slayyy: Object.freeze({
+    /** @status APPROVED — the active window, ≈ 5 s */
+    durationMs: 5000,
+    /** @status PROPOSED — a full meter */
+    chargeMax: 100,
+    /** @status PROPOSED — the slow fill, from surviving distance */
+    chargePerSecond: 1.6,
+    /** @status PROPOSED — the fast fill, per Paw Token collected */
+    chargePerPaw: 1.3,
+    /** @status PROPOSED — no decay in v1; a meter never drains on its own */
+    decayPerSecond: 0,
+  }),
+
   escape: Object.freeze({
     /** @status PROPOSED — the solver may spend at most this many actions per pattern */
     maxActionsPerPattern: 2,

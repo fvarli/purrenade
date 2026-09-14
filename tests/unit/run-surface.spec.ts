@@ -22,6 +22,7 @@ interface FakeRun {
   destroyed: boolean
   pauseCalls: number
   resumeCalls: number
+  slayyyCalls: number
 }
 
 let fake: FakeRun
@@ -78,6 +79,9 @@ function surface(overrides: { failMount?: boolean, gate?: Promise<void> } = {}) 
           fake.resumeCalls++
           fake.phase = 'running'
         },
+        activateSlayyy: () => {
+          fake.slayyyCalls++
+        },
         destroy: () => {
           fake.destroyed = true
         },
@@ -93,7 +97,7 @@ function surface(overrides: { failMount?: boolean, gate?: Promise<void> } = {}) 
 beforeEach(() => {
   created = []
 
-  fake = { phase: 'running', destroyed: false, pauseCalls: 0, resumeCalls: 0 }
+  fake = { phase: 'running', destroyed: false, pauseCalls: 0, resumeCalls: 0, slayyyCalls: 0 }
   mountCalls = 0
   listeners = {}
 
@@ -214,7 +218,7 @@ describe('stopping a run', () => {
     // The route entered and left five times. Every count must return to zero,
     // and exactly one engine must be alive at the end.
     for (let visit = 0; visit < 5; visit++) {
-      fake = { phase: 'running', destroyed: false, pauseCalls: 0, resumeCalls: 0 }
+      fake = { phase: 'running', destroyed: false, pauseCalls: 0, resumeCalls: 0, slayyyCalls: 0 }
 
       const run = surface()
       await run.start(container())
@@ -426,5 +430,145 @@ describe('the provisional heart feedback', () => {
     run.stop()
 
     expect(run.hearts.value).toBe(3)
+  })
+})
+
+describe('the M7 heads-up display', () => {
+  it('starts every counter at zero', () => {
+    const run = surface()
+
+    expect(run.score.value).toBe(0)
+    expect(run.runPaws.value).toBe(0)
+    expect(run.cyclePaws.value).toBe(0)
+    expect(run.loliActive.value).toBe(false)
+    expect(run.slayyy.value).toBe('charging')
+  })
+
+  it('follows the coarse score event rather than the simulation', async () => {
+    /*
+     * The score moves on nearly every one of 120 steps a second. The loop only
+     * emits when the *displayed integer* changes, and the HUD reads the event —
+     * mirroring run state into Vue would re-render at the simulation rate.
+     */
+    const run = surface()
+
+    await run.start(container())
+
+    emit({ type: 'score_changed', total: 140 })
+
+    expect(run.score.value).toBe(140)
+
+    emit({ type: 'score_changed', total: 141 })
+
+    expect(run.score.value).toBe(141)
+  })
+
+  it('tracks both paw counters from one event', async () => {
+    const run = surface()
+
+    await run.start(container())
+
+    emit({ type: 'paws_changed', runPaws: 12, cyclePaws: 199 })
+
+    expect(run.runPaws.value).toBe(12)
+    expect(run.cyclePaws.value).toBe(199)
+  })
+
+  it('shows the companion only while it is running', async () => {
+    const run = surface()
+
+    await run.start(container())
+
+    emit({ type: 'loli_started' })
+    expect(run.loliActive.value).toBe(true)
+
+    emit({ type: 'loli_ended' })
+    expect(run.loliActive.value).toBe(false)
+  })
+
+  it('follows the SLAYYY meter through its states', async () => {
+    const run = surface()
+
+    await run.start(container())
+
+    emit({ type: 'slayyy_ready' })
+    expect(run.slayyy.value).toBe('ready')
+
+    emit({ type: 'slayyy_activated' })
+    expect(run.slayyy.value).toBe('active')
+
+    emit({ type: 'slayyy_ended' })
+    expect(run.slayyy.value).toBe('charging')
+  })
+
+  it('follows the meter\'s fill, as a whole percent', async () => {
+    const run = surface()
+
+    await run.start(container())
+    expect(run.slayyyPercent.value).toBe(0)
+
+    emit({ type: 'slayyy_charge', percent: 41 })
+    expect(run.slayyyPercent.value).toBe(41)
+
+    // Activation spends the meter; the loop says so in the same coarse way.
+    emit({ type: 'slayyy_charge', percent: 0 })
+    emit({ type: 'slayyy_activated' })
+
+    expect(run.slayyyPercent.value).toBe(0)
+    expect(run.slayyy.value).toBe('active')
+  })
+
+  it('asks the engine to activate, and lets the domain decide', async () => {
+    // The button never checks whether the meter is armed. A press while
+    // charging is a no-op the rules make, not one the UI guesses at.
+    const run = surface()
+
+    await run.start(container())
+    run.activateSlayyy()
+
+    expect(fake.slayyyCalls).toBe(1)
+  })
+
+  it('does nothing when asked to activate with no run mounted', () => {
+    const run = surface()
+
+    expect(() => run.activateSlayyy()).not.toThrow()
+    expect(fake.slayyyCalls).toBe(0)
+  })
+
+  it('clears the companion and the active power when the run ends', async () => {
+    const run = surface()
+
+    await run.start(container())
+
+    emit({ type: 'loli_started' })
+    emit({ type: 'slayyy_activated' })
+    emit({ type: 'run_ended' })
+
+    expect(run.loliActive.value).toBe(false)
+    expect(run.slayyy.value).toBe('charging')
+  })
+
+  it('resets every counter when the surface is torn down', async () => {
+    // A stale score surviving a teardown would show on the next run before its
+    // first event arrived.
+    const run = surface()
+
+    await run.start(container())
+
+    emit({ type: 'score_changed', total: 900 })
+    emit({ type: 'paws_changed', runPaws: 40, cyclePaws: 40 })
+    emit({ type: 'loli_started' })
+    emit({ type: 'slayyy_charge', percent: 100 })
+    emit({ type: 'slayyy_ready' })
+
+    run.stop()
+
+    expect(run.score.value).toBe(0)
+    expect(run.runPaws.value).toBe(0)
+    expect(run.cyclePaws.value).toBe(0)
+    expect(run.loliActive.value).toBe(false)
+    expect(run.slayyy.value).toBe('charging')
+    expect(run.slayyyPercent.value).toBe(0)
   })
 })

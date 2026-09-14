@@ -33,7 +33,7 @@ The game domain is a pure function of its inputs. Concretely, inside
 | `Date.now()`, `performance.now()` | Time enters only as an explicit `deltaMs` |
 | Variable-delta physics | **Fixed-step** simulation with an accumulator |
 | Iterating an unordered collection where order affects outcome | Deterministic, stable ordering |
-| Floating-point accumulation of authoritative counters | Integer accumulators for score and paws. **Scope, as of M5:** this rule governs *counters* — score, paws, hearts — none of which exist yet. The run clock (`elapsedMs`) and the three duration accumulators are floats, deliberately: they are driven by a constant `STEP_MS`, IEEE-754 addition is deterministic, and a 100 000-step run reproduces bit-for-bit. When score becomes a function of elapsed time at M7, the counter it feeds must still be an integer. |
+| Floating-point accumulation of authoritative counters | Integer accumulators for score and paws. **Honoured at M7:** score accumulates in **thousandths** (`ScoreState.distanceMilli` / `collectionMilli` / `bonusMilli`) and the SLAYYY meter in **millionths** (`chargeMicro`); paws, hearts and the activation counters are plain integers. Thousandths were not enough for the meter: 1.4 per second at an 8.33 ms step rounds about 2.8 % fast, which a ten-minute run turns into a visible discrepancy. The run clock (`elapsedMs`) and the duration accumulators remain floats, deliberately: they are driven by a constant `STEP_MS`, IEEE-754 addition is deterministic, and a 100 000-step run reproduces bit-for-bit. |
 | Reading anything ambient (DOM, network, storage, locale) | Pass it in |
 
 ---
@@ -43,7 +43,7 @@ The game domain is a pure function of its inputs. Concretely, inside
 | Aspect | Approach |
 | --- | --- |
 | Algorithm | A small, fast, well-distributed PRNG with explicit state (e.g. a 128-bit xorshift family). **Not** the platform RNG. |
-| State location | **Inside `RunState`**, threaded through `step()`. Not a module-level singleton. **As of M6 the `pattern` stream is consumed** — weighted pattern selection is its first and only consumer, and `step()` advances it whenever a pattern is emitted. `collectible` and `cosmetic` remain untouched, which is the point of separating them: a decorative change cannot shift the obstacle sequence, and a test asserts exactly that. |
+| State location | **Inside `RunState`**, threaded through `step()`. Not a module-level singleton. **As of M7 two streams are consumed** — `pattern` by weighted pattern selection (M6) and `collectible` by Paw Token groups (M7). `cosmetic` remains untouched. Paw spawning draws a fixed **two** values per group, count then lane, and then *rotates* to a clear lane instead of redrawing: the number of draws must not depend on the obstacle layout, or the two streams would be coupled through the playfield rather than through the seed. Tests assert both directions — perturbing `collectible` leaves 4000 steps of obstacles bit-identical, and does change the tokens, so the first assertion is not vacuous. |
 | Seed source | A cryptographically strong value at run start — from the **server** if the run-token model is adopted, otherwise locally generated |
 | Seed recording | The seed is part of the run summary, so any run can be replayed for debugging or validation |
 | Streams | Separate, independently-seeded streams for **pattern selection**, **collectible placement** and **cosmetic variation**, derived from the run seed |

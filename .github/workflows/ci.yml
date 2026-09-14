@@ -340,7 +340,9 @@ jobs:
           cat > /tmp/expected-unrun <<'EOF'
           run-lifecycle.spec.ts
           run-obstacles.spec.ts
+          run-scoring.spec.ts
           run-surface.spec.ts
+          run-touch.spec.ts
           ssr-auth-session.spec.ts
           EOF
           sed -i 's/^[[:space:]]*//' /tmp/expected-unrun
@@ -456,6 +458,114 @@ jobs:
             exit 1
           fi
           echo "no web-storage writes in app/ or game/"
+
+      - name: No persisted Loli queue
+        run: |
+          set -euo pipefail
+          # G16. `scoring-and-progression.md` 2.4 is explicit: the Loli queue is
+          # run-scoped and dies with the run. `owedLoliBonuses` was the name the
+          # rejected persistent design used, so the name itself is the tripwire.
+          #
+          # It is checked as an *identifier*, not as a string: comments and
+          # documentation have to be able to name the rejected design in order
+          # to reject it, and several deliberately do. So source files are
+          # stripped of their comments first and the survivors are what fails
+          # the build. The run-scoped field is `queuedLoliBonuses`; the leading
+          # word boundary keeps the check off it.
+          python3 - <<'EOF'
+          import re, sys, pathlib
+
+          ROOTS = ['app', 'game', 'server', 'i18n', 'tests', 'shared']
+          SUFFIX = {'.ts', '.tsx', '.vue', '.js', '.mjs', '.json'}
+          NAME = re.compile(r'\bowed[-_]?loli[-_]?bonus', re.I)
+
+          def strip_comments(text: str) -> str:
+              """Blank out // and /* */ comments, respecting string and template literals."""
+              out, i, n = [], 0, len(text)
+              while i < n:
+                  c = text[i]
+                  if c in '\'"`':
+                      quote, i = c, i + 1
+                      out.append(quote)
+                      while i < n and text[i] != quote:
+                          if text[i] == '\\':
+                              out.append(text[i:i + 2]); i += 2; continue
+                          out.append(text[i]); i += 1
+                      if i < n:
+                          out.append(quote); i += 1
+                      continue
+                  if text.startswith('//', i):
+                      while i < n and text[i] != '\n':
+                          i += 1
+                      continue
+                  if text.startswith('/*', i):
+                      end = text.find('*/', i + 2)
+                      i = n if end == -1 else end + 2
+                      continue
+                  if text.startswith('<!--', i):
+                      end = text.find('-->', i + 4)
+                      i = n if end == -1 else end + 3
+                      continue
+                  out.append(c); i += 1
+              return ''.join(out)
+
+          hits = []
+          for root in ROOTS:
+              for path in sorted(pathlib.Path(root).rglob('*')) if pathlib.Path(root).is_dir() else []:
+                  if path.suffix not in SUFFIX or not path.is_file():
+                      continue
+                  for lineno, line in enumerate(strip_comments(path.read_text(encoding='utf-8')).splitlines(), 1):
+                      if NAME.search(line):
+                          hits.append(f'{path.as_posix()}:{lineno}: {line.strip()}')
+
+          if hits:
+              print("ERROR: 'owedLoliBonuses' names the rejected persistent Loli queue.")
+              print('The queue is run-scoped: see docs/product/scoring-and-progression.md 2.4.')
+              for hit in hits:
+                  print('  ', hit)
+              sys.exit(1)
+
+          print('no persisted Loli queue in source')
+          EOF
+
+      - name: Each RNG stream has exactly one consumer
+        run: |
+          set -euo pipefail
+          # G23. Determinism rests on the three streams staying independent, and
+          # the only way that breaks is a second module quietly drawing from
+          # someone else's stream. Ownership is asserted by file, not by count: a
+          # test can prove a decorative draw does not move obstacles today, but
+          # only this check stops a new module from being added tomorrow.
+          python3 - <<'EOF'
+          import re, sys, pathlib
+
+          OWNER = {
+              'pattern': {'game/domain/obstacles.ts'},
+              'collectible': {'game/domain/collectibles.ts'},
+              'cosmetic': set(),   # reserved: nothing may draw from it yet
+          }
+          # `state.ts` freezes all three by name in `sealState`; that is not a draw.
+          EXEMPT = {'game/domain/state.ts'}
+
+          failed = False
+          for path in sorted(pathlib.Path('game').rglob('*.ts')):
+              rel = path.as_posix()
+              if rel.endswith('.spec.ts') or rel in EXEMPT:
+                  continue
+              text = path.read_text(encoding='utf-8')
+              for stream in re.findall(r'rng\.(pattern|collectible|cosmetic)\b', text):
+                  if rel not in OWNER[stream]:
+                      owner = ', '.join(sorted(OWNER[stream])) or '(reserved, no consumer)'
+                      print(f'ERROR: {rel} draws from the "{stream}" stream; owner is {owner}')
+                      failed = True
+
+          if failed:
+              print('Streams are independent only while each has one consumer.')
+              print('See docs/game/determinism-and-rng.md.')
+              sys.exit(1)
+
+          print('each RNG stream has exactly one consumer')
+          EOF
 
       - name: Check the decision register is complete
         run: |

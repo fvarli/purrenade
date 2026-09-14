@@ -2,6 +2,10 @@ import { advanceBuffer, applyInput } from './input'
 import { sealState } from './state'
 import { advanceJump } from './jump'
 import { advanceObstacles, advanceSpawning } from './obstacles'
+import { advancePawSpawning, advancePawTokens, dropBlockedTokens, resolvePawTokens } from './collectibles'
+import { advanceLoli, applyMagnet, applyPawsToCycle, clearLoli, earnLoliBonuses } from './loli'
+import { distanceMilliFor, earnMilli, earnPoints } from './score'
+import { advanceSlayyy, chargeFromPaws, chargeFromTime } from './slayyy'
 import { resolveCollisions } from './collision'
 import { TUNING } from './tuning'
 import { advanceLaneTransition } from './lanes'
@@ -130,8 +134,50 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
   //
   // Driven by `runningDeltaMs`, not the full delta: during the readiness beat
   // the player may move, but nothing approaches them.
+  const distanceBefore = next.distanceUnits
+
   next = advanceObstacles(next, runningDeltaMs)
   next = advanceSpawning(next)
+
+  // 6a. Paw Tokens travel and spawn on the same clock, from their own stream.
+  //
+  // After the obstacles, so a token group can see what the road already holds
+  // and avoid placing itself inside a lane blocker — reading the world, never
+  // drawing from its generator.
+  next = advancePawTokens(next, runningDeltaMs)
+  next = advancePawSpawning(next)
+
+  // 6b. The companion's lifecycle, then its magnet.
+  //
+  // In that order: a bonus that becomes active on this step should attract on
+  // this step, and one that stops should not.
+  next = advanceLoli(next, runningDeltaMs)
+  next = applyMagnet(next, runningDeltaMs)
+
+  /*
+   * 6b(ii). A token a hazard has landed on stops being a token.
+   *
+   * After the magnet, not before, because the magnet moves tokens between lanes
+   * and a token pulled into a blocker is bait just as surely as one spawned
+   * into it. Reads the obstacle list and consumes no randomness, so the two
+   * generators stay independent.
+   */
+  next = dropBlockedTokens(next)
+
+  /*
+   * 6c. Distance score, before anything can end the run.
+   *
+   * The multiplier is read from the state as it stands *now*, which fixes the
+   * boundary precisely: the step on which SLAYYY expires still scores at ×2,
+   * because the power was active for the whole of the movement being scored.
+   * Nothing is ever multiplied retroactively — each step is settled at the rate
+   * that applied while it happened, and never revisited.
+   */
+  const movedUnits = next.distanceUnits - distanceBefore
+
+  if (movedUnits > 0) {
+    next = { ...next, score: earnMilli(next, 'distanceMilli', distanceMilliFor(movedUnits)) }
+  }
 
   // 7. Collision, then near miss, both after movement — occupancy flips at the
   //    midpoint of a lane change, and the player's position for this step is
@@ -165,6 +211,59 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
     next = { ...next, invulnRemainingMs: Math.max(0, next.invulnRemainingMs - runningDeltaMs) }
   }
 
+  /*
+   * 8. Collection, after damage has been settled.
+   *
+   * Deliberately not gated by it. Taking a heart and taking a token on the same
+   * step are independent events, and the approved rule is that collection
+   * continues normally during invulnerability and during SLAYYY.
+   *
+   * A run that ended on this step collects nothing: the terminal state is the
+   * one place where "no further reward" is absolute.
+   */
+  if (next.phase !== 'ended') {
+    const picked = resolvePawTokens(next)
+
+    next = picked.state
+
+    if (picked.collected > 0) {
+      const cycle = applyPawsToCycle(next.loliCyclePaws, picked.collected)
+
+      next = {
+        ...next,
+        runPaws: next.runPaws + picked.collected,
+        loliCyclePaws: cycle.loliCyclePaws,
+        score: earnPoints(next, 'collectionMilli', TUNING.score.perPaw * picked.collected),
+        slayyy: chargeFromPaws(next.slayyy, picked.collected),
+      }
+
+      next = earnLoliBonuses(next, cycle.earned)
+    }
+  }
+
+  // 9. The meter fills from surviving time, and the active window runs down.
+  if (next.phase !== 'ended') {
+    next = { ...next, slayyy: chargeFromTime(next, runningDeltaMs) }
+    next = { ...next, slayyy: advanceSlayyy(next, runningDeltaMs) }
+  }
+
+  /*
+   * 10. Terminal cleanup.
+   *
+   * Everything M7 owns stops at the same instant the run does: the companion
+   * leaves, the queue is discarded rather than banked, and the power window
+   * closes without granting anything further. `loliActivations` and
+   * `slayyyActivations` are untouched — they record what happened, and a run
+   * ending does not un-happen them.
+   */
+  if (next.phase === 'ended') {
+    next = clearLoli(next)
+
+    if (next.slayyy.phase === 'active') {
+      next = { ...next, slayyy: { ...next.slayyy, phase: 'cooldown', activeRemainingMs: 0 } }
+    }
+  }
+
   return sealState(next)
 }
 
@@ -173,7 +272,7 @@ function isPhaseInput(input: InputEvent): boolean {
 }
 
 const INPUT_TYPES: ReadonlySet<string> = new Set<InputEvent['type']>([
-  'move_left', 'move_right', 'jump', 'pause', 'resume',
+  'move_left', 'move_right', 'jump', 'slayyy', 'pause', 'resume',
 ])
 
 /**

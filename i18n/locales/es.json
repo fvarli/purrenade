@@ -278,7 +278,7 @@
     "resume": "Reanudar",
     "loading": "Cargando el motor del juego…",
     "failed": "No se ha podido cargar el motor del juego. Actualiza la página e inténtalo de nuevo.",
-    "scopeNotice": "Esta versión tiene carriles, salto, obstáculos, vidas y pausa. Las huellas, Loli y SLAYYY llegan más adelante.",
+    "scopeNotice": "Esta versión tiene carriles, salto, obstáculos, vidas, puntuación, Huellas, el Bonus de Loli y SLAYYY. Guardar tu progreso llega en una fase posterior.",
     "phase": {
       "ready": "Preparándose",
       "running": "En marcha",
@@ -287,6 +287,18 @@
     },
     "hearts": "Vidas: {count} / {max}",
     "heartsLabel": "Vidas restantes",
-    "ended": "Carrera terminada. Sal y vuelve a entrar para empezar otra."
+    "ended": "Carrera terminada. Sal y vuelve a entrar para empezar otra.",
+    "score": "Puntuación: {score}",
+    "scoreLabel": "Puntuación",
+    "paws": "Huellas: {count}",
+    "pawsLabel": "Huellas recogidas",
+    "cycleProgress": "{count} / {total} para Loli",
+    "loliActive": "Loli está aquí",
+    "slayyyLabel": "SLAYYY",
+    "slayyyChargeLabel": "Carga de SLAYYY",
+    "slayyyCharging": "SLAYYY cargando — {percent} %",
+    "slayyyReady": "SLAYYY lista — activar",
+    "slayyyActive": "SLAYYY activa",
+    "slayyyHint": "Pulsa E o toca para activar"
   }
 }

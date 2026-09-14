@@ -36,6 +36,13 @@ export type {
   ObstacleKind,
   ObstacleOutcome,
   SpawnState,
+  ScoreState,
+  PawToken,
+  PawOutcome,
+  LoliState,
+  LoliPhase,
+  SlayyyState,
+  SlayyyPhase,
 } from './types'
 
 // --- M6 -----------------------------------------------------------------
@@ -52,3 +59,22 @@ export { resolveCollisions, isDamaging, overlapsLongitudinally } from './collisi
 
 export { findEscapePath } from './escape'
 export type { EscapeQuery, EscapeResult } from './escape'
+
+// --- M7 -----------------------------------------------------------------
+
+export { scoreComponents, scoreTotal, scoreMultiplier, EMPTY_SCORE } from './score'
+export { advancePawTokens, advancePawSpawning, dropBlockedTokens, resolvePawTokens } from './collectibles'
+export type { PawCollection } from './collectibles'
+export { applyPawsToCycle, advanceLoli, applyMagnet, earnLoliBonuses, magnetIsActive, clearLoli, EMPTY_LOLI } from './loli'
+export type { ThresholdResult } from './loli'
+export {
+  activateSlayyy,
+  canActivateSlayyy,
+  advanceSlayyy,
+  chargeFromPaws,
+  chargeFromTime,
+  chargeFraction,
+  slayyyProtects,
+  EMPTY_SLAYYY,
+} from './slayyy'
+export { protectionSources, isProtected } from './collision'

@@ -1,5 +1,6 @@
 import { isAirborne, jumpHeightPx } from './jump'
 import { occupiedLane } from './lanes'
+import { slayyyProtects } from './slayyy'
 import { JUMP_ARC, TUNING } from './tuning'
 import type { Obstacle, RunState } from './types'
 
@@ -113,6 +114,33 @@ function lanePosition(state: RunState): number {
   return transition.from + (transition.to - transition.from) * progress
 }
 
+/**
+ * Why the player is not taking damage, kept as two separate facts.
+ *
+ * There are two independent sources — the M6 post-hit recovery window and
+ * SLAYYY — and collapsing them into one boolean loses the thing that matters:
+ * they expire on their own clocks. If SLAYYY ends while recovery is still
+ * legitimately running, recovery continues for its remaining time; if recovery
+ * ends first, SLAYYY carries on. Neither refreshes, extends or truncates the
+ * other, and a collision during either leaves both untouched.
+ */
+export function protectionSources(state: RunState): {
+  readonly hitRecovery: boolean
+  readonly slayyy: boolean
+} {
+  return {
+    hitRecovery: state.invulnRemainingMs > 0,
+    slayyy: slayyyProtects(state),
+  }
+}
+
+/** Is the player protected from damage right now, from any source? */
+export function isProtected(state: RunState): boolean {
+  const sources = protectionSources(state)
+
+  return sources.hitRecovery || sources.slayyy
+}
+
 export interface CollisionOutcome {
   readonly state: RunState
   /** How many hearts were lost this step. At most one, whatever overlaps. */
@@ -133,7 +161,7 @@ export interface CollisionOutcome {
 export function resolveCollisions(state: RunState): CollisionOutcome {
   if (state.obstacles.length === 0) return { state, heartsLost: 0, nearMisses: 0 }
 
-  const invulnerable = state.invulnRemainingMs > 0
+  const invulnerable = isProtected(state)
 
   let heartsLost = 0
   let nearMisses = 0

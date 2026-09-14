@@ -27,6 +27,16 @@ export interface MountedRun {
   pause(): void
   resume(): void
   phase(): RunPhase
+  /**
+   * Ask for SLAYYY.
+   *
+   * A named action rather than an exposed input queue: the app layer should be
+   * able to wire a button without learning the domain's event vocabulary, and
+   * the queue is the one place a caller could put something the rules never
+   * expected. Whether anything happens is the domain's decision — a request
+   * while the meter is charging is a deterministic no-op.
+   */
+  activateSlayyy(): void
   /** Tear down the canvas, the listeners and the WebGL context. */
   destroy(): void
 }
@@ -107,6 +117,9 @@ export async function mountRun({ container, seed, onEvent }: MountRunOptions): P
   return {
     pause(): void {
       if (!destroyed) loop.pause()
+    },
+    activateSlayyy(): void {
+      if (!destroyed) loop.enqueue({ type: 'slayyy' })
     },
 
     resume(): void {

@@ -135,11 +135,21 @@ describe('keyboard normalization', () => {
   })
 
   it('claims no key it has no use for', () => {
-    // SLAYYY is M7. Binding `E` now would be a control that appears to exist.
-    for (const code of ['KeyE', 'ArrowDown', 'KeyS', 'Enter', 'Tab', 'KeyQ']) {
+    // `KeyE` left this list at M7, when SLAYYY gave it something to do. The
+    // rest still have no meaning, and a key that silently does nothing is a
+    // control that appears to exist.
+    for (const code of ['ArrowDown', 'KeyS', 'Enter', 'Tab', 'KeyQ']) {
       expect(inputForKeyCode(code)).toBeNull()
       expect(isGameplayKey(code)).toBe(false)
     }
+  })
+
+  it('binds the approved SLAYYY key', () => {
+    // `E` is APPROVED for desktop activation. Whether it *does* anything is the
+    // domain's decision — the meter has to be armed — so this asserts only that
+    // the intent reaches it.
+    expect(inputForKeyCode('KeyE')).toBe('slayyy')
+    expect(isGameplayKey('KeyE')).toBe(true)
   })
 
   const key = (over: Partial<Parameters<typeof shouldHandleKey>[0]> = {}) => ({

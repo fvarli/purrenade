@@ -231,6 +231,73 @@ describe('the registry and the module agree', () => {
     expect(undelivered).toEqual([])
   })
 
+  /**
+   * What APPROVED is worth, as a test.
+   *
+   * Found by mutating `score.perPaw` away from its approved value: exactly one
+   * test failed, and it was the registry comparison. Every other assertion in
+   * the suite is written against `TUNING`, deliberately and correctly — a test
+   * that hard-codes a PROPOSED number has to be rewritten every time the number
+   * is reviewed. But it means an **APPROVED** value was held by nothing except
+   * the requirement that two files agree, and two files can be edited together.
+   * "LOCKED" was a word in a document rather than a property of the repository.
+   *
+   * So approved values are pinned literally, here, and nowhere else. The table
+   * is the third place: changing one now means changing the code, the registry
+   * *and* a list that says in as many words that a product owner decided it.
+   *
+   * The first assertion is what keeps the table honest — a newly approved leaf
+   * fails until it is listed, so the lock cannot be skipped by omission.
+   */
+  const APPROVED: Readonly<Record<string, number | boolean | readonly number[]>> = Object.freeze({
+    'layout.baselineViewportWidthPx': 390,
+    'layout.baselineViewportHeightPx': 844,
+    'layout.desktopPlayColumnPx': 460,
+    'lane.count': 3,
+    'lane.startIndex': 1,
+    'jump.airborneMs': 650,
+    'obstacle.jumpable.clearableByJump': true,
+    'hearts.start': 3,
+    'hearts.max': 3,
+    'hearts.costPerCollision': 1,
+    'difficulty.tierStartsS': [0, 30, 60, 120, 180],
+    'score.perPaw': 10,
+    'score.slayyyMultiplier': 2,
+    'paw.loliThreshold': 200,
+    'loli.durationMs': 8000,
+    'loli.concurrentInstances': 1,
+    'slayyy.durationMs': 5000,
+  })
+
+  it('pins every approved value, so nothing approved can move quietly', () => {
+    const declared = declaredStatuses(source)
+    const approvedPaths = leafPaths(TUNING).filter(path => declared.get(path) === 'APPROVED')
+
+    expect(
+      approvedPaths.filter(path => !(path in APPROVED)),
+      'newly approved values must be added to the locked table above',
+    ).toEqual([])
+
+    expect(
+      Object.keys(APPROVED).filter(path => !approvedPaths.includes(path)),
+      'the locked table names a value that is no longer APPROVED in tuning.ts',
+    ).toEqual([])
+
+    const wrong = Object.entries(APPROVED).flatMap(([path, expected]) => {
+      const actual = path.split('.').reduce<unknown>(
+        (node, key) => (node as Record<string, unknown>)[key], TUNING,
+      )
+
+      const same = Array.isArray(expected)
+        ? JSON.stringify(actual) === JSON.stringify(expected)
+        : actual === expected
+
+      return same ? [] : [`${path}: code ${JSON.stringify(actual)}, approved ${JSON.stringify(expected)}`]
+    })
+
+    expect(wrong, 'an APPROVED value was changed without a recorded decision').toEqual([])
+  })
+
   it('agrees with the registry about every status', () => {
     // `open-decisions.md` §0AC claims this test exists. It did not.
     const declared = declaredStatuses(source)

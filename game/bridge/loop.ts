@@ -100,8 +100,52 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
       emit({ type: 'near_miss' })
     }
 
-    if (state.phase === 'ended' && before.phase !== 'ended') {
-      emit({ type: 'run_ended' })
+    /*
+     * M7's coarse moments.
+     *
+     * Score moves on almost every step, so emitting it raw would push 120
+     * events a second into Vue. What the HUD needs is the *displayed integer*,
+     * which changes a few times a second at most — so the comparison is between
+     * the two snapshots' already-floored totals, and a step that moves the
+     * fractional accumulator without changing what a player can read emits
+     * nothing at all.
+     */
+    if (current.score.total !== previous.score.total) {
+      emit({ type: 'score_changed', total: current.score.total })
+    }
+
+    if (state.runPaws !== before.runPaws) {
+      emit({ type: 'paws_changed', runPaws: state.runPaws, cyclePaws: state.loliCyclePaws })
+    }
+
+    // Activations, from the counters rather than the phases: the counter is the
+    // authoritative fact a later milestone will submit, and reading it here
+    // means the event and the fact can never disagree.
+    if (state.loliActivations > before.loliActivations) {
+      emit({ type: 'loli_started' })
+    }
+
+    if (before.loli.phase !== 'inactive' && state.loli.phase === 'inactive') {
+      emit({ type: 'loli_ended' })
+    }
+
+    if (state.slayyyActivations > before.slayyyActivations) {
+      emit({ type: 'slayyy_activated' })
+    }
+
+    if (before.slayyy.phase !== 'ready' && state.slayyy.phase === 'ready') {
+      emit({ type: 'slayyy_ready' })
+    }
+
+    // Same rule as the score: compare what the player can actually read, not
+    // the accumulator behind it. Both snapshots are already rounded, so a step
+    // that moves the meter without moving the number emits nothing.
+    if (current.slayyy.percent !== previous.slayyy.percent) {
+      emit({ type: 'slayyy_charge', percent: current.slayyy.percent })
+    }
+
+    if (before.slayyy.phase === 'active' && state.slayyy.phase !== 'active') {
+      emit({ type: 'slayyy_ended' })
     }
 
     if (state.phase !== lastPhase) {
@@ -113,6 +157,20 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
 
       lastPhase = state.phase
       emit({ type: 'phase_changed', phase: state.phase })
+    }
+
+    /*
+     * Terminal last, and that ordering is a contract.
+     *
+     * `run_ended` used to be emitted before the score and paw events, which
+     * meant the final step's distance arrived *after* the run was announced as
+     * over. Nothing broke today — the HUD keeps applying updates — but the
+     * event a later milestone will build a run summary from was not the last
+     * word on the run it summarises. It is now: every state change this step
+     * produced has already been emitted when this fires.
+     */
+    if (state.phase === 'ended' && before.phase !== 'ended') {
+      emit({ type: 'run_ended' })
     }
   }
 

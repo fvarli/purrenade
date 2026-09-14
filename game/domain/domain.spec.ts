@@ -579,6 +579,49 @@ describe('a returned state cannot be used to corrupt the next one', () => {
     expect(Object.isFrozen(state.laneTransition)).toBe(true)
   })
 
+  it('freezes every object reachable from the state, named or not', () => {
+    /*
+     * `sealState` is a hand-written list, deliberately — a recursive freeze
+     * would also freeze anything a future field happened to reference, and the
+     * explicit walk is reviewable. The cost is that a *new* nested field is
+     * unfrozen by default and nothing complains, which is precisely the hazard
+     * the milestones that add nested state introduce.
+     *
+     * So the walk is checked generically rather than name by name: reach every
+     * object and array from the state and assert each one is frozen. A field
+     * added without a matching `Object.freeze` fails here, on the day it is
+     * added, rather than the day a renderer writes through it.
+     */
+    let state = runningState()
+
+    // Long enough to have obstacles, tokens, a companion and a charged meter —
+    // an empty array is frozen trivially and would prove nothing.
+    for (let i = 0; i < 12_000; i++) {
+      state = step(state, [], STEP_MS)
+
+      if (state.phase === 'ended') state = runningState()
+    }
+
+    const unfrozen: string[] = []
+    const seen = new Set<unknown>()
+
+    const walk = (node: unknown, path: string): void => {
+      if (node === null || typeof node !== 'object' || seen.has(node)) return
+
+      seen.add(node)
+
+      if (!Object.isFrozen(node)) unfrozen.push(path)
+
+      for (const [key, value] of Object.entries(node)) walk(value, `${path}.${key}`)
+    }
+
+    walk(state, 'state')
+
+    expect(unfrozen).toEqual([])
+    // A guard against the walk silently visiting nothing.
+    expect(seen.size).toBeGreaterThan(8)
+  })
+
   it('refuses a write that would put an impossible lane into the simulation', () => {
     const state = runningState()
 

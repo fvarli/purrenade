@@ -38,6 +38,7 @@ export type InputEvent =
   | { readonly type: 'move_left' }
   | { readonly type: 'move_right' }
   | { readonly type: 'jump' }
+  | { readonly type: 'slayyy' }
   | { readonly type: 'pause' }
   | { readonly type: 'resume' }
 
@@ -179,4 +180,128 @@ export interface RunState {
 
   /** Statistics only. A near miss awards no score, directly or indirectly. */
   readonly nearMissCount: number
+
+  // --- M7 -------------------------------------------------------------------
+
+  /** The three score components. There is deliberately no fourth total field. */
+  readonly score: ScoreState
+
+  /** Paw Tokens currently in the world, nearest last. Frozen with the state. */
+  readonly pawTokens: readonly PawToken[]
+
+  /** The id the next Paw Token will take. Deterministic, so a replay matches. */
+  readonly nextPawTokenId: number
+
+  /** World distance at which the next Paw Token group is considered. */
+  readonly nextPawAtUnits: number
+
+  /** Paw Tokens collected in this run. Never decreases. */
+  readonly runPaws: number
+
+  /**
+   * Progress toward the next Loli threshold.
+   *
+   * Seeded at run creation from whatever the caller knows, and advanced by
+   * collection. There is no persistence behind it at M7 — the default is zero,
+   * and that is the truth rather than a stand-in for a database column.
+   */
+  readonly loliCyclePaws: number
+
+  readonly loli: LoliState
+  readonly slayyy: SlayyyState
+
+  /**
+   * Times a Loli Bonus **actually started** in this run.
+   *
+   * Not thresholds crossed, and not bonuses queued. A bonus that is earned and
+   * never starts — because the run ended first — is not an activation, and the
+   * distinction is the whole reason this is a separate counter.
+   */
+  readonly loliActivations: number
+
+  /** Times SLAYYY actually entered its active window in this run. */
+  readonly slayyyActivations: number
+}
+
+/**
+ * Score, in thousandths of a point.
+ *
+ * Integer arithmetic on purpose. Distance score accrues a fraction of a point
+ * every 8.33 ms step, and a float accumulator over a five-minute run is exactly
+ * the kind of thing that drifts differently once anything about the step
+ * sequence changes. Thousandths are exact, sum exactly, and floor predictably.
+ *
+ * The displayed total is the sum of the three floored components, so
+ * `total === distance + collection + bonus` holds as integers with no rounding
+ * slack anywhere. There is no separate mutable total to fall out of step.
+ */
+export interface ScoreState {
+  readonly distanceMilli: number
+  readonly collectionMilli: number
+  readonly bonusMilli: number
+}
+
+/** Has this token been taken, and if so how? */
+export type PawOutcome = 'pending' | 'collected' | 'missed'
+
+/**
+ * One Paw Token on the road.
+ *
+ * Geometry mirrors `Obstacle` so the same longitudinal reasoning applies:
+ * `distanceUnits` is the leading edge and decreases as the world scrolls.
+ * `laneOffset` is a lateral position in lane units, which is how the Loli
+ * magnet can pull a token *between* lanes without inventing a second geometry.
+ */
+export interface PawToken {
+  readonly id: number
+  readonly lane: LaneIndex
+  /** Lateral position in lane units. Equals `lane` until the magnet moves it. */
+  readonly laneOffset: number
+  readonly distanceUnits: number
+  readonly outcome: PawOutcome
+}
+
+/** Where a Loli Bonus is in its lifecycle. */
+export type LoliPhase = 'inactive' | 'entering' | 'active' | 'exiting'
+
+export interface LoliState {
+  readonly phase: LoliPhase
+  /** Milliseconds remaining in the current non-inactive phase. */
+  readonly phaseRemainingMs: number
+  /**
+   * Bonuses earned that could not start yet.
+   *
+   * Named as `scoring-and-progression.md` §2.4 names it, which is APPROVED
+   * down to the identifier — `queuedLoliBonuses`, a counter and not a boolean,
+   * because more than one bonus may be queued in a single run and a flag
+   * silently discards the second. Run-scoped, and cleared at the terminal
+   * state: nothing is ever owed into a later run.
+   */
+  readonly queuedLoliBonuses: number
+}
+
+/**
+ * SLAYYY's meter and window.
+ *
+ * `cooldown` exists as a named phase because the state machine is documented
+ * with four states, but it is deterministic and transient: the active window
+ * ends into `cooldown` and the same step leaves it for `charging`. It is not a
+ * lockout — inventing one would be a mechanic nobody approved.
+ */
+export type SlayyyPhase = 'charging' | 'ready' | 'active' | 'cooldown'
+
+export interface SlayyyState {
+  readonly phase: SlayyyPhase
+  /**
+   * Millionths of a charge point, bounded at `slayyy.chargeMax`.
+   *
+   * Finer than the score's thousandths, and for a measurable reason: at 1.4
+   * points per second a 8.33 ms step earns 0.01167 points, and rounding that to
+   * thousandths every step runs the meter ~2.8 % fast. Millionths bring the
+   * error to about three parts in a hundred thousand while keeping the
+   * arithmetic exact integers.
+   */
+  readonly chargeMicro: number
+  /** Milliseconds remaining in the active window. Zero unless active. */
+  readonly activeRemainingMs: number
 }

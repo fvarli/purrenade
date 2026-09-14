@@ -68,7 +68,7 @@ export default defineConfig({
       // The anonymous pass: sign-in, registration, the guards. These must run
       // with no session, so they deliberately do not adopt the saved state.
       name: 'chrome',
-      testIgnore: [/auth\.setup\.ts/, /run-surface\.spec\.ts/, /run-lifecycle\.spec\.ts/, /run-obstacles\.spec\.ts/, /ssr-auth-session\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /run-surface\.spec\.ts/, /run-lifecycle\.spec\.ts/, /run-obstacles\.spec\.ts/, /run-scoring\.spec\.ts/, /run-touch\.spec\.ts/, /ssr-auth-session\.spec\.ts/],
       use: {
         // The system Chrome, not Playwright's bundled build. These tests are an
         // acceptance pass against the machine's real stack, so the real browser
@@ -81,11 +81,37 @@ export default defineConfig({
       // The authenticated pass: the run surface, which lives behind the
       // verified-account guard.
       name: 'chrome-auth',
-      testMatch: /(run-(surface|lifecycle|obstacles)|ssr-auth-session)\.spec\.ts/,
+      testMatch: /(run-(surface|lifecycle|obstacles|scoring)|ssr-auth-session)\.spec\.ts/,
       dependencies: ['setup'],
       use: {
         channel: 'chrome',
         storageState: 'tests/e2e/.auth/state.json',
+      },
+    },
+    {
+      /*
+       * The one project with a touchscreen.
+       *
+       * Every other project drives a mouse, and the gesture unit tests drive a
+       * hand-written emitter — so until this existed, every claim the codebase
+       * made about touch was verified by something that cannot produce a touch.
+       * That is how a dead band covering a third of the playfield survived two
+       * milestones: the canvas fills the viewport, the HUD rows are painted
+       * over it, and a touch that lands on a row is not a touch on the canvas.
+       *
+       * Deliberately narrow. It runs one spec, not the suite: a second full
+       * pass would double the runtime to re-prove things that have nothing to
+       * do with the input device.
+       */
+      name: 'chrome-touch',
+      testMatch: /run-touch\.spec\.ts/,
+      dependencies: ['setup'],
+      use: {
+        channel: 'chrome',
+        storageState: 'tests/e2e/.auth/state.json',
+        hasTouch: true,
+        isMobile: false,
+        viewport: { width: 360, height: 640 },
       },
     },
   ],

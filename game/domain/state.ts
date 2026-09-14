@@ -1,4 +1,7 @@
+import { EMPTY_LOLI } from './loli'
 import { createRngState, MAX_SEED } from './rng'
+import { EMPTY_SCORE } from './score'
+import { EMPTY_SLAYYY } from './slayyy'
 import { TUNING } from './tuning'
 import { isLaneIndex } from './lanes'
 import { firstHazardDistanceUnits } from './obstacles'
@@ -25,6 +28,18 @@ export interface CreateRunOptions {
    * mean reading a clock or a platform RNG, and neither belongs in the domain.
    */
   readonly seed: number
+
+  /**
+   * Paw progress carried in from the player's profile, `0..199`.
+   *
+   * Explicit and defaulted to zero, because at M7 **there is no persistence
+   * behind it**. `loliCyclePaws` is server-owned by the approved model and the
+   * server does not know about runs yet, so the honest representation is an
+   * input the caller supplies rather than a field that pretends to have been
+   * loaded from somewhere. A test can start a run near the threshold; the app
+   * passes nothing and gets zero, which is the truth.
+   */
+  readonly loliCyclePaws?: number
 }
 
 /**
@@ -35,7 +50,7 @@ export interface CreateRunOptions {
  * about hazards, not a lock on the controls — so a player who already knows
  * what they are doing loses nothing to it.
  */
-export function createRunState({ seed }: CreateRunOptions): RunState {
+export function createRunState({ seed, loliCyclePaws = 0 }: CreateRunOptions): RunState {
   /*
    * The seed is the run's identity, so a seed that cannot round-trip is not a
    * seed. Every stream derivation ends in `>>> 0`, which quietly maps `NaN`,
@@ -58,6 +73,19 @@ export function createRunState({ seed }: CreateRunOptions): RunState {
   // starting where they always had.
   if (!isLaneIndex(startLane)) {
     throw new RangeError(`createRunState: lane.startIndex ${startLane} is not a lane`)
+  }
+
+  /*
+   * A cycle value at or past the threshold would owe a bonus the run never
+   * granted, because thresholds are counted as paws are *collected*. Rejecting
+   * it here keeps that arithmetic honest rather than silently swallowing an
+   * entitlement.
+   */
+  if (!Number.isInteger(loliCyclePaws) || loliCyclePaws < 0 || loliCyclePaws >= TUNING.paw.loliThreshold) {
+    throw new RangeError(
+      `createRunState: loliCyclePaws must be a whole number below the ${TUNING.paw.loliThreshold} threshold `
+      + `(got ${String(loliCyclePaws)})`,
+    )
   }
 
   return sealState({
@@ -85,6 +113,19 @@ export function createRunState({ seed }: CreateRunOptions): RunState {
       recentPatternIds: [],
     },
     nearMissCount: 0,
+
+    score: EMPTY_SCORE,
+    pawTokens: [],
+    nextPawTokenId: 0,
+    // The first group is scheduled with the first hazard, so the opening is not
+    // an empty road with nothing to reach for.
+    nextPawAtUnits: firstHazardDistanceUnits(),
+    runPaws: 0,
+    loliCyclePaws,
+    loli: EMPTY_LOLI,
+    slayyy: EMPTY_SLAYYY,
+    loliActivations: 0,
+    slayyyActivations: 0,
   })
 }
 
@@ -121,6 +162,20 @@ export function sealState(state: RunState): RunState {
     Object.freeze(state.buffered.event)
     Object.freeze(state.buffered)
   }
+
+  /*
+   * M7's nested structures, each explicitly.
+   *
+   * This walk is a hand-written list rather than a recursive freeze, so a new
+   * nested field is unfrozen by default and nothing complains — which is
+   * exactly the hazard M7 introduces most of. Tokens are frozen where they are
+   * built, like obstacles; the array still needs sealing so a renderer holding
+   * a snapshot cannot splice the world.
+   */
+  Object.freeze(state.pawTokens)
+  Object.freeze(state.score)
+  Object.freeze(state.loli)
+  Object.freeze(state.slayyy)
 
   return Object.freeze(state)
 }

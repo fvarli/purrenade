@@ -23,6 +23,38 @@ import { expect, test } from '@playwright/test'
  */
 
 /** `goto` resolves before Vue hydrates under the dev server. Wait for both. */
+/**
+ * Does the engine still accept a gameplay key?
+ *
+ * `scene.ts` calls `preventDefault()` only after `shouldHandleKey` has passed,
+ * so `defaultPrevented` is an exact, deterministic read of the one branch the
+ * focus trap broke. The alternative — diffing canvas frames for a lane change —
+ * cannot work here: the road scrolls, so every frame differs from every other
+ * whether or not the key did anything.
+ *
+ * The listener is attached after the engine's, on the same target, so it runs
+ * second and sees the engine's decision.
+ */
+async function keyIsClaimed(
+  page: import('@playwright/test').Page,
+  code: string,
+): Promise<boolean> {
+  await page.evaluate(() => {
+    const store = window as unknown as { __claimed?: boolean | null }
+
+    store.__claimed = null
+    document.addEventListener(
+      'keydown',
+      (event) => { store.__claimed = event.defaultPrevented },
+      { once: true },
+    )
+  })
+
+  await page.keyboard.press(code)
+
+  return page.evaluate(() => (window as unknown as { __claimed?: boolean | null }).__claimed === true)
+}
+
 async function open(page: import('@playwright/test').Page, path: string): Promise<void> {
   await page.goto(path)
   await page.waitForLoadState('networkidle')
@@ -186,6 +218,91 @@ test.describe('the run surface', () => {
     await expect(page.locator('.run__phase')).toHaveText(/Koşuyor|Running|En marcha/)
   })
 
+  test('gameplay keys still work immediately after using an on-screen control', async ({ page }) => {
+    /*
+     * The trap this proves is gone.
+     *
+     * Gameplay keys are suppressed while a control has focus, and a `<button>`
+     * keeps focus after a click — so clicking Pause, then Resume, used to leave
+     * the player unable to move or jump until they clicked the canvas. Only
+     * Escape still worked, which is why it survived M6.
+     *
+     * Asserted on the *canvas*, not on `document.activeElement`: focus is the
+     * mechanism, and a test that checks the mechanism would pass if the keys
+     * were suppressed for some other reason. What the player needs is that the
+     * world responds.
+     */
+    await open(page, '/run')
+    await expect(page.locator('.run__phase')).toHaveText(/Koşuyor|Running|En marcha/, { timeout: 20_000 })
+
+    const control = page.locator('.run__chrome button')
+
+    await control.click()
+    await expect(page.locator('.run__phase')).toHaveText(/Duraklatıldı|Paused|En pausa/)
+    await control.click()
+    await expect(page.locator('.run__phase')).toHaveText(/Koşuyor|Running|En marcha/)
+
+    // Focus went back to the play surface rather than staying on the button.
+    await expect(page.locator('.run__surface')).toBeFocused()
+
+    // And the engine actually accepts gameplay keys again.
+    expect(await keyIsClaimed(page, 'ArrowLeft'), 'left after Pause').toBe(true)
+    expect(await keyIsClaimed(page, 'Space'), 'jump after Pause').toBe(true)
+    expect(await keyIsClaimed(page, 'KeyE'), 'SLAYYY after Pause').toBe(true)
+
+    // Escape must still work from the surface, or the fix has traded one trap
+    // for another.
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.run__phase')).toHaveText(/Duraklatıldı|Paused|En pausa/)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.run__phase')).toHaveText(/Koşuyor|Running|En marcha/)
+  })
+
+  test('the SLAYYY control hands the keyboard back too', async ({ page }) => {
+    /*
+     * The same mechanism on the M7 control, which is the worse case: its window
+     * is five seconds long and the player is meant to be dodging through it.
+     *
+     * The meter is not armed this early, so the button is disabled and cannot be
+     * clicked — a disabled button also cannot take focus, which is itself part
+     * of why this is safe. Focus is placed on it directly to reproduce the state
+     * a real activation leaves behind, then the same click path runs.
+     */
+    await open(page, '/run')
+    await expect(page.locator('.run__phase')).toHaveText(/Koşuyor|Running|En marcha/, { timeout: 20_000 })
+
+    const slayyy = page.locator('.run__slayyy-button')
+
+    await expect(slayyy).toBeDisabled()
+
+    /*
+     * The meter needs most of a minute to arm and a scripted player who does
+     * not dodge is dead long before that, so the armed state is reproduced
+     * rather than waited for: enable, focus and click in one synchronous task,
+     * before Vue's next render can reassert `disabled`.
+     *
+     * The domain still refuses the activation — the meter is not full — and
+     * that is fine. What is under test is the focus path the click runs, which
+     * is identical either way.
+     */
+    await slayyy.evaluate((button) => {
+      const control = button as HTMLButtonElement
+
+      control.disabled = false
+      control.focus()
+      control.click()
+    })
+
+    await expect(page.locator('.run__surface')).toBeFocused()
+
+    expect(await keyIsClaimed(page, 'ArrowRight'), 'right after SLAYYY').toBe(true)
+    expect(await keyIsClaimed(page, 'Space'), 'jump after SLAYYY').toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.run__phase')).toHaveText(/Duraklatıldı|Paused|En pausa/)
+    await page.keyboard.press('Escape')
+  })
+
   test('does not let gameplay gestures scroll or zoom the page', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 640 })
     await open(page, '/run')
@@ -228,7 +345,7 @@ test.describe('the run surface', () => {
       await open(page, '/run')
       await page.waitForFunction(() => document.querySelector('canvas') !== null, null, { timeout: 20_000 })
 
-      for (const selector of ['.run__exit', '.run__chrome button']) {
+      for (const selector of ['.run__exit', '.run__chrome button', '.run__slayyy-button']) {
         const control = page.locator(selector)
 
         await expect(control).toBeVisible()

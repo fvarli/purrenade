@@ -205,10 +205,10 @@ depend on the thing they control.
 not resume one. A tab returning to the foreground while the player is looking
 elsewhere would otherwise restart a live run nobody is watching.
 
-Not implemented, by milestone: obstacles, collision, hearts and difficulty
-(**M6**); paws, SLAYYY, the Loli Bonus, scoring and the HUD (**M7**). The RNG
-streams exist and are tested but nothing draws from them until M6 spawns
-something.
+Implemented since: obstacles, collision, hearts and difficulty (**M6**); paws,
+SLAYYY, the Loli Bonus, scoring and the HUD (**M7**). Two of the three RNG
+streams are now consumed — `pattern` by obstacle spawning and `collectible` by
+Paw Tokens — and `cosmetic` remains reserved, drawn from by nothing.
 
 ---
 

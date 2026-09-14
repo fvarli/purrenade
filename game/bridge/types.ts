@@ -1,4 +1,4 @@
-import type { InputEvent, LaneIndex, ObstacleKind, RunPhase } from '../domain'
+import type { InputEvent, LaneIndex, LoliPhase, ObstacleKind, RunPhase, SlayyyPhase } from '../domain'
 
 /**
  * The only vocabulary `game/domain` and `game/engine` share.
@@ -80,8 +80,85 @@ export interface RenderSnapshot {
   /** Hearts remaining, so the app can show them without reading run state. */
   readonly hearts: number
 
-  /** Post-hit invulnerability, as a fact rather than as a timer. */
+  /** Protected from damage, from any source. See `protection` for which. */
   readonly invulnerable: boolean
+
+  // --- M7 -------------------------------------------------------------------
+
+  /**
+   * Why the player is protected, kept as two facts rather than one.
+   *
+   * The renderer draws them differently — hit recovery blinks, SLAYYY
+   * celebrates — and a single boolean would force it to guess. Both may be true
+   * at once, and each ends on its own clock.
+   */
+  readonly protection: RenderProtection
+
+  /** The displayed score and the components it is the sum of. */
+  readonly score: RenderScore
+
+  /** Paw Tokens on the road, nearest last, frozen with the snapshot. */
+  readonly pawTokens: readonly RenderPawToken[]
+
+  /** Paw Tokens collected in this run. */
+  readonly runPaws: number
+
+  /** Progress toward the next Loli threshold, `0..199`. */
+  readonly loliCyclePaws: number
+
+  /** The companion's lifecycle, for the HUD and the scene. */
+  readonly loli: RenderLoli
+
+  /** The meter and its window. */
+  readonly slayyy: RenderSlayyy
+}
+
+export interface RenderProtection {
+  readonly hitRecovery: boolean
+  readonly slayyy: boolean
+}
+
+/**
+ * Score as whole points.
+ *
+ * `total` is the sum of the three, exactly — the domain floors each component
+ * independently so the parts a player can see always add up to the whole they
+ * can see. No fractional accumulator crosses the boundary.
+ */
+export interface RenderScore {
+  readonly total: number
+  readonly distance: number
+  readonly collection: number
+  readonly bonus: number
+}
+
+/** One Paw Token. `laneOffset` is fractional while the magnet is pulling it. */
+export interface RenderPawToken {
+  readonly id: number
+  readonly laneOffset: number
+  readonly distanceUnits: number
+}
+
+export interface RenderLoli {
+  readonly phase: LoliPhase
+  /** `0`–`1` through the current phase, for entrance and exit animation. */
+  readonly phaseProgress: number
+  /** Bonuses earned and waiting. Run-scoped; never carried into another run. */
+  readonly queuedLoliBonuses: number
+}
+
+export interface RenderSlayyy {
+  readonly phase: SlayyyPhase
+  /** `0`–`1` of a full meter. For the renderer, which draws a continuous fill. */
+  readonly charge: number
+  /**
+   * The same value as a whole percent, `0`–`100`. For the HUD, which shows a
+   * number: rounding here rather than in Vue means the app layer and the
+   * `slayyy_charge` event can never disagree about what is on screen.
+   */
+  readonly percent: number
+  /** Milliseconds left in the active window; `0` unless active. */
+  readonly activeRemainingMs: number
 }
 
 /**
@@ -103,6 +180,32 @@ export type RunEvent =
   | { readonly type: 'heart_lost', readonly hearts: number }
   | { readonly type: 'near_miss' }
   | { readonly type: 'run_ended' }
+  /**
+   * The score changed, carrying the new total.
+   *
+   * Coarse despite the score moving every step: the loop emits this only when
+   * the *displayed integer* changes, which is a few times a second rather than
+   * 120. The HUD reads the number from the event, never from a snapshot poll.
+   */
+  | { readonly type: 'score_changed', readonly total: number }
+  /** One or more Paw Tokens were taken. Carries the run total, not a delta. */
+  | { readonly type: 'paws_changed', readonly runPaws: number, readonly cyclePaws: number }
+  /** A Loli Bonus actually started. Not emitted for a threshold, nor for a queue entry. */
+  | { readonly type: 'loli_started' }
+  | { readonly type: 'loli_ended' }
+  /**
+   * The meter's filled percentage, whole numbers only.
+   *
+   * `accessibility.md` §3.1 requires the control to communicate charge progress
+   * while charging, and §4.1 requires that cue to be readable without relying
+   * on hue. Emitting the fraction raw would be 120 events a second; emitting
+   * the whole percent is at most one every seven-tenths of a second at the
+   * proposed rate, and it is exactly what the display can show.
+   */
+  | { readonly type: 'slayyy_charge', readonly percent: number }
+  | { readonly type: 'slayyy_ready' }
+  | { readonly type: 'slayyy_activated' }
+  | { readonly type: 'slayyy_ended' }
 
 /** What the app hands the engine when it mounts a run. */
 export interface RunEventSink {

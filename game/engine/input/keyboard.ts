@@ -12,9 +12,9 @@ import type { InputEvent } from '../../bridge'
  * and `W` are additive aliases; `E` was approved during specification review.
  * None of them contradicts the v0.3 board.
  *
- * `E` (activate SLAYYY) is deliberately absent: SLAYYY arrives at M7 and there
- * is nothing for the key to do. Mapping it to a silently-ignored event now
- * would be a control that appears to exist.
+ * `E` activates SLAYYY, and only does anything when the meter is armed — the
+ * domain decides that, so a press while charging is a deterministic no-op
+ * rather than a key that quietly means nothing.
  */
 
 /**
@@ -36,6 +36,7 @@ const BINDINGS: Readonly<Record<string, InputEvent['type']>> = Object.freeze(
     ArrowUp: 'jump',
     KeyW: 'jump',
     Space: 'jump',
+    KeyE: 'slayyy',
     Escape: 'pause',
   } as const),
 )

@@ -109,6 +109,35 @@ distinction must survive colour-vision deficiency:
 
 ---
 
+## 5A. A measured contrast failure in the locked tokens — found at M7
+
+`--text-secondary` (`--color-text-muted`, `#8a7b70`) does not reach the AC-1
+target at body and caption sizes:
+
+| Foreground on | Ratio | AA small text needs |
+| --- | --- | --- |
+| `--bg-page` (`#fff6e9`) | **3.81 : 1** | 4.5 : 1 |
+| `--color-white` | **4.08 : 1** | 4.5 : 1 |
+| `--color-surface` (`#f0e3d2`) | **3.23 : 1** | 4.5 : 1 |
+
+At 13 px — `--type-caption`, where the token is most used — none of these is
+large text, so 4.5 : 1 applies and all three fail. §6 already asks for a
+"contrast check against the locked tokens"; this is that check, run for the
+first time, and the token does not pass it.
+
+**M7 fixed only what M7 introduced.** The two new HUD usages — the score label
+and the SLAYYY control — were moved to `--color-ink` (13.4 : 1 and 11.7 : 1).
+The token itself is used in **nine** files across the authentication and account
+surfaces, and re-deriving a locked colour for all of them is a palette decision
+and a milestone of its own, not a side effect of a scoring milestone. **M12 owns
+accessibility** and owns this.
+
+Known remaining instances at M7: `.run__status` on the run route, plus
+`LocaleSwitcher`, `AuthField`, `PasswordField`, `SessionRow`,
+`account/security` and `admin/index`.
+
+---
+
 ## 6. Testing — PROPOSED
 
 | Test | Purpose |
@@ -129,3 +158,4 @@ distinction must survive colour-vision deficiency:
 | AC-2 | Is there a colour-blind-friendly palette variant, or is colour independence achieved structurally? (PROPOSED: structurally) |
 | AC-3 | Is there a low-motion gameplay variant beyond decoration reduction? |
 | AC-4 | Are subtitles/captions needed for any audio? (None is known to carry meaning) |
+| AC-5 | `--text-secondary` fails AA at caption and body sizes (§5A). Does the token get re-derived, or does every small-text usage move to `--color-ink`? |

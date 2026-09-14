@@ -278,7 +278,7 @@
     "resume": "Resume",
     "loading": "Loading the game engine…",
     "failed": "The game engine could not load. Refresh the page and try again.",
-    "scopeNotice": "This build has lanes, jumping, obstacles, hearts and pause. Paws, Loli and SLAYYY arrive in later milestones.",
+    "scopeNotice": "This build has lanes, jumping, obstacles, hearts, score, Paw Tokens, the Loli Bonus and SLAYYY. Saving your progress arrives in a later milestone.",
     "phase": {
       "ready": "Getting ready",
       "running": "Running",
@@ -287,6 +287,18 @@
     },
     "hearts": "Lives: {count} / {max}",
     "heartsLabel": "Lives remaining",
-    "ended": "Run over. Leave and enter again to start a new one."
+    "ended": "Run over. Leave and enter again to start a new one.",
+    "score": "Score: {score}",
+    "scoreLabel": "Score",
+    "paws": "Paws: {count}",
+    "pawsLabel": "Paw Tokens collected",
+    "cycleProgress": "{count} / {total} to Loli",
+    "loliActive": "Loli is here",
+    "slayyyLabel": "SLAYYY",
+    "slayyyChargeLabel": "SLAYYY charge",
+    "slayyyCharging": "SLAYYY charging — {percent}%",
+    "slayyyReady": "SLAYYY ready — activate",
+    "slayyyActive": "SLAYYY active",
+    "slayyyHint": "Press E or tap to activate"
   }
 }

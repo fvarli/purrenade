@@ -40,6 +40,29 @@ export interface RunSurface {
   togglePause: () => void
   readonly hasEnded: ComputedRef<boolean>
   readonly hearts: Readonly<Ref<number>>
+
+  // --- M7 -------------------------------------------------------------------
+
+  /** The displayed score. Arrives only when the whole number changes. */
+  readonly score: Readonly<Ref<number>>
+  /** Paw Tokens collected in this run. */
+  readonly runPaws: Readonly<Ref<number>>
+  /** Progress toward the next Loli Bonus, `0..199`. */
+  readonly cyclePaws: Readonly<Ref<number>>
+  /** Whether a Loli Bonus is running right now. */
+  readonly loliActive: Readonly<Ref<boolean>>
+  /** The SLAYYY meter's state, for the control's label and appearance. */
+  readonly slayyy: Readonly<Ref<'charging' | 'ready' | 'active'>>
+  /**
+   * How full the meter is, `0..100`.
+   *
+   * `accessibility.md` §3.1 requires the control to communicate charge progress
+   * while charging, and §4.1 requires that progress to be legible without
+   * relying on hue — so this is a number the HUD prints, not only a width.
+   */
+  readonly slayyyPercent: Readonly<Ref<number>>
+  /** Fire SLAYYY. A no-op unless the meter is armed — the domain decides. */
+  activateSlayyy: () => void
 }
 
 /** The approved starting value, projected through the boundary. */
@@ -62,6 +85,20 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
   const hearts = ref<number>(STARTING_HEARTS)
   const loading = ref(true)
   const failed = ref(false)
+
+  /*
+   * M7's HUD state, from coarse events for exactly the same reason.
+   *
+   * Score moves on almost every simulation step, so the loop only emits it when
+   * the *displayed integer* changes — a few times a second rather than 120.
+   * Nothing here polls a snapshot, and nothing here can write to the run.
+   */
+  const score = ref(0)
+  const runPaws = ref(0)
+  const cyclePaws = ref(0)
+  const loliActive = ref(false)
+  const slayyy = ref<'charging' | 'ready' | 'active'>('charging')
+  const slayyyPercent = ref(0)
 
   let run: MountedRun | null = null
 
@@ -149,6 +186,33 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
 
           if (event.type === 'phase_changed') phase.value = event.phase
           if (event.type === 'heart_lost') hearts.value = event.hearts
+
+          if (event.type === 'score_changed') score.value = event.total
+
+          if (event.type === 'paws_changed') {
+            runPaws.value = event.runPaws
+            cyclePaws.value = event.cyclePaws
+          }
+
+          if (event.type === 'loli_started') loliActive.value = true
+          if (event.type === 'loli_ended') loliActive.value = false
+
+          if (event.type === 'slayyy_charge') slayyyPercent.value = event.percent
+          if (event.type === 'slayyy_ready') slayyy.value = 'ready'
+          if (event.type === 'slayyy_activated') slayyy.value = 'active'
+          if (event.type === 'slayyy_ended') slayyy.value = 'charging'
+
+          /*
+           * A run that ends leaves nothing armed.
+           *
+           * The domain already stops both systems at the terminal state; this
+           * keeps the *presentation* honest, so a game-over screen never shows
+           * a live companion or an activation control that would do nothing.
+           */
+          if (event.type === 'run_ended') {
+            loliActive.value = false
+            if (slayyy.value === 'active') slayyy.value = 'charging'
+          }
         },
       })
 
@@ -196,6 +260,15 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     mounting = false
     hearts.value = STARTING_HEARTS
 
+    // Every M7 counter resets with the surface. A stale score surviving a
+    // teardown would reappear on the next run before its first event arrives.
+    score.value = 0
+    runPaws.value = 0
+    cyclePaws.value = 0
+    loliActive.value = false
+    slayyy.value = 'charging'
+    slayyyPercent.value = 0
+
     // `splice(0)` empties the list as it reads it, so a second `stop()` — from
     // an unmount racing a navigation — undoes nothing twice.
     for (const undo of teardown.splice(0)) undo()
@@ -213,7 +286,22 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     phase.value = run.phase()
   }
 
-  return { phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause }
+  /**
+   * Fire SLAYYY from a DOM control.
+   *
+   * Enqueued as an ordinary gameplay intent rather than applied synchronously
+   * the way pause is: the domain decides whether the meter is armed, so a tap
+   * while charging is a deterministic no-op and the button never has to know
+   * the rules.
+   */
+  const activateSlayyy = (): void => {
+    run?.activateSlayyy()
+  }
+
+  return {
+    phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause,
+    score, runPaws, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
+  }
 }
 
 function defaultSeed(): number {

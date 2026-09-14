@@ -59,6 +59,8 @@ function emitter() {
  * there.
  */
 interface FakeShape {
+  kind: 'rect' | 'circle'
+  radius: number
   x: number
   y: number
   width: number
@@ -76,12 +78,13 @@ interface FakeShape {
   setVisible: (v: boolean) => FakeShape
 }
 
-function shape(): FakeShape {
+function shape(kind: 'rect' | 'circle' = 'rect'): FakeShape {
   const self: FakeShape = {
-    x: 0, y: 0, width: 0, height: 0, depth: 0, alpha: 1, fill: 0, visible: true,
+    kind,
+    x: 0, y: 0, width: 0, height: 0, radius: 0, depth: 0, alpha: 1, fill: 0, visible: true,
     setPosition: (x, y) => { self.x = x; self.y = y; return self },
     setSize: (w, h) => { self.width = w; self.height = h; return self },
-    setRadius: () => self,
+    setRadius: (r) => { self.radius = r; return self },
     setDepth: (d) => { self.depth = d; return self },
     setAlpha: (a) => { self.alpha = a; return self },
     setFillStyle: (c) => { self.fill = c; return self },
@@ -109,8 +112,8 @@ function fakePhaser(size = { width: 390, height: 844 }) {
     input = input
     scale = scale
     add = {
-      rectangle: (..._args: unknown[]) => { const s = shape(); made.push(s); return s },
-      circle: (..._args: unknown[]) => { const s = shape(); made.push(s); return s },
+      rectangle: (..._args: unknown[]) => { const s = shape('rect'); made.push(s); return s },
+      circle: (..._args: unknown[]) => { const s = shape('circle'); made.push(s); return s },
     }
   }
 
@@ -164,13 +167,37 @@ function mountScene(size?: { width: number, height: number }) {
    * rectangles immediately before it. A count of backdrop shapes written down
    * here would go quietly wrong the first time the scene gains a shape.
    */
-  const pool = (): FakeShape[] => made.slice(made.length - 1 - POOL_SIZE, made.length - 1)
+  /*
+   * Selected by shape kind and construction order, not by counting back from
+   * the end. M7 added two more pools and a two-part companion between the
+   * obstacles and the player, and a positional slice silently started
+   * returning paw tokens — every obstacle assertion then passed against the
+   * wrong objects.
+   */
+  const rects = (): FakeShape[] => made.filter(s => s.kind === 'rect')
+  const circles = (): FakeShape[] => made.filter(s => s.kind === 'circle')
 
-  return { events, input, scale, loop, pauseRequests, made, pool, frame: (ms: number) => rendered.update(0, ms) }
+  /** sky, sea, sand, road and two lane lines come first; the pool follows. */
+  const pool = (): FakeShape[] => rects().slice(BACKDROP_RECTS, BACKDROP_RECTS + POOL_SIZE)
+  const paws = (): FakeShape[] => circles().slice(0, PAW_POOL_SIZE)
+  const loli = (): { body: FakeShape, mark: FakeShape } => ({
+    body: circles()[PAW_POOL_SIZE]!,
+    mark: circles()[PAW_POOL_SIZE + 1]!,
+  })
+
+  return {
+    events, input, scale, loop, pauseRequests, made,
+    pool, paws, loli, rects, circles,
+    frame: (ms: number) => rendered.update(0, ms),
+  }
 }
 
 /** `OBSTACLE_POOL_SIZE` in scene.ts. */
 const POOL_SIZE = 48
+/** `PAW_POOL_SIZE` in scene.ts. */
+const PAW_POOL_SIZE = 48
+/** sky, sea, sand, road, and two lane lines. */
+const BACKDROP_RECTS = 6
 
 describe('the scene releases everything it took', () => {
   it('removes its document keydown listener when Phaser destroys the scene', () => {
@@ -526,5 +553,228 @@ describe('the scene draws the world it is given', () => {
     vi.spyOn(scene.loop, 'snapshot').mockReturnValue(overfull)
 
     expect(() => scene.frame(1000 / 120)).toThrow(/exceed the pool/)
+  })
+})
+
+describe('the scene draws the M7 layer', () => {
+  const TWO_OBSTACLES_STEP = 1660
+
+  /** A live snapshot with M7 fields the test can override. */
+  function stagedSnapshot(scene: ReturnType<typeof mountScene>, over: Record<string, unknown>) {
+    const base = scene.loop.snapshot()
+
+    return { ...base, ...over }
+  }
+
+  function atRunning() {
+    const scene = mountScene()
+
+    for (let i = 0; i < TWO_OBSTACLES_STEP; i++) scene.frame(1000 / 120)
+
+    return scene
+  }
+
+  it('draws a Paw Token where the domain says it is', () => {
+    const scene = atRunning()
+
+    vi.spyOn(scene.loop, 'snapshot').mockReturnValue(stagedSnapshot(scene, {
+      pawTokens: [{ id: 1, laneOffset: 0, distanceUnits: 3 }],
+    }) as never)
+
+    scene.frame(1000 / 120)
+
+    const [token] = scene.paws()
+
+    expect(token!.visible).toBe(true)
+    expect(token!.radius).toBeGreaterThan(0)
+    // Lane 0 sits left of centre; the token follows its own offset, not a lane.
+    expect(token!.x).toBeLessThan(390 / 2)
+  })
+
+  it('follows a magnetised token between lanes', () => {
+    const scene = atRunning()
+    const positions: number[] = []
+
+    for (const laneOffset of [0, 0.5, 1]) {
+      vi.spyOn(scene.loop, 'snapshot').mockReturnValue(stagedSnapshot(scene, {
+        pawTokens: [{ id: 1, laneOffset, distanceUnits: 3 }],
+      }) as never)
+
+      scene.frame(1000 / 120)
+      positions.push(scene.paws()[0]!.x)
+    }
+
+    // Strictly increasing: a fractional offset is a real position, not rounded
+    // to the nearest lane.
+    expect(positions[0]).toBeLessThan(positions[1]!)
+    expect(positions[1]).toBeLessThan(positions[2]!)
+  })
+
+  it('hides the pool slots no token is using', () => {
+    const scene = atRunning()
+
+    vi.spyOn(scene.loop, 'snapshot').mockReturnValue(stagedSnapshot(scene, {
+      pawTokens: [{ id: 1, laneOffset: 1, distanceUnits: 3 }],
+    }) as never)
+
+    scene.frame(1000 / 120)
+
+    expect(scene.paws().filter(s => s.visible)).toHaveLength(1)
+  })
+
+  it('refuses to run out of paw pool rather than dropping a token', () => {
+    const scene = atRunning()
+
+    vi.spyOn(scene.loop, 'snapshot').mockReturnValue(stagedSnapshot(scene, {
+      pawTokens: Array.from({ length: PAW_POOL_SIZE + 1 }, (_, i) => ({
+        id: i, laneOffset: 1, distanceUnits: 3,
+      })),
+    }) as never)
+
+    expect(() => scene.frame(1000 / 120)).toThrow(/paw tokens exceed the pool/)
+  })
+
+  it('draws tokens below the obstacles, so a reward never hides a hazard', () => {
+    const scene = atRunning()
+
+    vi.spyOn(scene.loop, 'snapshot').mockReturnValue(stagedSnapshot(scene, {
+      pawTokens: [{ id: 1, laneOffset: 1, distanceUnits: 3 }],
+    }) as never)
+
+    scene.frame(1000 / 120)
+
+    const token = scene.paws()[0]!
+    const hazards = scene.pool().filter(s => s.visible)
+
+    expect(hazards.length).toBeGreaterThan(0)
+
+    for (const hazard of hazards) {
+      expect(token.depth, 'a token must never paint over an obstacle').toBeLessThan(hazard.depth)
+    }
+  })
+})
+
+describe('SLAYYY beautifies without touching the geometry', () => {
+  function frameWith(slayyyActive: boolean) {
+    const scene = mountScene()
+
+    for (let i = 0; i < 1660; i++) scene.frame(1000 / 120)
+
+    const base = scene.loop.snapshot()
+
+    vi.spyOn(scene.loop, 'snapshot').mockReturnValue({
+      ...base,
+      slayyy: { phase: slayyyActive ? 'active' : 'charging', charge: 0, activeRemainingMs: slayyyActive ? 5000 : 0 },
+    } as never)
+
+    scene.frame(1000 / 120)
+
+    return scene.pool().filter(s => s.visible).map(s => ({
+      x: s.x, y: s.y, width: s.width, height: s.height, depth: s.depth, fill: s.fill,
+    }))
+  }
+
+  it('changes the colour of every hazard', () => {
+    const plain = frameWith(false)
+    const pretty = frameWith(true)
+
+    expect(plain.length).toBeGreaterThan(0)
+    expect(pretty).toHaveLength(plain.length)
+
+    for (let i = 0; i < plain.length; i++) {
+      expect(pretty[i]!.fill, 'the world should visibly transform').not.toBe(plain[i]!.fill)
+    }
+  })
+
+  it('changes nothing else about them', () => {
+    /*
+     * The invariant the whole feature rests on. A cone that becomes a flower is
+     * still `LANE_BLOCKING` with the same footprint — if beautification ever
+     * moved or resized a hazard, the picture and the collision rules would
+     * disagree and the player would be hit by something that was not there.
+     */
+    const plain = frameWith(false)
+    const pretty = frameWith(true)
+
+    for (let i = 0; i < plain.length; i++) {
+      const { fill: _plainFill, ...plainGeometry } = plain[i]!
+      const { fill: _prettyFill, ...prettyGeometry } = pretty[i]!
+
+      expect(prettyGeometry).toEqual(plainGeometry)
+    }
+  })
+})
+
+describe('the Loli companion', () => {
+  function sceneWithLoli(phase: string, phaseProgress = 1) {
+    const scene = mountScene()
+
+    for (let i = 0; i < 1660; i++) scene.frame(1000 / 120)
+
+    const base = scene.loop.snapshot()
+
+    vi.spyOn(scene.loop, 'snapshot').mockReturnValue({
+      ...base,
+      loli: { phase, phaseProgress, queuedLoliBonuses: 0 },
+    } as never)
+
+    scene.frame(1000 / 120)
+
+    return scene
+  }
+
+  it('is absent until a bonus starts', () => {
+    const { body, mark } = sceneWithLoli('inactive').loli()
+
+    expect(body.visible).toBe(false)
+    expect(mark.visible).toBe(false)
+  })
+
+  it('appears for the whole lifecycle', () => {
+    for (const phase of ['entering', 'active', 'exiting']) {
+      expect(sceneWithLoli(phase).loli().body.visible, phase).toBe(true)
+    }
+  })
+
+  it('grows in and shrinks out rather than popping', () => {
+    const entering = sceneWithLoli('entering', 0.2).loli().body.radius
+    const settled = sceneWithLoli('active', 0.5).loli().body.radius
+    const leaving = sceneWithLoli('exiting', 0.8).loli().body.radius
+
+    expect(entering).toBeLessThan(settled)
+    expect(leaving).toBeLessThan(settled)
+  })
+
+  it('appears at full size when the player asked for less motion', () => {
+    /*
+     * `accessibility.md` §2.2: a UI transition becomes instant rather than a
+     * scale. The companion still appears — that is the information — it just
+     * does not pop.
+     */
+    const reduced = { matches: true, addEventListener: () => {}, removeEventListener: () => {} }
+
+    vi.stubGlobal('matchMedia', () => reduced)
+
+    try {
+      const entering = sceneWithLoli('entering', 0.2).loli().body.radius
+      const settled = sceneWithLoli('active', 0.5).loli().body.radius
+      const leaving = sceneWithLoli('exiting', 0.8).loli().body.radius
+
+      expect(entering).toBe(settled)
+      expect(leaving).toBe(settled)
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('stands beside the player, never on top of them', () => {
+    const scene = sceneWithLoli('active')
+    const { body } = scene.loli()
+    const snapshot = scene.loop.snapshot()
+
+    expect(body.x).not.toBe(snapshot.lanePosition)
+    // Below the player's depth, so it can never mask the character.
+    expect(body.depth).toBeLessThan(10)
   })
 })

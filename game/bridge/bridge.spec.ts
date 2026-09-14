@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { LANE_CENTER, LANE_LEFT, LANE_RIGHT, STEP_MS, TUNING, createRunState, step } from '../domain'
 import { createRunLoop } from './loop'
 import { interpolateSnapshot, toRenderSnapshot } from './snapshot'
-import type { RenderObstacle, RenderSnapshot, RunEvent } from './types'
+import type { RenderObstacle, RenderPawToken, RenderSnapshot, RunEvent } from './types'
 
 /**
  * The boundary, tested in Node.
@@ -71,7 +71,138 @@ describe('toRenderSnapshot', () => {
       'occupiedLane',
       'phase',
       'readyRemainingMs',
+      // M7. Each is a projection, not a domain object: `score` carries floored
+      // integers rather than the thousandths the domain accumulates, and
+      // `pawTokens` carries no outcome field for the same reason obstacles
+      // carry none — an outcome is a rule.
+      'protection',
+      'score',
+      'pawTokens',
+      'runPaws',
+      'loliCyclePaws',
+      'loli',
+      'slayyy',
     ].sort())
+  })
+})
+
+describe('nothing mutable escapes to the renderer', () => {
+  /*
+   * `toRenderSnapshot` freezes each nested structure by hand, and the list was
+   * checked by two assertions covering the root and `obstacles`. M7 added five
+   * more — `pawTokens`, `protection`, `score`, `loli`, `slayyy` — and tested
+   * none of their freezes, so removing any one of them passed the whole suite.
+   *
+   * Walked generically for the same reason the domain's `sealState` is: the
+   * freeze is a hand-maintained list, so the *next* nested field is unfrozen by
+   * default and nothing complains. This fails on the day it is added.
+   */
+  function unfrozen(node: unknown, path: string, seen: Set<unknown>): string[] {
+    if (node === null || typeof node !== 'object' || seen.has(node)) return []
+
+    seen.add(node)
+
+    const here = Object.isFrozen(node) ? [] : [path]
+
+    return Object.entries(node).flatMap(([key, value]) => unfrozen(value, `${path}.${key}`, seen))
+      .concat(here)
+  }
+
+  /** A snapshot of a run far enough along to have all of M7 in flight. */
+  function busySnapshot(): RenderSnapshot {
+    const loop = createRunLoop({ seed: 31 })
+
+    frames(loop, READY_STEPS + 2400)
+
+    return toRenderSnapshot(loop.debugState())
+  }
+
+  it('freezes every object the snapshot can reach', () => {
+    const snapshot = busySnapshot()
+    const seen = new Set<unknown>()
+
+    expect(snapshot.pawTokens.length, 'tokens must be in flight or this proves nothing')
+      .toBeGreaterThan(0)
+    expect(unfrozen(snapshot, 'snapshot', seen)).toEqual([])
+    expect(seen.size).toBeGreaterThan(8)
+  })
+
+  it('refuses a write through the paw token list', () => {
+    const snapshot = busySnapshot()
+
+    expect(() => (snapshot.pawTokens as RenderPawToken[]).push(snapshot.pawTokens[0]!))
+      .toThrow(TypeError)
+    expect(() => {
+      ;(snapshot.pawTokens[0] as { laneOffset: number }).laneOffset = 99
+    }).toThrow(TypeError)
+  })
+
+  it('freezes what interpolation hands back, on every path', () => {
+    const loop = createRunLoop({ seed: 31 })
+
+    frames(loop, READY_STEPS + 2400)
+
+    const a = toRenderSnapshot(loop.debugState())
+
+    frames(loop, 30)
+
+    const b = toRenderSnapshot(loop.debugState())
+    const seen = new Set<unknown>()
+
+    expect(unfrozen(interpolateSnapshot(a, b, 0.5), 'blended', seen)).toEqual([])
+  })
+})
+
+describe('interpolating paw tokens', () => {
+  /*
+   * `interpolateObstacles` had a test from M6; its M7 sibling had none, though
+   * it is the harder of the two — a token moves on **both** axes, because the
+   * magnet slides it between lanes while the road brings it closer.
+   */
+  const token = (id: number, laneOffset: number, distanceUnits: number): RenderPawToken =>
+    Object.freeze({ id, laneOffset, distanceUnits })
+
+  function blend(from: readonly RenderPawToken[], to: readonly RenderPawToken[], t: number) {
+    const loop = createRunLoop({ seed: 1 })
+    const base = toRenderSnapshot(loop.debugState())
+
+    return interpolateSnapshot(
+      Object.freeze({ ...base, pawTokens: Object.freeze(from) }),
+      Object.freeze({ ...base, pawTokens: Object.freeze(to) }),
+      t,
+    ).pawTokens
+  }
+
+  it('blends both axes, matching tokens by id', () => {
+    const blended = blend([token(7, 0, 10)], [token(7, 2, 6)], 0.5)
+
+    expect(blended).toHaveLength(1)
+    expect(blended[0]!.laneOffset).toBeCloseTo(1, 6)
+    expect(blended[0]!.distanceUnits).toBeCloseTo(8, 6)
+  })
+
+  it('takes the later value for a token that has no earlier match', () => {
+    // A token spawned between the two snapshots has nothing to blend from, and
+    // must appear where it actually is rather than at some invented midpoint.
+    const blended = blend([token(7, 0, 10)], [token(7, 0, 9), token(8, 2, 14)], 0.5)
+    const fresh = blended.find(entry => entry.id === 8)
+
+    expect(fresh?.laneOffset).toBe(2)
+    expect(fresh?.distanceUnits).toBe(14)
+  })
+
+  it('passes the later list straight through on the first frame', () => {
+    const blended = blend([], [token(7, 1, 5)], 0.5)
+
+    expect(blended).toHaveLength(1)
+    expect(blended[0]!.distanceUnits).toBe(5)
+  })
+
+  it('drops a token that is gone by the later snapshot', () => {
+    // Collection removes a token in the same step it is taken, so the blended
+    // list must follow the later snapshot rather than keep drawing a reward the
+    // player has already been given.
+    expect(blend([token(7, 1, 5), token(8, 1, 6)], [token(8, 1, 5.7)], 0.5)).toHaveLength(1)
   })
 })
 
@@ -524,6 +655,13 @@ const BLANK: RenderSnapshot = Object.freeze({
   obstacles: Object.freeze([]),
   hearts: 3,
   invulnerable: false,
+  protection: Object.freeze({ hitRecovery: false, slayyy: false }),
+  score: Object.freeze({ total: 0, distance: 0, collection: 0, bonus: 0 }),
+  pawTokens: Object.freeze([]),
+  runPaws: 0,
+  loliCyclePaws: 0,
+  loli: Object.freeze({ phase: 'inactive' as const, phaseProgress: 1, queuedLoliBonuses: 0 }),
+  slayyy: Object.freeze({ phase: 'charging' as const, charge: 0, activeRemainingMs: 0 }),
 })
 
 describe('the world does not depend on the display', () => {
@@ -558,6 +696,24 @@ describe('the world does not depend on the display', () => {
       phase: state.phase,
       spawned: state.nextObstacleId,
       obstacles: state.obstacles.map(o => [o.id, o.kind, o.lane, o.outcome]),
+
+      /*
+       * M7's authoritative facts, in the same comparison.
+       *
+       * Every one of these is a number a later milestone may submit as a run
+       * fact, so "the same at every refresh rate" is not a nicety — a score
+       * that depends on a monitor is a score a server cannot validate. The
+       * fractional accumulators are included deliberately: comparing only the
+       * floored score would hide a drift of less than a point per run, which is
+       * exactly the drift that compounds over a long session.
+       */
+      score: [state.score.distanceMilli, state.score.collectionMilli, state.score.bonusMilli],
+      runPaws: state.runPaws,
+      cyclePaws: state.loliCyclePaws,
+      pawsSpawned: state.nextPawTokenId,
+      pawTokens: state.pawTokens.map(t => [t.id, t.laneOffset, t.outcome]),
+      loli: [state.loli.phase, state.loli.queuedLoliBonuses, state.loliActivations],
+      slayyy: [state.slayyy.phase, state.slayyy.chargeMicro, state.slayyyActivations],
     })
   }
 
@@ -578,6 +734,71 @@ describe('the world does not depend on the display', () => {
     for (const [name, frames] of Object.entries(rates)) {
       expect(drive(frames, seconds), `${name} diverged from 120Hz`).toBe(reference)
     }
+  })
+
+  it('makes run_ended the last event of the run', () => {
+    /*
+     * The terminal step still earns distance — the movement happened — so the
+     * score event for it must arrive before the run is declared over, not
+     * after. A consumer that treats `run_ended` as "the final numbers are in"
+     * is a consumer M9 will write.
+     */
+    const events: RunEvent[] = []
+    const loop = createRunLoop({ seed: 31, onEvent: e => events.push(e) })
+
+    for (let i = 0; i < 20_000 && loop.debugState().phase !== 'ended'; i++) {
+      loop.frame(STEP_MS)
+    }
+
+    expect(loop.debugState().phase).toBe('ended')
+
+    const ended = events.findIndex(event => event.type === 'run_ended')
+
+    expect(ended, 'the run must have ended').toBeGreaterThan(-1)
+    expect(events.slice(ended + 1).map(event => event.type), 'nothing may follow it')
+      .toEqual([])
+
+    // And the guard against the assertion above passing for the wrong reason:
+    // the terminal step really did produce other events first.
+    const sameStep = events.slice(0, ended).map(event => event.type)
+
+    expect(sameStep).toContain('score_changed')
+    expect(sameStep).toContain('phase_changed')
+  })
+
+  it('compares M7 fields that have actually moved, not constants', () => {
+    /*
+     * A guard on the test above rather than a new comparison.
+     *
+     * Twenty seconds of a run that presses nothing reaches the score, the paw
+     * counters, the token positions and the meter — but **not** an activation
+     * of either system: SLAYYY never fires itself, and a Loli Bonus is 200 paws
+     * away. Those fields therefore agree across every refresh rate because they
+     * are zero everywhere, which is not evidence of anything.
+     *
+     * So the fields that *are* exercised are asserted to be non-trivial here.
+     * If a future change makes the reference run die early or stop collecting,
+     * this fails loudly instead of leaving the comparison above quietly vacuous.
+     *
+     * Activation counts are covered by the domain's A/B determinism test rather
+     * than here, and deliberately: reaching an activation needs input, input
+     * arrives on frames, and *when* a frame falls is exactly what a refresh rate
+     * changes. A scripted player driven per frame is rate-dependent by
+     * construction, so a cross-rate comparison of one measures the bot, not the
+     * simulation.
+     */
+    const state = JSON.parse(drive(rates['120Hz']!, 20)) as {
+      score: [number, number, number]
+      runPaws: number
+      pawTokens: unknown[]
+      slayyy: [string, number, number]
+    }
+
+    expect(state.score[0], 'distance score must have accrued').toBeGreaterThan(0)
+    expect(state.runPaws, 'paws must have been collected').toBeGreaterThan(0)
+    expect(state.score[1], 'collection score must have accrued').toBeGreaterThan(0)
+    expect(state.pawTokens.length, 'tokens must be in flight').toBeGreaterThan(0)
+    expect(state.slayyy[1], 'the meter must have charged').toBeGreaterThan(0)
   })
 
   it('does not spawn a burst after a long stall', () => {
@@ -639,5 +860,89 @@ describe('pausing discards what was queued', () => {
     loop.frame(STEP_MS)
 
     expect(loop.debugState().jumpElapsedMs).not.toBeNull()
+  })
+})
+
+describe('the meter reaches the app as a number, not as a stream', () => {
+  /*
+   * `accessibility.md` §3.1 requires the control to communicate charge progress
+   * while charging. The obvious way to do that is to publish the fraction every
+   * step, which would be 120 events a second into Vue for a bar that moves a
+   * couple of percent per second. So the loop emits the *displayed* percent and
+   * nothing else, and these hold that shape.
+   */
+
+  /** Every `slayyy_charge` the loop emitted over `steps` simulation steps. */
+  function chargeEvents(steps: number): number[] {
+    const percents: number[] = []
+    const loop = createRunLoop({
+      seed: 7,
+      onEvent: (event) => {
+        if (event.type === 'slayyy_charge') percents.push(event.percent)
+      },
+    })
+
+    frames(loop, steps)
+
+    return percents
+  }
+
+  it('starts at nothing and climbs', () => {
+    const percents = chargeEvents(READY_STEPS + 1200)
+
+    expect(percents.length).toBeGreaterThan(0)
+    expect(percents[0]).toBeGreaterThan(0)
+    expect(percents.at(-1)).toBeGreaterThan(percents[0] as number)
+  })
+
+  it('never repeats a value, and never goes backwards while charging', () => {
+    const percents = chargeEvents(READY_STEPS + 2400)
+
+    for (let i = 1; i < percents.length; i++) {
+      expect(percents[i], `event ${i}`).toBeGreaterThan(percents[i - 1] as number)
+    }
+  })
+
+  it('emits far fewer events than there are steps', () => {
+    const steps = 2400
+    const percents = chargeEvents(READY_STEPS + steps)
+
+    // The meter is floored to a whole percent and capped at 100, so it can
+    // never emit more than 100 events however the rates are tuned. Anything
+    // close to one event per step is the fraction leaking through.
+    expect(percents.length).toBeLessThan(steps / 20)
+  })
+
+  it('agrees with the snapshot the renderer is drawing', () => {
+    const loop = createRunLoop({ seed: 7 })
+
+    frames(loop, READY_STEPS + 1200)
+
+    const snapshot = toRenderSnapshot(loop.debugState())
+
+    expect(snapshot.slayyy.percent).toBe(Math.floor(snapshot.slayyy.charge * 100))
+  })
+
+  it('never reads 100 while the control is still disabled', () => {
+    /*
+     * Floored, not rounded. A meter that says 100% beside a button that does
+     * nothing is a bug report, and rounding would produce exactly that for the
+     * last half-percent of every charge.
+     */
+    const loop = createRunLoop({ seed: 7 })
+
+    for (let i = 0; i < 20_000; i++) {
+      loop.frame(STEP_MS)
+
+      const state = loop.debugState()
+
+      if (state.phase === 'ended') break
+
+      const snapshot = toRenderSnapshot(state)
+
+      if (snapshot.slayyy.percent === 100) {
+        expect(state.slayyy.phase, 'a full meter must be armed').toBe('ready')
+      }
+    }
   })
 })

@@ -31,12 +31,18 @@ See [`../../docs/architecture/game-engine-integration.md`](../../docs/architectu
 | `jump.ts` | The 650 ms arc: no double jump, no variable height, no invulnerability. |
 | `input.ts` | Applying an input, or buffering one that cannot act yet. |
 | `step.ts` | The reducer. Phase, then inputs, then time. |
+| `score.ts` | Integer score in thousandths. The one place the SLAYYY multiplier lives. |
+| `collectibles.ts` | Paw Token spawning, travel and collection. |
+| `loli.ts` | The paw cycle, the Loli state machine and the magnet. |
+| `slayyy.ts` | The charge meter in millionths, activation and the active window. |
 
-**Not here yet:** paws, SLAYYY, the Loli Bonus and scoring (M7). Obstacles,
-collision, hearts and difficulty arrived at M6 and are listed above. The
-`pattern` RNG stream now drives spawning; `collectible` and `cosmetic` are still
-untouched, and a test proves a decorative draw cannot shift the obstacle
-sequence.
+**Not here yet:** persistence of any kind — no run submission, no leaderboard,
+no unlocks (M9+). Obstacles, collision, hearts and difficulty arrived at M6;
+scoring, Paw Tokens, the Loli Bonus and SLAYYY arrived at M7. Both are listed
+above. The `pattern` stream drives obstacle spawning and `collectible` drives
+Paw Tokens; `cosmetic` is still untouched. Tests prove each direction: a
+collectible draw cannot shift the obstacle sequence, and it does still move the
+tokens, so the first assertion is not vacuous.
 
 Tests live beside the code as `*.spec.ts` and run in Node with no DOM — Vitest's
 `unit` project already globs `game/**/*.spec.ts`. A browser dependency creeping

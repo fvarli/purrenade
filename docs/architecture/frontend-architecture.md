@@ -105,12 +105,16 @@ milestone is the subset the rules needed, plus one file the plan did not name:
 game/
   domain/     tuning.ts  rng.ts  types.ts  state.ts  lanes.ts  jump.ts
               input.ts   step.ts  index.ts
-  bridge/     types.ts  snapshot.ts  loop.ts  index.ts
+              collision.ts  difficulty.ts  obstacles.ts  patterns.ts  escape.ts
+              score.ts  collectibles.ts  loli.ts  slayyy.ts
+  bridge/     types.ts  snapshot.ts  loop.ts  engine-config.ts  index.ts
   engine/     index.ts  layout.ts  scene.ts  input/{keyboard,pointer}.ts
 ```
 
-`collision.ts`, `difficulty.ts`, `patterns.ts` and `scoring.ts` belong to M6 and M7
-and are deliberately absent — an empty file is a worse placeholder than none.
+The M5 tree above ended at `step.ts`: obstacles and collision were added at M6,
+scoring and the paw/Loli/SLAYYY modules at M7. Each arrived with its rules, its
+tuning rows and its tests together, rather than as an empty placeholder file
+waiting to be filled.
 
 **`bridge/loop.ts` is the addition.** The fixed-step accumulator that turns variable
 display frames into fixed simulation steps is not part of the rules and is not

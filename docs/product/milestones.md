@@ -39,8 +39,8 @@ produces **separate commits in each**; the repositories are never merged.
 | **M3** | 2FA, roles, admin gate, session/device management | api | M2 | **DELIVERED** — absorbed by executed M2 | executed M2 |
 | **M4** | Frontend shell: i18n, tokens, auth UI, profile/settings scaffolding | web | M1, M2 | **DELIVERED** except the profile and settings screens, which M12 owns in full | executed M2 |
 | **M5** | Game core: engine boundary, lanes, input, jump | web | M1 | **DELIVERED** — frozen at `1658f4b` | — |
-| **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — implemented, audited, remediated | — |
-| **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | Not started | — |
+| **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — frozen at `cf4a07b` | — |
+| **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated | — |
 | **M8** | Interactive tutorial | web | M7 + tutorial design | Not started | — |
 | **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | Not started | — |
 | **M10** | Leaderboards | both | M9 | Not started | — |
@@ -184,7 +184,7 @@ and settings scaffolding; typed API client with error mapping and correlation ID
 
 ---
 
-## M5 — Game core — DELIVERED
+## M5 — Game core — DELIVERED, FROZEN
 
 **Deliverables:** the **pure game-rules core** — deterministic, engine-free,
 unit-testable; the Phaser↔Nuxt boundary; three lanes; touch and keyboard input
@@ -202,7 +202,7 @@ the edges; jump arc timing.
 
 ---
 
-## M6 — Obstacles, patterns, collision, hearts, difficulty — DELIVERED
+## M6 — Obstacles, patterns, collision, hearts, difficulty — DELIVERED, FROZEN
 
 **Unblocked by M0.5:** the two-class obstacle model is APPROVED
 ([conflict #15](design-reference-conflicts.md) resolved).
@@ -225,7 +225,7 @@ curve.
 - Maximum health is 3 and nothing restores a heart.
 
 **Status:** implemented, adversarially audited, remediated, and remediated again for the
-pre-freeze SSR/auth integration defect the audit surfaced. Complete.
+pre-freeze SSR/auth integration defect the audit surfaced. Frozen at `cf4a07b`.
 
 Every number introduced here stays PROPOSED unless the registry says otherwise — shipping one does
 not approve it. The one exception is `difficulty.tierStartsS`, which the product owner approved
@@ -248,7 +248,7 @@ a reference solver; invulnerability window; heart-cap invariants.
 
 ---
 
-## M7 — Paws, SLAYYY, Loli Bonus, HUD
+## M7 — Paws, SLAYYY, Loli Bonus, HUD — DELIVERED, FROZEN
 
 **Deliverables:** Paw Tokens and the three counters; the 200 threshold with
 overflow preservation; SLAYYY charge, **manual activation** (mobile affordance,
@@ -266,6 +266,71 @@ parity.
 - Loli grants no invulnerability and no score multiplier; maximum multiplier is ×2.
 - Overlapping timers run independently and neither extends the other.
 - Score, hearts, paw progress, SLAYYY state and pause are present on every form factor.
+
+**Status:** implemented, then adversarially reviewed **twice** and remediated after
+each pass. Frozen. Every acceptance criterion above has a test behind it rather than an
+inspection, and the four that are structural rather than asserted are worth
+naming: a collected token is removed from the list in the same step, so
+"exactly once" cannot be violated by a later pass; `loliActivations` increments
+in one function, so the counter cannot drift from the state machine;
+`slayyy.chargeMax` is spent whole on activation, so a partial spend has nowhere
+to hide; and the charge function returns its argument unchanged while the phase
+is `active`, so "no charging during SLAYYY" is not a tunable that could be
+turned off.
+
+Every number M7 introduces stays **PROPOSED** except the six the product owner
+has approved — `paw.loliThreshold` 200, `loli.durationMs` 8000,
+`loli.concurrentInstances` 1, `slayyy.durationMs` 5000,
+`score.slayyyMultiplier` 2 and, at the adversarial review, `score.perPaw` 10.
+Shipping a value does not approve it.
+
+**The two questions implementation could not settle, decided at the review:**
+
+- **`score.perPaw` is APPROVED / LOCKED at `10`.** Implementation had shipped
+  the registry's PROPOSED `5` and flagged the conflict with the brief's +10
+  rather than resolving it. The owner chose 10. Its arithmetic consequence is
+  recorded in `scoring-and-progression.md` §1.1: the v0.3 boards' score range
+  now spans about one to four minutes of play rather than 1.5 to five, and
+  `score.distancePerSecond` — still PROPOSED — is the lever that owns it.
+- **First SLAYYY availability is APPROVED as a 35–45 s target** for a
+  representative healthy run, as a UX range and not a timer. Implementation had
+  measured ≈ 69 s against a PROPOSED estimate of ≈ 40 s and retuned nothing. The
+  rates were retuned to serve the target and measured across four scripted
+  scenarios; they remain PROPOSED.
+
+**What the second review pass found, and fixed:**
+
+- **Paw Tokens were being placed inside lethal obstacles.** Patterns and token
+  groups spawn from independent schedules into the same stretch of road, and the
+  obstacle generator has never read the token list — so an obstacle emitted a few
+  steps after a group landed on top of it. Over twelve seeds: 230 same-lane
+  overlaps, 156 lane-blocking, and **58 where taking the token was mathematically
+  impossible without losing a heart**, the first 15 seconds into seed 1. A token a
+  lane blocker has landed on is now removed. Jumpable overlaps are left alone — a
+  jumping player clears the barrier and takes the token, which is a good moment.
+- **Touch was dead across roughly a third of the playfield.** The canvas fills the
+  viewport and the HUD rows are painted over it; a touch starting on a row was not
+  a touch on the canvas, so no gesture began. Keyboard play was unaffected, which
+  is why it survived two milestones. The rows are transparent to pointers now and
+  their controls opt back in. M7 added two of the five rows, so M7 made it worse.
+
+**What the first review pass found, and fixed:**
+
+- A **focus trap on every on-screen control.** Gameplay keys are suppressed
+  while a control has focus and a `<button>` keeps focus after a click, so
+  tapping SLAYYY left the player unable to move, jump or fire for the whole
+  five-second window. The pause control had carried the same defect since M5;
+  both now hand the keyboard back through one shared path.
+- The **Loli magnet had no longitudinal reach**, so it repositioned tokens
+  beyond the visible road where the pull rate's "slow enough to be visible"
+  intent cannot apply. It now has a PROPOSED forward reach.
+- The **paw readout showed `runPaws`** where the specification asks for
+  `loliCyclePaws` — identical until the first bonus, wrong after it.
+- **`run_ended` was not the last event of a run.** The terminal step's score
+  arrived after it.
+
+Score accumulates in thousandths and the SLAYYY meter in millionths, because a
+per-second rate at an 8.33 ms step rounds measurably fast in thousandths.
 
 ---
 

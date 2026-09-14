@@ -57,6 +57,31 @@ field anywhere in either repository. See
 
 `loliCyclePaws` is the persistent counterpart and remains server-owned.
 
+### 2.4 What M7 added — confirmed
+
+`RunState` grew the scoring layer: `score` (three integer accumulators in
+thousandths), `pawTokens`, `nextPawTokenId`, `nextPawAtUnits`, `runPaws`,
+`loliCyclePaws`, `loli`, `slayyy`, `loliActivations` and `slayyyActivations`.
+The approved run-scoped queue is `loli.queuedLoliBonuses` — grouped with the
+rest of the companion's state, but carrying the identifier §2.4 approves rather
+than a shorter one that would have read the same in context and been harder to
+grep for.
+Still no store, still nothing reactive, still nothing persisted — `loliCyclePaws`
+is the run-scoped counter only, and the server-owned persistent counterpart in
+§2.2 remains entirely absent from this repository.
+
+The nested M7 structures are frozen explicitly by `sealState`, each one named:
+the freeze walk is hand-written rather than recursive, so a new nested object
+that nobody remembered to seal is a visible omission rather than a silent one.
+Paw tokens are frozen individually, exactly as obstacles are.
+
+What crosses to the app stays coarse. Seven new events — `score_changed`,
+`paws_changed`, `loli_started`, `loli_ended`, `slayyy_ready`, `slayyy_activated`
+and `slayyy_ended` — drive the HUD. `score_changed` fires only when the
+**floored** total changes, so a counter accumulating in thousandths does not
+wake Vue 120 times a second; at the base rate it fires about ten times a second
+and never once per step.
+
 ### 2.3 What M6 added — confirmed
 
 `RunState` grew the world: `obstacles`, `hearts`, `invulnRemainingMs`, `distanceUnits`,

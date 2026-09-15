@@ -40,7 +40,7 @@ produces **separate commits in each**; the repositories are never merged.
 | **M4** | Frontend shell: i18n, tokens, auth UI, profile/settings scaffolding | web | M1, M2 | **DELIVERED** except the profile and settings screens, which M12 owns in full | executed M2 |
 | **M5** | Game core: engine boundary, lanes, input, jump | web | M1 | **DELIVERED** — frozen at `1658f4b` | — |
 | **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — frozen at `cf4a07b` | — |
-| **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated | — |
+| **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated, frozen at `3d3909d` | — |
 | **M8** | Interactive tutorial | web | M7 + tutorial design | Not started | — |
 | **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | Not started | — |
 | **M10** | Leaderboards | both | M9 | Not started | — |
@@ -65,6 +65,7 @@ Delivery did not follow them one-for-one, and this table records what actually h
 | M1 | Repository bootstrap | M1 |
 | M1C | Runtime completion — root route, readiness probe, systemd services | M1 |
 | **M2** | Authentication and access foundation | **M2 and M3**, plus most of M4 |
+| M7.1 | Production readiness — safe initial administrator bootstrap (`purrenade:admin:promote`) | *(no roadmap milestone; unblocked the first production deployment)* |
 
 So the scope written under **M3** — TOTP enrolment, challenge and disable; recovery codes; the
 `player`/`admin` roles; mandatory admin 2FA; session listing and revocation — shipped inside the
@@ -72,10 +73,13 @@ commit labelled M2, and is documented as M2 throughout both repositories. M3 is 
 absorption**, not skipped and not outstanding. No empty milestone is manufactured to occupy the
 number, and no frozen commit is re-labelled.
 
-M0.5, M0.6 and M1C were execution-only passes. They are not roadmap milestones and never became
-entries in this table.
+M0.5, M0.6 and M1C were execution-only passes, and so is **M7.1** — a backend-only
+production-readiness pass that added the supported way to establish the first administrator,
+frozen at `8046fb5`. None of them is a roadmap milestone, and none occupies a number in the
+overview table above: the delivery history is where an execution-only pass is recorded.
 
-**The next implementation milestone is M5, Game core.**
+**The next implementation milestone is M8, Interactive tutorial** — blocked on the tutorial
+visual design treatment (OPEN). M5, M6 and M7 are delivered and frozen.
 
 ---
 

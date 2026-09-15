@@ -66,6 +66,7 @@ docs/
   game/             tuning parameters and determinism
   testing/          testing strategy and regression gates
   decisions/        architecture decision records (ADRs)
+  production/       ★ how this runs in production, and how to deploy it
 ```
 
 ## Start here
@@ -77,6 +78,10 @@ docs/
 3. [`docs/product/open-decisions.md`](docs/product/open-decisions.md) —
    everything still undecided.
 4. [`docs/decisions/`](docs/decisions/) — why the architecture looks the way it does.
+5. [`docs/production/`](docs/production/README.md) — what runs in production,
+   how a release is deployed and rolled back, and how to operate it. The API
+   half is in
+   [`purrenade-api/docs/production/`](https://github.com/fvarli/purrenade-api/tree/main/docs/production).
 
 ## Source-of-truth priority
 

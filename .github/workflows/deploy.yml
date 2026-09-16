@@ -1,0 +1,408 @@
+name: Deploy to production
+
+# Manual only, and deliberately so.
+#
+# This is the first automated deployment this project has had, onto a host that
+# serves unrelated applications. An automatic deploy on every green push to main
+# would mean a documentation commit can restart a live service, and it would
+# remove the moment where a person decides that now is a good time. Neither is
+# worth the few minutes it saves.
+#
+# The revision is named explicitly rather than inferred from the ref the
+# workflow was launched against. workflow_dispatch lets the launcher pick any
+# ref, so "deploy whatever this ref points at" would be a way to deploy an
+# unreviewed branch. Instead the input is a full commit SHA, and the validate
+# job proves three things about it before any secret is in scope.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Full 40-character commit SHA to deploy (must be on main and CI-green)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Never cancel a deployment in progress. A half-finished release that is
+# interrupted between transfer and activation is far worse than a queued run.
+concurrency:
+  group: purrenade-web-production
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # validate — everything untrusted is handled here, where no secret exists
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate the requested revision
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          # The whole history, because reachability from main is the check that
+          # stops an unreviewed branch being deployed.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: The revision is a full SHA, on main, and CI-green
+        id: check
+        env:
+          # The input arrives as an environment variable, never spliced into the
+          # script text. A value like `$(curl evil)` is then just a string that
+          # fails the pattern test, rather than something the shell evaluates.
+          REQUESTED_SHA: ${{ inputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Not a full 40-character lowercase commit SHA."
+            exit 1
+          fi
+
+          if ! git cat-file -e "${REQUESTED_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::That commit does not exist in this repository."
+            exit 1
+          fi
+
+          # Reachable from the remote main branch. A commit that exists only on
+          # a fork, a PR head or a deleted branch is refused here.
+          if ! git merge-base --is-ancestor "$REQUESTED_SHA" origin/main; then
+            echo "::error::That commit is not reachable from origin/main. Only reviewed, merged revisions deploy."
+            exit 1
+          fi
+
+          # And CI actually passed for those exact bytes. Without this, a commit
+          # could be merged and deployed before its gates finished, or after
+          # they failed.
+          # Four constraints, all explicit:
+          #   workflow  — the project's own ci.yml, not any workflow that
+          #               happened to succeed for this commit
+          #   head_sha  — these exact bytes
+          #   event     — a `push` run. A pull_request run tests the commit in
+          #               PR context, which is not the same thing as main having
+          #               been green at that revision.
+          #   status    — completed, then conclusion == success
+          #
+          # --paginate, because the default page size is 30 and a commit with
+          # many reruns could otherwise hide its successful run past page one.
+          # A failure of `gh` itself aborts under `set -e`, so this fails closed.
+          successful="$(gh api --paginate \
+            "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${REQUESTED_SHA}&status=completed&event=push" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length' \
+            | awk '{ total += $1 } END { print total + 0 }')"
+
+          if [[ "$successful" -lt 1 ]]; then
+            echo "::error::No successful push-event CI run recorded for that commit. Deploy only CI-green revisions merged to main."
+            exit 1
+          fi
+
+          echo "sha=${REQUESTED_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Validated ${REQUESTED_SHA}: on main, CI-green."
+
+  # ---------------------------------------------------------------------------
+  # build — the artifact is produced here, in this run, from the validated SHA
+  # ---------------------------------------------------------------------------
+  #
+  # Building inside the deployment run rather than fetching an artifact from an
+  # earlier CI run makes "the artifact came from a different commit than the one
+  # requested" structurally impossible. It costs a rebuild and removes a class
+  # of mistake that is very hard to detect afterwards.
+  #
+  # This job holds no secrets and has no environment, so the build never has
+  # access to production credentials.
+  build:
+    name: Build the release artifact
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      # The same gates CI runs. A deployment that skipped them because "CI
+      # already passed" would be trusting a record instead of a result.
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      # ---------------------------------------------------------------------
+      # The build-time trap.
+      #
+      # `nitro.storage` is resolved when the bundle is built, not when the
+      # server starts. NUXT_SESSION_DRIVER and NUXT_SESSION_FS_BASE set on the
+      # production host do nothing at all — the built server carries a literal
+      # mount. So they have to be set here, and the next step proves they were.
+      # ---------------------------------------------------------------------
+      - name: Production build
+        env:
+          NODE_ENV: production
+          NUXT_SESSION_DRIVER: fs
+          NUXT_SESSION_FS_BASE: ${{ vars.PROD_SESSION_STORE_PATH }}
+          NUXT_API_BASE: ${{ vars.PROD_API_BASE }}
+          NUXT_TRUSTED_ORIGINS: ${{ vars.PROD_TRUSTED_ORIGINS }}
+        run: |
+          set -euo pipefail
+          test -n "$NUXT_SESSION_FS_BASE" || { echo "::error::vars.PROD_SESSION_STORE_PATH is not configured"; exit 1; }
+          test -n "$NUXT_API_BASE"        || { echo "::error::vars.PROD_API_BASE is not configured"; exit 1; }
+          test -n "$NUXT_TRUSTED_ORIGINS" || { echo "::error::vars.PROD_TRUSTED_ORIGINS is not configured"; exit 1; }
+          npm run build
+
+      - name: The built server points at the shared session store
+        env:
+          EXPECTED_BASE: ${{ vars.PROD_SESSION_STORE_PATH }}
+        run: |
+          set -euo pipefail
+          # If this assertion ever fails, the artifact would have written live
+          # bearer tokens into the release directory instead of the shared
+          # store — and would have done it silently, losing every session on the
+          # next release. It is the reason this step exists.
+          if ! grep -rqF -- "$EXPECTED_BASE" .output/server/; then
+            echo "::error::The built server does not reference the production session-store path."
+            echo "NUXT_SESSION_FS_BASE is a BUILD-time value; setting it on the host does nothing."
+            exit 1
+          fi
+          echo "the artifact is bound to the shared session store"
+
+      - name: Artifact smoke, on the built server
+        run: |
+          set -euo pipefail
+          PURRENADE_ALLOW_FS_SESSIONS=1 PORT=4399 NITRO_PORT=4399 \
+            node .output/server/index.mjs &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:4399/ && break
+            sleep 1
+          done
+          curl -sf -o /dev/null http://127.0.0.1:4399/
+          echo "the built artifact serves its home page"
+
+      # The tarball carries `.output` and nothing else: no .env, no .data
+      # session records, no node_modules from the repository root, no
+      # design-reference material. `.output/server` is self-contained, so the
+      # host still installs nothing.
+      - name: Package and checksum
+        env:
+          SHA: ${{ needs.validate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          tar -czf "purrenade-web-${SHA}.tar.gz" .output
+          sha256sum "purrenade-web-${SHA}.tar.gz" > "purrenade-web-${SHA}.tar.gz.sha256"
+          cat "purrenade-web-${SHA}.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: purrenade-web-${{ needs.validate.outputs.sha }}
+          path: |
+            purrenade-web-${{ needs.validate.outputs.sha }}.tar.gz
+            purrenade-web-${{ needs.validate.outputs.sha }}.tar.gz.sha256
+          retention-days: 14
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # deploy — the only job that holds production credentials
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to production
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Environment protection rules are configured in GitHub, not here. Required
+    # reviewers and a deployment branch policy of `main` are OPERATOR settings;
+    # this file cannot enforce them and does not claim to. See
+    # docs/production/ci-cd.md section 6.
+    environment:
+      name: production
+      url: ${{ vars.PROD_PUBLIC_URL }}
+    permissions:
+      contents: read
+    env:
+      SHA: ${{ needs.validate.outputs.sha }}
+      PROD_HOST: ${{ secrets.PROD_HOST }}
+      PROD_USER: ${{ secrets.PROD_USER }}
+      PROD_PORT: ${{ vars.PROD_SSH_PORT }}
+      WEB_ROOT: ${{ vars.PROD_WEB_ROOT }}
+      LOOPBACK_URL: ${{ vars.PROD_LOOPBACK_URL }}
+      PUBLIC_URL: ${{ vars.PROD_PUBLIC_URL }}
+    steps:
+      # Checked out for deploy/bin/* only. Every script that runs on production
+      # is piped from this reviewed revision, so what executes there is never a
+      # stale copy that happened to be on the server.
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: purrenade-web-${{ needs.validate.outputs.sha }}
+
+      - name: Verify the artifact checksum on the runner
+        run: |
+          set -euo pipefail
+          sha256sum -c "purrenade-web-${SHA}.tar.gz.sha256"
+
+      - name: Configure the SSH client
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          test -s ~/.ssh/deploy_key  || { echo "::error::PROD_SSH_PRIVATE_KEY is empty"; exit 1; }
+          test -s ~/.ssh/known_hosts || { echo "::error::PROD_SSH_KNOWN_HOSTS is empty"; exit 1; }
+          for required in WEB_ROOT LOOPBACK_URL PUBLIC_URL; do
+            if [[ -z "${!required}" ]]; then
+              echo "::error::vars.PROD_${required} is not configured for the production environment"
+              exit 1
+            fi
+          done
+
+      # Every remote call below goes through deploy/bin/remote-exec.sh, which
+      # validates host/user/port, passes them after `--`, and base64-encodes
+      # every argument so that no value is ever part of remote shell source.
+      - name: Transfer the artifact
+        run: |
+          set -euo pipefail
+          deploy/bin/remote-exec.sh \
+            --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+            --key ~/.ssh/deploy_key \
+            --copy "purrenade-web-${SHA}.tar.gz" \
+            --dest "/tmp/purrenade-web-${SHA}.tar.gz"
+
+      - name: Install the release
+        run: |
+          set -euo pipefail
+          sum="$(cut -d' ' -f1 < "purrenade-web-${SHA}.tar.gz.sha256")"
+          # Re-verified on the far side against the bytes that actually arrived,
+          # and the archive's structure is validated before extraction.
+          deploy/bin/remote-exec.sh \
+            --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+            --key ~/.ssh/deploy_key --script deploy/bin/release.sh -- \
+            install --root "$WEB_ROOT" --id "$SHA" \
+            --artifact "/tmp/purrenade-web-${SHA}.tar.gz" --sha256 "$sum"
+
+      # ---------------------------------------------------------------------
+      # Activation, restart and verification are THREE steps, not one.
+      #
+      # They were one, and the rollback was gated on that combined step. A
+      # failing restart therefore left `current` already switched while the
+      # rollback was skipped, because the step that "activated" had failed. The
+      # split is the fix: rollback is gated on activation alone, so anything
+      # that fails after the symlink moves is rollback-eligible.
+      # ---------------------------------------------------------------------
+      - name: Activate the release
+        id: activate
+        run: |
+          set -euo pipefail
+          deploy/bin/remote-exec.sh \
+            --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+            --key ~/.ssh/deploy_key --script deploy/bin/release.sh -- \
+            activate --root "$WEB_ROOT" --id "$SHA"
+
+      - name: Restart the service
+        id: restart
+        run: |
+          set -euo pipefail
+          deploy/bin/remote-exec.sh \
+            --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+            --key ~/.ssh/deploy_key --script deploy/bin/remote-ops.sh -- restart
+
+      - name: Verify on the loopback port
+        id: verify_loopback
+        run: |
+          set -euo pipefail
+          deploy/bin/remote-exec.sh \
+            --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+            --key ~/.ssh/deploy_key --script deploy/bin/health-check.sh -- \
+            --url "$LOOPBACK_URL" --attempts 30 --interval 2
+
+      - name: Verify the public HTTPS origin
+        id: verify_public
+        run: |
+          set -euo pipefail
+          # Exactly 200, carrying a Purrenade marker. A redirect is not healthy.
+          deploy/bin/health-check.sh --url "$PUBLIC_URL" --attempts 15 --interval 2
+
+      # Reached whenever anything after activation failed — including a failed
+      # restart, which the previous gating silently excluded.
+      - name: Roll back a failed release
+        if: failure() && steps.activate.outcome == 'success'
+        run: |
+          set -euo pipefail
+          echo "::warning::Deployment failed after activation. Rolling back."
+
+          run_remote() {
+            deploy/bin/remote-exec.sh \
+              --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+              --key ~/.ssh/deploy_key "$@"
+          }
+
+          # The failed release is deliberately left on disk for diagnosis.
+          if ! run_remote --script deploy/bin/release.sh -- rollback --root "$WEB_ROOT"; then
+            echo "::error::ROLLBACK FAILED to switch the release. Production needs a human NOW."
+            exit 1
+          fi
+          if ! run_remote --script deploy/bin/remote-ops.sh -- restart; then
+            echo "::error::ROLLBACK FAILED to restart the service. Production needs a human NOW."
+            exit 1
+          fi
+          # Independently verified, with the same assertion the deployment used.
+          if ! run_remote --script deploy/bin/health-check.sh -- \
+                 --url "$LOOPBACK_URL" --attempts 30 --interval 2; then
+            echo "::error::ROLLBACK COMPLETED BUT THE PREVIOUS RELEASE IS NOT HEALTHY. Production needs a human NOW."
+            exit 1
+          fi
+          echo "::warning::Rollback completed and the previous release is serving."
+
+      - name: Prune old releases
+        if: success()
+        run: |
+          set -euo pipefail
+          deploy/bin/remote-exec.sh \
+            --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+            --key ~/.ssh/deploy_key --script deploy/bin/release.sh -- \
+            prune --root "$WEB_ROOT" --keep 3
+
+      - name: Remove the transferred archive
+        if: always()
+        run: |
+          set -euo pipefail
+          deploy/bin/remote-exec.sh \
+            --host "$PROD_HOST" --user "$PROD_USER" --port "${PROD_PORT:-22}" \
+            --key ~/.ssh/deploy_key --script deploy/bin/remote-ops.sh -- \
+            cleanup --path "/tmp/purrenade-web-${SHA}.tar.gz"
+
+      - name: Report the deployed revision
+        if: success()
+        run: echo "Deployed ${SHA}" >> "$GITHUB_STEP_SUMMARY"

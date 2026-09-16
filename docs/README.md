@@ -92,8 +92,9 @@ Conflict rules and every conflict found so far:
 ## Production (`docs/production/`)
 
 How the frontend actually runs on the production host, and the procedure for
-changing it. Deployment is **manual today**; CI/CD is the next infrastructure
-milestone. The API half of this documentation lives in
+changing it. A deployment pipeline exists but **has not yet run against
+production** (OPS-3); the manual procedure remains the fallback. The API half of
+this documentation lives in
 [`purrenade-api/docs/production/`](https://github.com/fvarli/purrenade-api/tree/main/docs/production).
 
 | Document | Contents |
@@ -101,6 +102,7 @@ milestone. The API half of this documentation lives in
 | [README.md](production/README.md) | **★ Entry point** — architecture, request path, runtime versions, release layout, BFF session model in production, deviations |
 | [deployment.md](production/deployment.md) | **★** Build, hash, transfer, atomic release activation, rollback, CI/CD invariants |
 | [operations.md](production/operations.md) | **★** systemd, nginx, TLS, session store, health and smoke, logs, restart checklist |
+| [ci-cd.md](production/ci-cd.md) | **★** The deployment pipeline: triggers, artifact integrity, release mechanics, security model, operator bootstrap |
 
 ---
 

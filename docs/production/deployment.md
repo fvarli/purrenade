@@ -168,11 +168,17 @@ withdrawn depended on an API change, coordinate with
 [the backend rollback principles](https://github.com/fvarli/purrenade-api/blob/main/docs/production/deployment.md)
 — backend rollback is the harder half, because code and schema move together.
 
-## 6. What future CI/CD must preserve
+## 6. The automated pipeline, and the invariants it keeps
 
-CI/CD should **automate this proven procedure**, not invent a different
-production model. Everything below is already true of the manual process; an
-automated pipeline that drops any of it is a regression.
+**This procedure is now automated** — see [ci-cd.md](ci-cd.md) for the workflow,
+the security model and the operator setup it depends on. The manual steps above
+remain correct and remain the fallback when the pipeline is unavailable, so they
+are maintained rather than archived.
+
+The pipeline **automates this proven procedure** rather than inventing a
+different production model. Everything below was already true of the manual
+process and is now enforced by `.github/workflows/deploy.yml` and
+`deploy/bin/release.sh`; a change that drops any of it is a regression.
 
 **Must preserve**
 
@@ -197,5 +203,10 @@ automated pipeline that drops any of it is a regression.
 - Leave `current` absent at any instant
 - Print secrets into build logs, job output or stored artifacts
 
-Do not create GitHub Actions for deployment in this milestone. The existing CI
-workflow builds and tests; it does not deploy, and nothing here changes that.
+Deployment is **`workflow_dispatch` only**: no push to `main`, however green,
+reaches production on its own. The `production` environment, its protection
+rules and its secrets are operator-configured and are listed in
+[ci-cd.md §7](ci-cd.md#7-environment-configuration).
+
+`tests/deploy/release.test.sh` holds the release mechanics to the invariants
+above — including, twice, that the session store survives.

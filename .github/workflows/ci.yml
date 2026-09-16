@@ -18,14 +18,19 @@ env:
   # 24 is the active LTS line. See docs/architecture/versions-and-runtime.md.
   NODE_VERSION: '24'
 
+# Every external action is pinned to a full commit SHA, with the release in a
+# trailing comment. A tag is a moving pointer: whoever can move `v5` can run
+# their code in this workflow. The comment is for humans; the SHA is the
+# contract. Re-resolve both when bumping, never edit the comment alone.
 jobs:
   app:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -213,10 +218,11 @@ jobs:
   browser:
     name: Browser acceptance
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -373,7 +379,7 @@ jobs:
 
       - name: Upload the report when it fails
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
           path: playwright-report/
@@ -382,8 +388,9 @@ jobs:
   docs:
     name: Documentation checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Verify documentation structure
         run: |

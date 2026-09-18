@@ -1,8 +1,9 @@
 # Frontend deployment
 
-The manual procedure that is actually in use. **There is no CI/CD yet** —
-automating this is the next infrastructure milestone, and [§6](#6-what-future-cicd-must-preserve)
-records what that automation has to keep.
+The manual fallback procedure. The controlled CI/CD path has been proven
+end-to-end (OPS-3), but production deployment remains
+`workflow_dispatch`/operator-controlled; this procedure remains available when
+the pipeline is unavailable or an operator deliberately uses the fallback.
 
 Read [README.md](README.md) first for the architecture these steps assume.
 

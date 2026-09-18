@@ -183,7 +183,7 @@ Each is a deliberate, recorded position — not an oversight.
 | # | Current state | Position |
 | --- | --- | --- |
 | 1 | Filesystem session store | Correct for one instance; **blocks** multi-instance (OPS-2) |
-| 2 | A deployment pipeline exists but has never run against production | Implemented and locally tested; the operator bootstrap and a first automated run remain (OPS-3). Manual deployment stays the fallback. |
+| 2 | No automatic-on-push production deployment | **OPS-3 is complete:** the controlled frontend and backend deployment paths have been proven end-to-end. Production deployment remains `workflow_dispatch`/operator-controlled; manual deployment stays the fallback. |
 | 3 | Reboot-survival not yet verified | Units are enabled; a controlled restart drill is outstanding (OPS-5) |
 | 4 | Large client bundle and a large Phaser server chunk | Build warnings, non-blocking; separate performance work |
 | 5 | Vue test warnings (`onUnmounted`, no active component) | Pre-existing, non-blocking; separate engineering work |

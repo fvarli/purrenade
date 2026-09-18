@@ -91,10 +91,11 @@ Conflict rules and every conflict found so far:
 
 ## Production (`docs/production/`)
 
-How the frontend actually runs on the production host, and the procedure for
-changing it. A deployment pipeline exists but **has not yet run against
-production** (OPS-3); the manual procedure remains the fallback. The API half of
-this documentation lives in
+How the frontend actually runs in production, and the procedure for changing
+it. The controlled frontend and backend production deployment paths have been
+**proven end-to-end** (OPS-3 complete). Frontend deployment remains
+operator-controlled through `workflow_dispatch`; the manual procedure remains
+the fallback. The API half of this documentation lives in
 [`purrenade-api/docs/production/`](https://github.com/fvarli/purrenade-api/tree/main/docs/production).
 
 | Document | Contents |
@@ -102,7 +103,7 @@ this documentation lives in
 | [README.md](production/README.md) | **★ Entry point** — architecture, request path, runtime versions, release layout, BFF session model in production, deviations |
 | [deployment.md](production/deployment.md) | **★** Build, hash, transfer, atomic release activation, rollback, CI/CD invariants |
 | [operations.md](production/operations.md) | **★** systemd, nginx, TLS, session store, health and smoke, logs, restart checklist |
-| [ci-cd.md](production/ci-cd.md) | **★** The deployment pipeline: triggers, artifact integrity, release mechanics, security model, operator bootstrap |
+| [ci-cd.md](production/ci-cd.md) | **★** The controlled deployment pipeline: triggers, artifact integrity, release mechanics and security model |
 
 ---
 

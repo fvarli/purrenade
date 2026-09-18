@@ -18,6 +18,21 @@ raised so far, so nothing is recorded only in a document nobody rereads.
 
 ---
 
+## 0AF. Resolved — OPS-3 complete: controlled production CI/CD proof
+
+**OPS-3 is resolved and complete.** The controlled frontend and backend
+production deployment paths have both been proven end-to-end. The durable model remains
+operator-controlled: frontend production deployment is `workflow_dispatch` only,
+not automatic on a successful push or pull request. The frontend retains its
+exact-SHA and CI-provenance validation before production secrets, protected
+production environment, immutable release directories, atomic `current` switch,
+shared session store, health verification, rollback and release-pruning
+invariants. This proof does not establish horizontal scaling or HA readiness;
+the shared session backend remains **OPEN as OPS-2**, and restart/reboot survival
+remains **OPEN as OPS-5**.
+
+---
+
 ## 0AB. Corrected by the M2 adversarial audit
 
 Three things this register and its owning documents recorded as true were not.
@@ -256,9 +271,8 @@ These stop work when their milestone is reached.
 | **LR-1** | The **layered licensing model**. `LICENSE` stays a placeholder until decided. | [licensing-and-rights](licensing-and-rights.md) §1 |
 | **LR-2 / #18** | **Consent records** for every real-person and real-animal likeness, covering commercial use, app-store distribution and marketing. | [licensing-and-rights](licensing-and-rights.md) §3 |
 | **LR-3** | Are the repositories **public from the first commit** or later? | [licensing-and-rights](licensing-and-rights.md) |
-| **OPS-1** | Environment matrix, hosting, secret management, backup/restore. **Now also covers operating the BFF as a stateful, security-relevant component.** **Substantially answered by the first production deployment (2026-09-15) and documented in `docs/production/` in both repositories** — hosting, the environment matrix, secret handling, the backup and migration procedure, and BFF session operation are all now recorded fact rather than proposal. **Still OPEN** for the parts a single manual deployment cannot settle: the shared session backend (OPS-2), CI/CD and its secret handling (OPS-3), and proven restart survival (OPS-5). | [`../production/README.md`](../production/README.md) · `purrenade-api/docs/production/` |
+| **OPS-1** | Environment matrix, hosting, secret management, backup/restore. **Now also covers operating the BFF as a stateful, security-relevant component.** **Substantially answered by the first production deployment (2026-09-15) and documented in `docs/production/` in both repositories** — hosting, the environment matrix, secret handling, the backup and migration procedure, and BFF session operation are all now recorded fact rather than proposal. **Still OPEN** for the parts a single production deployment cannot settle: the shared session backend (OPS-2) and proven restart survival (OPS-5). | [`../production/README.md`](../production/README.md) · `purrenade-api/docs/production/` |
 | **OPS-2** | **Shared session backend before any horizontal scaling.** The BFF session store is filesystem-backed, which is correct for exactly one Nitro instance and wrong for two. Redis/Valkey or equivalent is a prerequisite for multi-instance or HA. | [`../production/README.md`](../production/README.md) §4 |
-| **OPS-3** | **CI/CD design.** **Implemented and locally tested in both repositories** — `workflow_dispatch`-only deployment, a `production` environment, SHA-validated revisions proven reachable from `main` and CI-green, actions pinned to full commit SHAs, real SSH host verification, immutable releases with atomic activation, and a backup proven readable before any migration. **Still OPEN**: none of it has run against production, the operator bootstrap (deployment identity, narrow sudoers, environment, secrets, host-key material) is outstanding, and a first automated deployment has not been performed. Closing this on implementation alone would record a capability the project does not yet have. | [`../production/ci-cd.md`](../production/ci-cd.md) · `purrenade-api/docs/production/ci-cd.md` |
 | **OPS-4** | **Observability and product analytics architecture.** Three distinct concerns — operational observability, product analytics, gameplay telemetry — and no vendor chosen. Server-authoritative gameplay facts must stay distinct from client events (ARCH-2). Privacy, consent, retention and minimization decided first (SEC-3, SEC-5). | [`../production/README.md`](../production/README.md) §8 |
 | **OPS-5** | **Restart and reboot survival, and resource monitoring** on shared infrastructure. Units are enabled and expected to return; a controlled restart drill has not yet been performed. | [`../production/operations.md`](../production/operations.md) §8 |
 | **AA-3** | **Audio asset list, formats and licensing.** | [art-asset-requirements](art-asset-requirements.md) §7 |

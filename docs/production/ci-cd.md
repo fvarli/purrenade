@@ -1,17 +1,18 @@
 # CI/CD — frontend
 
 How the frontend reaches production, what the pipeline may and may not do, and
-exactly what an operator must configure before the first automated deployment.
+the durable production configuration it requires.
 
 Deploying by hand is [deployment.md](deployment.md); that procedure is what this
 pipeline automates, and it remains the fallback when the pipeline is unavailable.
 The API half is
 [`purrenade-api/docs/production/ci-cd.md`](https://github.com/fvarli/purrenade-api/blob/main/docs/production/ci-cd.md).
 
-> **Nothing here has ever run against production.** The implementation is
-> complete and locally tested, but the operator bootstrap in
-> [§6](#6-production-bootstrap-still-required) is outstanding and the first
-> automated deployment has not happened. **OPS-3 stays OPEN** until it has.
+> **OPS-3 is complete.** The controlled frontend and backend production
+> deployment paths have both been proven end-to-end. This does **not** enable
+> automatic deployment: the frontend production path remains
+> `workflow_dispatch`/operator-controlled, and the manual procedure remains the
+> fallback.
 
 ---
 
@@ -24,11 +25,10 @@ The API half is
 | Environment | none | `production` |
 | Concurrency | per-ref, cancels stale runs | `purrenade-web-production`, **never cancels** |
 
-**Deployment is manual on purpose.** Automatic deployment on every green push
-would mean a documentation merge restarts a live service on a host that runs
-unrelated applications. This is the first automated deployment this project has
-had, and the minutes saved are not worth removing the moment where a person
-decides to do it.
+**Deployment is operator-controlled on purpose.** Automatic deployment on every
+green push would mean a documentation merge restarts a live service on a host
+that runs unrelated applications. The successful proof does not remove the
+moment where a person decides to deploy.
 
 Concurrency never cancels a run in flight: a deployment interrupted between
 transfer and activation is worse than one that waits.
@@ -207,9 +207,11 @@ Attestations would add `id-token`/`attestations` permissions and a `gh`
 dependency on the production host without covering a threat the manifest misses.
 Revisit if artifacts are ever distributed more widely.
 
-## 6. Production bootstrap still required
+## 6. Production bootstrap and configuration
 
-None of this has been done, and **the pipeline cannot bootstrap itself**.
+The initial production configuration is complete and the path has been proven.
+The pipeline nevertheless **cannot bootstrap itself**: the following is the
+durable configuration contract for a replacement or recovery environment.
 
 1. **Create the deployment account** — unprivileged, owning the web deployment
    directory including `releases/` and `shared/`.
@@ -226,8 +228,8 @@ None of this has been done, and **the pipeline cannot bootstrap itself**.
 5. **Create the `production` Environment** with required reviewers and a
    deployment branch policy limited to `main`.
 6. **Add the secrets and variables** in §7.
-7. **Deploy once by hand** following [deployment.md](deployment.md), to confirm
-   the account and sudo contract work before the pipeline relies on them.
+7. Keep [deployment.md](deployment.md) usable as the manual fallback for a
+   pipeline outage or a deliberate operator-directed deployment.
 
 ## 7. Environment configuration
 

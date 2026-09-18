@@ -190,30 +190,61 @@ recovery codes, session contents or personal data. Application logging is built
 to avoid them, and a diagnostic paste is the usual way that protection gets
 bypassed.
 
-## 8. Restart and reboot checklist
+## 8. Restart, reboot and resource monitoring
 
-Both Purrenade units are **enabled**, so they are expected to return by
-themselves after a reboot. That expectation has **not yet been verified by a
-controlled restart** — the host reported a pending restart at the initial
-deployment and none was performed. Until the drill is done, treat reboot
-survival as expected rather than proven. Tracked as **OPS-5**.
+**OPS-5 is complete.** A controlled production reboot proved a new boot, a
+running host with no failed units, the updated kernel, and automatic recovery of
+Purrenade web and queue, nginx, PHP 8.4 FPM and PostgreSQL. The frontend
+loopback and public checks and the database-backed API health check returned
+200; migrations and queue state remained healthy. Relevant current-boot journals
+contained no warning-or-higher records for these services. The BFF filesystem
+session store preserved its owner/mode and contents, and an existing authenticated
+browser session remained authenticated.
 
-When the drill is run, or after any unplanned restart:
+During this proof, a duplicate swap-entry boot configuration issue was corrected
+with generator validation. Swap remained active and Purrenade stayed healthy;
+it was a host configuration issue, not an application defect. The next routine
+reboot can incidentally confirm that its old generator warning does not recur.
+
+### Manual baseline
+
+Run this read-only baseline after every controlled host reboot/restart, as part
+of the monthly operational health review, and ad hoc for performance
+degradation, suspected memory pressure/OOM behavior, restart loops or suspected
+disk-capacity pressure:
 
 ```bash
-systemctl is-enabled purrenade-web.service purrenade-queue.service
-systemctl is-active  purrenade-web.service purrenade-queue.service
-sudo nginx -t
+uptime
+nproc
+cat /proc/loadavg
+free -h
+cat /proc/swaps
+df -h /
+df -i /
+systemctl --failed
+systemctl is-active purrenade-web.service purrenade-queue.service php8.4-fpm nginx postgresql
+systemctl show -p NRestarts purrenade-web.service purrenade-queue.service
+curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:4310/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://purrenade.ferzendervarli.com/
+curl -fsS https://api.purrenade.ferzendervarli.com/api/v1/health
 ```
 
-1. Both units enabled and active.
-2. nginx serving both virtual hosts; TLS valid.
-3. Session store still `0700` and owned by the deployment identity.
-4. `GET /api/v1/health` returns 200.
-5. The full lifecycle in [§6](#6-verifying-a-deployment), including a real
-   verification email.
-6. A previously signed-in browser session still works — or, if the store was
-   cleared, that this was expected.
+The baseline has been executed successfully in production: system state was
+running, no units had failed, resource and capacity signals showed no concerning
+pressure, required services were active without unexpected Purrenade restarts,
+and all three health checks returned 200. Do not record host readings, capacity
+or inventory in this public repository.
 
-Because the host is small and shared, watch resource pressure after a restart;
-several applications starting at once is the moment contention shows.
+A transient CPU/load spike alone is not automatically an incident. Investigate
+sustained load inappropriate for host capacity, deteriorating capacity,
+materially low available memory, materially increasing swap use or sustained
+memory pressure, filesystem or inode exhaustion risk, failed units, or
+unexpected Purrenade restarts. Use the health checks above and relevant
+`journalctl` output to diagnose the condition.
+
+This is deliberately a manual baseline: it sets no hard numeric automated
+thresholds and requires no scheduled job, timer, external alerting, paging,
+dashboard, metrics service, generalized log aggregation or analytics. Those
+broader observability and alerting decisions remain **OPS-4**. The filesystem
+session store remains a single-instance limitation tracked separately as
+**OPS-2**; privacy, retention and consent remain **SEC-3**.

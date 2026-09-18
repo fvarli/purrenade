@@ -7,7 +7,7 @@ Sections 1–3 hold the decisions that block or shape milestones. Section 4 hold
 the proposals awaiting review. **Section 6 indexes every remaining open question**
 raised so far, so nothing is recorded only in a document nobody rereads.
 
-**Last reviewed:** 2026-09-13 (M6 obstacles and collision — see §0AD; no status was promoted).
+**Last reviewed:** 2026-09-19 (OPS-5 closed; see §0AG).
 
 | Status | Meaning |
 | --- | --- |
@@ -15,6 +15,33 @@ raised so far, so nothing is recorded only in a document nobody rereads.
 | **PROPOSED** | A recommendation written so it can be reviewed. **Not authoritative.** May be implemented as a named tuning parameter, never presented as decided. |
 
 **Neither is ever silently promoted to APPROVED.**
+
+---
+
+## 0AG. Resolved — OPS-5 complete: reboot survival and manual resource baseline
+
+**OPS-5 is resolved and complete.** A controlled production reboot proved a new
+boot, a running host with no failed units, the intended kernel, and automatic
+return of Purrenade web and queue, nginx, PHP 8.4 FPM and PostgreSQL. Frontend
+loopback and public health, API health with its database check, migrations and
+queue state were healthy afterwards; the intended runtime revisions remained in
+place. The persistent BFF filesystem session store kept its owner/mode and
+contents, and an already-authenticated browser session remained authenticated.
+
+OPS-5 also defines a **manual** resource-monitoring baseline: run it after a
+controlled reboot/restart, monthly, and when resource or service symptoms
+appear. The reproducible procedure and qualitative investigation rules are in
+[`../production/operations.md`](../production/operations.md) §8. The baseline
+has been executed successfully in production. It deliberately defines neither
+numeric automated thresholds nor scheduled monitoring, alerting or paging;
+broader observability, alerting and analytics architecture remains **OPEN as
+OPS-4**. The single-instance filesystem-store limitation remains **OPEN as
+OPS-2**, and privacy/retention/consent remains **OPEN as SEC-3**.
+
+During the proof, a duplicate swap-entry boot configuration issue was corrected
+with generator validation. Swap remained active and Purrenade stayed healthy;
+this was host configuration, not an application defect. A later routine reboot
+may incidentally confirm that its former boot warning does not recur.
 
 ---
 
@@ -28,8 +55,9 @@ exact-SHA and CI-provenance validation before production secrets, protected
 production environment, immutable release directories, atomic `current` switch,
 shared session store, health verification, rollback and release-pruning
 invariants. This proof does not establish horizontal scaling or HA readiness;
-the shared session backend remains **OPEN as OPS-2**, and restart/reboot survival
-remains **OPEN as OPS-5**.
+the shared session backend remains **OPEN as OPS-2**. Restart/reboot survival
+and the manual resource-monitoring baseline are separately resolved as **OPS-5**
+(§0AG).
 
 ---
 
@@ -271,10 +299,10 @@ These stop work when their milestone is reached.
 | **LR-1** | The **layered licensing model**. `LICENSE` stays a placeholder until decided. | [licensing-and-rights](licensing-and-rights.md) §1 |
 | **LR-2 / #18** | **Consent records** for every real-person and real-animal likeness, covering commercial use, app-store distribution and marketing. | [licensing-and-rights](licensing-and-rights.md) §3 |
 | **LR-3** | Are the repositories **public from the first commit** or later? | [licensing-and-rights](licensing-and-rights.md) |
-| **OPS-1** | Environment matrix, hosting, secret management, backup/restore. **Now also covers operating the BFF as a stateful, security-relevant component.** **Substantially answered by the first production deployment (2026-09-15) and documented in `docs/production/` in both repositories** — hosting, the environment matrix, secret handling, the backup and migration procedure, and BFF session operation are all now recorded fact rather than proposal. **Still OPEN** for the parts a single production deployment cannot settle: the shared session backend (OPS-2) and proven restart survival (OPS-5). | [`../production/README.md`](../production/README.md) · `purrenade-api/docs/production/` |
+| **OPS-1** | Environment matrix, hosting, secret management, backup/restore. **Now also covers operating the BFF as a stateful, security-relevant component.** **Substantially answered by the first production deployment (2026-09-15) and documented in `docs/production/` in both repositories** — hosting, the environment matrix, secret handling, the backup and migration procedure, and BFF session operation are all now recorded fact rather than proposal. **Still OPEN** for the shared session backend (OPS-2); proven restart/reboot survival and the manual resource baseline are resolved as OPS-5. | [`../production/README.md`](../production/README.md) · `purrenade-api/docs/production/` |
 | **OPS-2** | **Shared session backend before any horizontal scaling.** The BFF session store is filesystem-backed, which is correct for exactly one Nitro instance and wrong for two. Redis/Valkey or equivalent is a prerequisite for multi-instance or HA. | [`../production/README.md`](../production/README.md) §4 |
 | **OPS-4** | **Observability and product analytics architecture.** Three distinct concerns — operational observability, product analytics, gameplay telemetry — and no vendor chosen. Server-authoritative gameplay facts must stay distinct from client events (ARCH-2). Privacy, consent, retention and minimization decided first (SEC-3, SEC-5). | [`../production/README.md`](../production/README.md) §8 |
-| **OPS-5** | **Restart and reboot survival, and resource monitoring** on shared infrastructure. Units are enabled and expected to return; a controlled restart drill has not yet been performed. | [`../production/operations.md`](../production/operations.md) §8 |
+| ~~**OPS-5**~~ | **Resolved.** Controlled reboot survival, including an existing authenticated BFF filesystem session, is proven. The verified manual resource-monitoring baseline is documented in the operations procedure; automation and alerting remain OPS-4. | [`../production/operations.md`](../production/operations.md) §8 |
 | **AA-3** | **Audio asset list, formats and licensing.** | [art-asset-requirements](art-asset-requirements.md) §7 |
 | **ASSET-1** | Whether design/production binaries eventually move to **Git LFS or another asset strategy**. Deliberately not adopted in M0. | [`../architecture/asset-strategy.md`](../architecture/asset-strategy.md) |
 

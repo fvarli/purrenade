@@ -17,10 +17,11 @@ withDefaults(defineProps<{ size?: 'sm' | 'lg' }>(), { size: 'lg' })
   <div
     class="wordmark"
     :class="`wordmark--${size}`"
+    role="img"
+    aria-label="Purrenade"
   >
     <p
       class="wordmark__text"
-      aria-label="Purrenade"
     >
       <!-- Split so the RR can take coral. Marked aria-hidden and labelled on
            the parent, so a screen reader reads one word rather than fragments. -->
@@ -36,7 +37,7 @@ withDefaults(defineProps<{ size?: 'sm' | 'lg' }>(), { size: 'lg' })
       aria-hidden="true"
     >
       <span class="wordmark__wave" />
-      <span class="wordmark__paw">🐾</span>
+      <span class="wordmark__paw"><i /><i /><i /><i /></span>
     </div>
   </div>
 </template>
@@ -101,7 +102,26 @@ withDefaults(defineProps<{ size?: 'sm' | 'lg' }>(), { size: 'lg' })
 }
 
 .wordmark__paw {
-  font-size: 0.7rem;
-  line-height: 1;
+  position: relative;
+  display: block;
+  width: 1rem;
+  height: 0.85rem;
+  border-radius: 50% 50% 45% 45%;
+  background: var(--color-pink);
 }
+
+.wordmark__paw::before,
+.wordmark__paw i {
+  position: absolute;
+  width: 0.27rem;
+  height: 0.27rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-pink);
+  content: '';
+}
+
+.wordmark__paw::before { top: -0.17rem; left: 0.1rem; }
+.wordmark__paw i:nth-child(1) { top: -0.29rem; left: 0.37rem; }
+.wordmark__paw i:nth-child(2) { top: -0.17rem; right: 0.1rem; }
+.wordmark__paw i:nth-child(n + 3) { display: none; }
 </style>

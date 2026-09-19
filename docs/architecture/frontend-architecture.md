@@ -96,7 +96,17 @@ tests/
 `game/domain/` is deliberately a sibling of `app/`, not a folder inside it. The
 separation is structural so that "just import Phaser here" is visibly wrong.
 
-### 3.1 As built at M5
+### 3.1 Product-shell convention — IMPLEMENTED (Milestone A)
+
+The SSR product routes use the shared `product-shell` CSS column and small
+presentational UI components. On desktop it remains constrained while the
+seaside background occupies the margins; on mobile it uses the available width.
+`CharacterPlaceholder` is a CSS-only, deliberately abstract art-slot frame. It
+does not depict a person and must be replaced only by an approved runtime asset package;
+no file from `design-reference/` is a runtime input. The menu, character picker
+and settings route may render this shell without importing the Phaser bridge.
+
+### 3.2 As built at M5
 
 The shape above is the plan for the finished game. What exists after the game-core
 milestone is the subset the rules needed, plus one file the plan did not name:

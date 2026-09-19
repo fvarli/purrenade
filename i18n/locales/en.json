@@ -8,8 +8,13 @@
     "continue": "Continue",
     "done": "Done",
     "copy": "Copy",
-    "copied": "Copied!"
+    "copied": "Copied!",
+    "back": "Back"
   },
+  "splash": { "starring": "STARRING AYŞENUR ⭐", "welcome": "Welcome to the seaside" },
+  "menu": { "play": "PLAY", "characters": "Characters", "settings": "Settings" },
+  "characters": { "title": "Choose your character", "aysenur": "AYŞENUR", "ourStar": "OUR STAR", "aysenurLede": "The seaside's star — she makes everything brighter", "power": "Special power", "lockedGroup": "Locked characters", "locked": "Coming later", "artNote": "More characters are coming later.", "playWith": "PLAY WITH THIS CHARACTER" },
+  "settings": { "title": "Settings", "language": "Language", "account": "Account" },
   "home": {
     "title": "Seaside",
     "greeting": "Welcome back, {name}!",

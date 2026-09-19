@@ -8,8 +8,13 @@
     "continue": "Continuar",
     "done": "Listo",
     "copy": "Copiar",
-    "copied": "¡Copiado!"
+    "copied": "¡Copiado!",
+    "back": "Volver"
   },
+  "splash": { "starring": "PROTAGONIZADA POR AYŞENUR ⭐", "welcome": "Bienvenida a la costa" },
+  "menu": { "play": "JUGAR", "characters": "Personajes", "settings": "Ajustes" },
+  "characters": { "title": "Elige tu personaje", "aysenur": "AYŞENUR", "ourStar": "NUESTRA ESTRELLA", "aysenurLede": "La estrella de la costa — hace todo más bonito", "power": "Poder especial", "lockedGroup": "Personajes bloqueados", "locked": "Próximamente", "artNote": "Próximamente llegarán más personajes.", "playWith": "JUGAR CON ESTE PERSONAJE" },
+  "settings": { "title": "Ajustes", "language": "Idioma", "account": "Cuenta" },
   "home": {
     "title": "La playa",
     "greeting": "¡Bienvenida de nuevo, {name}!",

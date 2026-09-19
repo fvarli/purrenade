@@ -2,9 +2,9 @@
 /**
  * The signed-in shell.
  *
- * Header plus content, with the account and admin links only where they lead
- * somewhere. Deliberately minimal: M2 delivers the auth surface, and the menu,
- * profile and settings screens arrive with the work that owns them.
+ * The shared signed-in product frame. It intentionally keeps navigation small:
+ * board 08 puts the game menu first, while account/admin remain real links only
+ * when their corresponding surfaces are available.
  */
 const auth = useAuthStore()
 </script>
@@ -23,6 +23,9 @@ const auth = useAuthStore()
         class="shell__nav"
         :aria-label="$t('common.mainNavigation')"
       >
+        <NuxtLink v-if="auth.isVerified" to="/settings">
+          {{ $t('menu.settings') }}
+        </NuxtLink>
         <NuxtLink
           v-if="auth.isVerified"
           to="/account/security"
@@ -79,7 +82,7 @@ const auth = useAuthStore()
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: var(--layout-card-max);
+  max-width: var(--layout-product-max);
   margin: 0 auto;
   padding: var(--space-4) var(--space-4) var(--space-12);
 }

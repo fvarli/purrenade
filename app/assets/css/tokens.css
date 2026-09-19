@@ -123,6 +123,7 @@
    * ----------------------------------------------------------------- */
   --layout-baseline-width: 390px;
   --layout-card-max: 26rem;
+  --layout-product-max: 30rem;
 
   /* 44px, the v0.3 HUD control size and the accessibility minimum. Every
    * interactive element in the auth surface meets it. */

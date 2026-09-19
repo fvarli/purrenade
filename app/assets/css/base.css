@@ -28,11 +28,9 @@ body {
 
   /* The seaside ground the v0.3 boards sit on: cream, with the sky wash at the
    * top of the viewport rather than a hard band, so the card floats on it. */
-  background-image: radial-gradient(
-    120% 60% at 50% 0%,
-    var(--color-sky-soft) 0%,
-    transparent 62%
-  );
+  background-image:
+    radial-gradient(120% 52% at 50% 0%, var(--color-sky-soft) 0%, transparent 62%),
+    radial-gradient(70% 28% at 105% 80%, var(--color-mint) 0%, transparent 72%);
   background-repeat: no-repeat;
   background-attachment: fixed;
 }
@@ -126,6 +124,31 @@ canvas {
   /* dvh, not vh: on mobile Safari and Chrome the toolbar makes `100vh` taller
    * than the visible area, which pushes a primary action below the fold —
    * exactly the failure the responsive requirement forbids. */
+}
+
+/* Shared v0.3 product column. The sea stays in the margins on wide screens;
+   the actual product never turns into an unreadable stretched desktop page. */
+.product-shell {
+  width: min(100%, var(--layout-product-max));
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-12);
+}
+
+.surface-card {
+  background: var(--bg-field);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-card);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-field);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--elevation-card);
 }
 
 .auth-card {

@@ -8,8 +8,13 @@
     "continue": "Devam",
     "done": "Tamam",
     "copy": "Kopyala",
-    "copied": "Kopyalandı!"
+    "copied": "Kopyalandı!",
+    "back": "Geri"
   },
+  "splash": { "starring": "BAŞROLDE AYŞENUR ⭐", "welcome": "Sahile hoş geldin" },
+  "menu": { "play": "OYNA", "characters": "Karakterler", "settings": "Ayarlar" },
+  "characters": { "title": "Karakterini Seç", "aysenur": "AYŞENUR", "ourStar": "YILDIZIMIZ", "aysenurLede": "Sahilin yıldızı — her şeyi güzelleştirir", "power": "Özel güç", "lockedGroup": "Kilitli karakterler", "locked": "Yakında", "artNote": "Yeni karakterler yakında gelecek.", "playWith": "BU KARAKTERLE OYNA" },
+  "settings": { "title": "Ayarlar", "language": "Dil", "account": "Hesap" },
   "home": {
     "title": "Sahil",
     "greeting": "Tekrar hoş geldin, {name}!",

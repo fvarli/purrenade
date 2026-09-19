@@ -11,6 +11,7 @@ const { locale } = useI18n()
 useHead({
   htmlAttrs: { lang: locale },
   titleTemplate: title => (title ? `${title} · Purrenade` : 'Purrenade'),
+  link: [{ rel: 'icon', type: 'image/svg+xml', href: '/purrenade-mark.svg' }],
 })
 </script>
 

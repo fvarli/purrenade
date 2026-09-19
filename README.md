@@ -15,8 +15,15 @@ Requires **Node 24 LTS**. The repository pins it in `.nvmrc`.
 ```bash
 nvm use          # reads .nvmrc → Node 24
 npm ci           # install from the lockfile
-npm run dev      # http://localhost:3000
 ```
+
+For routine development and testing, use the existing local stack at
+[`https://purrenade.test`](https://purrenade.test). Its frontend and backend
+services are normally already running; do not start a duplicate server or probe
+alternate ports merely to inspect or test the application. `npm run dev` and
+`npm run dev:stack` remain available for explicit manual development, setup, or
+recovery when the stack is demonstrably unavailable. See the authoritative
+[local-development runbook](docs/architecture/local-development.md).
 
 | Command | What it does |
 | --- | --- |

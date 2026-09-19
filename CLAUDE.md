@@ -12,6 +12,15 @@ Specification** (`docs/product/`), which is authoritative for the whole product.
 Never merge them, nest them, share Git state, or unify dependency management.
 Commits in the two repositories are always separate.
 
+## Local development stack
+
+Existing Purrenade frontend/backend services are normally already running. For
+routine development and testing, use `https://purrenade.test`. Do not start
+`npm run dev`, `nuxi dev`, another local web server, or probe alternate ports
+unless the existing stack is demonstrably unavailable and starting or restarting
+a service is necessary for the task. The authoritative runbook is
+[`docs/architecture/local-development.md`](docs/architecture/local-development.md).
+
 ## Source-of-truth priority
 
 1. Written Product/Game Specification — authoritative for behavior and game rules.

@@ -7,7 +7,8 @@ Sections 1–3 hold the decisions that block or shape milestones. Section 4 hold
 the proposals awaiting review. **Section 6 indexes every remaining open question**
 raised so far, so nothing is recorded only in a document nobody rereads.
 
-**Last reviewed:** 2026-09-19 (OPS-5 closed; see §0AG).
+**Last reviewed:** 2026-09-19 (production-art development-master review recorded;
+no OPEN item promoted).
 
 | Status | Meaning |
 | --- | --- |
@@ -404,9 +405,9 @@ that owns it, and listed here so this register is the complete live list.
 
 | Ref | Owning document | Question |
 | --- | --- | --- |
-| AA-1 | [art-asset-requirements.md](art-asset-requirements.md) | SLAYYY visual variant for the `JUMPABLE` beach barrier (§3) — the cone already has one |
-| AA-2 | [art-asset-requirements.md](art-asset-requirements.md) | Full SLAYYY transformation set (§3) |
-| AA-4 | [art-asset-requirements.md](art-asset-requirements.md) | Who produces the production character art, and on what schedule |
+| AA-1 | [art-asset-requirements.md](art-asset-requirements.md) | SLAYYY visual variant for the `JUMPABLE` beach barrier. A development-master drawing is a candidate only and needs owner approval. |
+| AA-2 | [art-asset-requirements.md](art-asset-requirements.md) | Full SLAYYY transformation set. Development-master examples reduce no approval requirement. |
+| AA-4 | [art-asset-requirements.md](art-asset-requirements.md) | Who produces rights-cleared runtime character art, and on what schedule; development masters do not answer this. |
 | AC-3 | [accessibility.md](accessibility.md) | Is there a low-motion gameplay variant beyond decoration reduction? |
 | AC-4 | [accessibility.md](accessibility.md) | Are subtitles/captions needed for any audio? (None is known to carry meaning) |
 | AC-5 | [accessibility.md](accessibility.md) | `--text-secondary` measures 3.2–4.1 : 1 and misses the AC-1 AA floor at caption size (§5A). Re-derive the token, or move every small-text usage to `--color-ink`? Found at M7; **M12 owns it**. |

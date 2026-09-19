@@ -7,13 +7,14 @@
 
 ## Context
 
-Purrenade has **four** classes of reference material, produced at different times
+Purrenade has several classes of reference material, produced at different times
 by different means, and they genuinely disagree with each other:
 
 | Material | Location |
 | --- | --- |
 | Written Product/Game Specification | `purrenade/docs/product/` |
 | Claude Design v0.3 | `design-reference/claude-design/v0.3` |
+| Production-art development masters | `design-reference/production-asset-development/` |
 | Historical v0.2.1 decisions (as represented inside v0.3) | within v0.3 |
 | ChatGPT Art Direction Board v1 | `design-reference/chatgpt-art-direction` |
 | Private source photographs | `design-reference/private-source/` (local-only) |
@@ -31,20 +32,25 @@ a faux-3D projection. Without a rule, either could have been implemented.
    game rules.
 2. **Claude Design v0.3** — authoritative for approved **UX/UI structure**, brand
    integration and visual hierarchy.
-3. **Historical v0.2.1 decisions represented in v0.3** — secondary reference only,
+3. **Explicitly approved runtime production assets** — authoritative only for
+   their visual subject over illustrative mockups. Development masters are not
+   automatically approved runtime assets.
+4. **Historical v0.2.1 decisions represented in v0.3** — secondary reference only,
    and only where v0.3 explicitly preserves them.
-4. **ChatGPT Art Direction Board** — **aspirational only**: atmosphere,
+5. **ChatGPT Art Direction Board** — **aspirational only**: atmosphere,
    production-art ambition, environmental richness, colour relationships,
    character scale, composition, mood. **Not** a pixel-perfect target, **not** an
    asset source, **not** a source of mechanics.
-5. **Private source references** — local-only character artwork reference.
+6. **Private source references** — local-only character artwork reference.
    **Never exposed, published, or committed.**
 
 ### Conflict rules
 
 1. The written specification wins for behavior.
 2. Claude Design v0.3 wins for approved visual decisions.
-3. Approved production assets win over illustrative mockups.
+3. Explicitly approved runtime production assets win over illustrative mockups.
+   A development master remains a visual specification/candidate until approved
+   and technically prepared as a runtime asset.
 4. **If a conflict cannot be resolved with these rules, stop and report it
    instead of inventing a decision.**
 
@@ -97,6 +103,8 @@ disagree are a **defect**, not a variant.
 
 **Now constrained**
 - No ChatGPT-board value may enter code.
+- Nothing in `design-reference/`, including a production-art development master,
+  may be built, bundled or served.
 - No mechanic may be inferred from a mockup.
 - No private source photograph may be committed, published, bundled, or served —
   under any licence, at any time.

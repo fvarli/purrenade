@@ -27,12 +27,17 @@ Every decision in this documentation carries exactly one status.
 
 1. **Written Product/Game Specification** — behavior and game rules.
 2. **Claude Design v0.3** — approved UX/UI structure, brand integration, visual hierarchy.
-3. **Historical v0.2.1 decisions as represented in v0.3** — secondary reference only.
-4. **ChatGPT Art Direction Board** — aspirational atmosphere and mood only.
-5. **Private source references** — local-only, never published.
+3. **Explicitly approved runtime production assets** — win over illustrative
+   mockups only for their visual subject. The development masters are candidates,
+   not runtime assets.
+4. **Historical v0.2.1 decisions as represented in v0.3** — secondary reference only.
+5. **ChatGPT Art Direction Board** — aspirational atmosphere and mood only.
+6. **Private source references** — local-only, never published.
 
 Conflict rules and every conflict found so far:
 [`product/design-reference-conflicts.md`](product/design-reference-conflicts.md).
+For the reference directory, its development masters, and the never-ship rule,
+see [`../design-reference/README.md`](../design-reference/README.md).
 
 ---
 

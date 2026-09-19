@@ -42,8 +42,12 @@ sprite plus a follow curve** — which keeps the companion cheap to run.
 ## 2. Character art is placeholder — APPROVED
 
 v0.3 marks the character drawings as *"temsili"* (representative): **the final
-illustration is to be produced from photo reference.** Nothing currently in the
-repository is production character art.
+illustration is to be produced from photo reference.** The repository now has
+character **production-art development masters** under
+`design-reference/production-asset-development/characters/`; they are canonical
+visual-development references/candidates, not final runtime production character
+art. They do not replace the required rights-safe redraw/extraction, state
+selection, animation timing, atlas production and approval.
 
 **Non-negotiable:** private source photographs are reference material for the
 illustrator only. They are never committed, published, bundled, served, or used
@@ -66,6 +70,11 @@ as downloadable production assets. See
 | Paw Token collectible | APPROVED |
 | Further obstacle art | **Not required for v1.** Two classes, two instances. See [difficulty-and-obstacles.md](difficulty-and-obstacles.md) §3.1. |
 | SLAYYY world transformation set | APPROVED in intent; the full list of what transforms is OPEN |
+
+The gameplay and world development masters illustrate additional obstacles,
+collectibles and transformations. Those drawings do **not** expand this v1
+catalogue or change its classes: cone remains `LANE_BLOCKING`; the low beach
+barrier remains `JUMPABLE`; Paw Token remains the sole v1 collectible mechanic.
 
 ---
 
@@ -106,6 +115,11 @@ character portraits and locked portraits, avatar placeholder.
 | **Text in art** | **Prohibited.** All copy is localizable text rendered over art — see [localization.md](localization.md) |
 | Fonts | **Self-hosted.** v0.3's reference page loads Baloo 2 from Google Fonts; production must not, for both KVKK and performance reasons |
 | Budget | A per-screen and per-run asset budget is set in [`../architecture/asset-strategy.md`](../architecture/asset-strategy.md) |
+
+Development masters may contain explanatory text, HUD examples and visual
+measurements because they are specifications, not delivery assets. None of that
+content may be cropped into runtime art; the HUD remains DOM-based under
+[`../architecture/game-engine-integration.md`](../architecture/game-engine-integration.md).
 
 ---
 

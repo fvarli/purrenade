@@ -10,10 +10,11 @@ How binary assets are stored, delivered, and kept from degrading the repository.
 
 | Fact | Detail |
 | --- | --- |
-| Design reference set | ~18 MB, mostly large PNG boards under `design-reference/` |
+| Design reference set | ~39 MB as reviewed on 2026-09-19, including ~19 MB of nine untracked production-art development masters and ~1.8 MB of planning material |
 | Git LFS | **Not used, and not introduced in M0** |
 | Storage | The current design-reference set is committed normally |
-| Production assets | **None exist yet** |
+| Production-art development masters | Nine PNG visual specifications/candidates under `design-reference/production-asset-development/`; they are reference-only and not runtime assets |
+| Runtime-ready / packaged production assets | **None exist yet** — no approved extracted sprites, texture atlases or delivered production-art package exists |
 
 **Decision: no Git LFS in M0.** ~18 MB is acceptable for an initial repository,
 and introducing LFS adds a tooling dependency for every future clone before there
@@ -28,7 +29,7 @@ directions, and the third is by far the largest:
 
 1. **New design versions.** Each design revision adds a full board set. v0.3
    alone is ~16 MB; a v0.4 and v0.5 would compound.
-2. **Production sprite atlases.** Ayşenur has 7 animation states and Loli has 5,
+2. **Runtime production sprite atlases.** Ayşenur has 7 animation states and Loli has 5,
    authored at 3× the 390 px baseline, plus world art and 16 achievement badges.
 3. **Audio.** Menu and run music plus effects. Music is typically the single
    largest class of asset in a casual game.
@@ -102,3 +103,6 @@ Concrete numbers are set at M12 against real assets rather than guessed now.
    over art.
 4. **Every third-party asset's license is recorded** in the dependency inventory
    from the moment it is introduced.
+5. **Development masters are not delivery inputs.** They must be redrawn or
+   extracted into rights-cleared, text-free runtime files and packed separately;
+   `design-reference/` itself remains excluded from builds and delivery.

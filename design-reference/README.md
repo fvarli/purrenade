@@ -59,13 +59,38 @@ Use it for:
 
 If v0.3 conflicts visually with earlier approved designs, v0.3 wins.
 
-### 3. Claude Design v0.2.1
+### 3. Production-art development masters
+
+Location:
+
+`./production-asset-development`
+
+This directory holds **canonical production-art development masters**: visual
+specifications and candidates used to commission, redraw, extract and integrate
+reusable runtime art. It is not an asset-delivery directory.
+
+The families are `brand/`, `characters/aysenur/`, `characters/loli/`, `world/`
+and `gameplay/`. Use a master for visual continuity only after applying the
+source-of-truth rules: it does not define a mechanic, approve an OPEN decision,
+or override Claude v0.3's approved UI/brand direction or the written rules.
+
+These PNG sheets are **not** texture atlases, final sprite sheets, or shippable
+runtime assets. Text, UI examples, labels, measurements, montage composition
+and example effects are illustrative. Runtime work still requires a rights-safe
+source, redraw/extraction, animation timing, per-state metadata, atlas packing,
+mobile-size review and a DOM/canvas placement decision.
+
+Nothing in this directory may be built, bundled or served. In particular, a
+master must contain no private source photograph or other private material
+before it can be tracked in this public repository.
+
+### 4. Claude Design v0.2.1
 
 Historical visual decisions from v0.2.1 are represented inside the v0.3 reference material.
 
 Use them only where v0.3 explicitly preserves those decisions.
 
-### 4. ChatGPT Art Direction Board
+### 5. ChatGPT Art Direction Board
 
 Location:
 
@@ -118,7 +143,10 @@ They exist only as local visual reference material for approved character artwor
 
 1. Written Product/Game Specification wins for behavior.
 2. Claude Design v0.3 wins for approved UX/UI and visual decisions.
-3. Approved production assets win over illustrative mockups.
-4. ChatGPT Art Direction is aspirational, not literal.
-5. Private source photographs are reference-only and must remain local.
-6. If a conflict cannot be resolved using these rules, stop and report it instead of inventing a decision.
+3. An explicitly approved runtime production asset wins over illustrative
+   mockups for its visual subject. A production-art development master is not
+   automatically such an asset.
+4. Historical v0.2.1 material applies only where v0.3 preserves it.
+5. ChatGPT Art Direction is aspirational, not literal.
+6. Private source photographs are reference-only and must remain local.
+7. If a conflict cannot be resolved using these rules, stop and report it instead of inventing a decision.

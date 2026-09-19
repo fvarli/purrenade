@@ -16,9 +16,10 @@ Commits in the two repositories are always separate.
 
 1. Written Product/Game Specification — authoritative for behavior and game rules.
 2. Claude Design v0.3 (`design-reference/claude-design/v0.3`) — authoritative for approved UX/UI structure, brand integration, visual hierarchy.
-3. Historical v0.2.1 decisions as represented inside v0.3 — secondary reference only.
-4. ChatGPT Art Direction Board (`design-reference/chatgpt-art-direction`) — aspirational atmosphere/mood only. **Not** pixel-perfect production artwork, **not** an asset source, **not** a source of mechanics.
-5. Private source references (`design-reference/private-source/`, local-only) — never exposed, published, or committed.
+3. Explicitly approved runtime production assets — win over illustrative mockups only for their visual subject. Production-art development masters are candidates, not runtime assets.
+4. Historical v0.2.1 decisions as represented inside v0.3 — secondary reference only.
+5. ChatGPT Art Direction Board (`design-reference/chatgpt-art-direction`) — aspirational atmosphere/mood only. **Not** pixel-perfect production artwork, **not** an asset source, **not** a source of mechanics.
+6. Private source references (`design-reference/private-source/`, local-only) — never exposed, published, or committed.
 
 Conflict rules: the written specification wins for behavior; v0.3 wins for
 approved visual decisions; approved production assets win over illustrative

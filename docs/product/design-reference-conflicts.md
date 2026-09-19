@@ -4,8 +4,8 @@ Every conflict and ambiguity found across the design references, with its
 resolution. **A conflict that cannot be resolved by the rules is reported here,
 not invented around.**
 
-**Last full review:** 2026-09-12, against `design-reference/` as it stood at that
-date (Claude Design v0.3 and ChatGPT Art Direction Board v1).
+**Last full review:** 2026-09-19, against Claude Design v0.3, the ChatGPT Art
+Direction Board v1 and the nine production-art development masters then present.
 **Last decision pass:** 2026-09-12 (M0.6) — #10, #13, #14 and #15 resolved; #16 partially
 resolved, with a complete catalogue proposed and awaiting approval.
 
@@ -253,6 +253,28 @@ commercial use, app-store distribution, and the eventual licensing model? See
 [licensing-and-rights.md](licensing-and-rights.md).
 
 ---
+
+## B.1 Production-art development masters review — COMPLETE (2026-09-19)
+
+`design-reference/production-asset-development/` contains nine PNG development
+masters. They are visual specifications/candidates, not approved runtime assets,
+and they do not resolve an OPEN decision merely by depicting a possible answer.
+
+| Family | Consistent usable direction | Non-authoritative / remediation finding |
+| --- | --- | --- |
+| Brand (2) | Paw + wave compact mark; warm seaside palette; light/dark use examples | The mixed-case script wordmark, taglines, palette hexes and sparkle use diverge from v0.3. Do not adopt them; v0.3's uppercase Baloo-2 wordmark, locked tokens and SLAYYY-only ✦/✨ rule remain authoritative. |
+| Ayşenur (3) | Long warm-brown hair, sunglasses, white paw top, cargo trousers, pink accessories; readable idle/run/jump/hit/recovery/SLAYYY/celebration direction | Pose sequences are art direction, not literal sprite frames. Side/back running and the detailed face require a mobile-scale redraw and animation plan; labels and copy cannot ship. |
+| Loli action (1) | Long fluffy white coat, ginger markings/tail, nose marking; cat-like entry/follow/magnet/reward/exit direction; approximately eight-second companion presentation | It correctly depicts attraction rather than a multiplier or protection. Puffs, hearts and “extra joy” are presentation only; no automatic activation follows from the 200/200 example. |
+| Loli character (1) | The public-safe replacement was visually verified: illustrated front/3/4/side/back views, expressions, marking map and mobile silhouettes preserve the intended fluffy white coat, ginger markings/tail and near-nose marking | **RESOLVED:** the prior version's embedded “Real Reference (Photos)” panels are absent. This remains a development master, not a runtime asset; its labels, approximate scale and palette are illustrative, and private source photographs remain prohibited from the public repository. |
+| World (1) | Layered sky, mountains/coastline, town, sea, railing, road and foreground dressing support a parallax Phaser world and a readable central play column with richer desktop sides | It is a composable-layer reference, not one flattened game screenshot. Its written signs, time-of-day variants and extensive transformation set are illustrative; neither changes gameplay nor resolves AA-2. |
+| Gameplay (1) | Cone, low barrier, Paw, hearts, Loli progress, manual-looking SLAYYY states and effects give useful visual language | It incorrectly labels the cone “Jump over”, introduces crate/bin/puddle obstacle candidates, Flower Burst charge, Star special, Paw `+1` and Heart `+1 Life`. These are not v1 rules: cone is `LANE_BLOCKING`, barrier is `JUMPABLE`, Paw is worth 10, there is no healing, and no further collectible/obstacle mechanic is approved. HUD illustrations are DOM references, not canvas sprite requirements. |
+
+The normal/SLAYYY and Loli material does not override the approved invariants:
+SLAYYY is manual, lasts approximately five seconds, gives invulnerability and
+at most ×2 without healing; Loli is a single active companion, lasts
+approximately eight seconds, attracts eligible Paw Tokens and gives neither
+invulnerability nor a multiplier. Tea and Trileçe remain non-mechanical
+personalization/decorative concepts only.
 
 ## C. Decisions v0.3 makes that the written brief did not
 

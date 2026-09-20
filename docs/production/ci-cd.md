@@ -131,9 +131,41 @@ current -> releases/<sha>
 `deploy/bin/health-check.sh` is one implementation used in three places: the
 loopback check on the host, the public HTTPS check from the runner, and rollback
 verification. It asserts the status is **exactly 200** — redirects are neither
-followed nor accepted — that the body carries a Purrenade marker a default nginx
-page cannot produce, and that it does **not** carry the unresolved-session
-marker. The earlier `curl -fsS` check passed on a 301.
+followed nor accepted — that the body carries the guest-home marker below, and
+that it does **not** carry the unresolved-session marker. The earlier
+`curl -fsS` check passed on a 301.
+
+### The health contract
+
+| | Value | Where it lives |
+| --- | --- | --- |
+| Expect | `data-purrenade-health="guest-home"` | the guest `<section>` in `app/pages/index.vue` |
+| Reject | `home__resolving` | the unresolved-session branch of the same file |
+
+**This is a contract, not a detail of the markup.** Renaming or removing the
+attribute rolls the next release back. It is checked from both ends — the
+browser job runs the real script against the built server, and
+`tests/deploy/health-check.test.sh` asserts the marker the gate wants is the
+marker the page serves, on the guest branch, with no style rule.
+
+**Why an attribute.** The contract used to be the class `home__play`. A
+production build inlines the stylesheet, so that string sat in the `<head>` as a
+CSS rule whether or not anything rendered — and `home__play` belonged to the
+*signed-in* play button, which an unauthenticated check can never legitimately
+see. The gate was matching a stylesheet rather than a page: it passed while
+proving nothing about the body, and went on passing until the approved product
+shell replaced the home page and took the rule with it. The deployment that
+followed rolled back a healthy release, which was the first accurate thing the
+gate had said.
+
+Two properties follow, and both are tested. The marker must carry **no style
+rule**, so it cannot reappear in the inlined head; and it must sit on the
+**guest branch**, so matching it proves an anonymous request rendered the real
+entry screen rather than merely proving something Purrenade-shaped answered.
+
+The E2E interaction hook `home__play` still exists on the signed-in play button
+and is deliberately *not* the health contract. An unauthenticated gate must
+never depend on a signed-in control.
 
 ### Failure boundaries
 
@@ -274,8 +306,20 @@ immutability, partial `.incoming` directories, artifacts missing the entrypoint,
 unsafe release ids, prune protecting the active release and the rollback target,
 and — twice, because it matters most — **session-store survival**.
 
+`tests/deploy/health-check.test.sh` drives the real `health-check.sh` against a
+canned loopback origin — a guest home, a bare 200, a page still resolving its
+session, a 301, a 500, a closed port — and then asserts the contract above
+against `app/pages/index.vue` itself.
+
+All four harnesses run in CI's **`deploy-scripts`** job. Until that job existed
+they ran only when a person remembered to run them, which is how the gate and
+the application were able to drift apart in the first place.
+
 ```bash
 tests/deploy/release.test.sh
+tests/deploy/remote-exec.test.sh
+tests/deploy/workflow.test.sh
+tests/deploy/health-check.test.sh
 bash -n deploy/bin/release.sh
 ```
 
@@ -290,3 +334,4 @@ bash -n deploy/bin/release.sh
 | Service exits immediately after restart | `PURRENADE_ALLOW_FS_SESSIONS=1` is missing from the host env file |
 | Everyone signed out after a release | The artifact was built with the wrong session-store path — see §3 |
 | Deployment rolled back automatically | The post-activation health check failed. The failed release is still on disk; read its journal. |
+| Health check says the guest marker is missing | The home page no longer serves `data-purrenade-health="guest-home"`. It is a contract — see [§4](#the-health-contract). Fix the page or change both ends together; never loosen the gate to make a release green. |

@@ -69,6 +69,18 @@ test.describe('a signed-out visitor', () => {
       .toContain('btn btn--primary')
     expect(body, 'the unresolved loading branch must not be server-rendered')
       .not.toContain('home__resolving')
+
+    /*
+     * The deployment health contract, asserted where it is actually produced.
+     * `deploy/bin/health-check.sh` greps a production response for this exact
+     * string, and rolls a release back when it is missing. Nothing else in the
+     * test suite notices if the attribute is renamed or dropped — the specs
+     * that drive the home page need a session and do not run in CI — so a
+     * silent removal would be found by a failed deployment, which is how this
+     * contract broke the first time.
+     */
+    expect(body, 'the deployment health marker belongs in the guest body')
+      .toContain('data-purrenade-health="guest-home"')
   })
 
   test('hydrates the home page without a mismatch', async ({ page }) => {

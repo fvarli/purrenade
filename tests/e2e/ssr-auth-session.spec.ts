@@ -53,12 +53,17 @@ async function serverHtml(page: Page, path: string): Promise<string> {
  * The rendered markup, without the head.
  *
  * Content assertions must not run against the whole document. A production
- * build inlines the stylesheet, so every scoped class name — `home__greeting`,
- * `home__play` — appears in the `<head>` whether or not the element was ever
- * rendered. Asserting `toContain('home__greeting')` on the full document
- * therefore passes on a page that rendered nothing of the sort, which is
- * precisely how this file briefly claimed a production run was correct while
- * the body was still unresolved.
+ * build inlines the stylesheet, so every scoped class name that carries a style
+ * rule — `home__greeting`, `home__hero` — appears in the `<head>` whether or not
+ * the element was ever rendered. Asserting `toContain('home__greeting')` on the
+ * full document therefore passes on a page that rendered nothing of the sort,
+ * which is precisely how this file briefly claimed a production run was correct
+ * while the body was still unresolved.
+ *
+ * The same trap took the deployment health gate, which matched `home__play` in
+ * the head for as long as that class had a rule. It no longer has one — it is a
+ * bare interaction hook now — but stripping the head is what makes these
+ * assertions mean anything regardless.
  */
 async function serverBody(page: Page, path: string): Promise<string> {
   return (await serverHtml(page, path)).split('</head>').pop() ?? ''

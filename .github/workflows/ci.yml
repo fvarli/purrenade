@@ -305,6 +305,19 @@ jobs:
           [ "$leaked" -eq 0 ] || exit 1
           echo "no credential in server-rendered HTML, and the degraded path still renders"
 
+      - name: The deployment health gate passes against this build
+        # The exact script the pipeline runs on production, against the exact
+        # kind of artifact it runs it on. Everything else here asserts the page;
+        # this asserts the gate — and the two drifting apart is what rolled a
+        # healthy release back. The gate matched a CSS class that a production
+        # build inlined into the `<head>`, so it passed without ever reading the
+        # body, until the product shell removed the rule and it failed for the
+        # first accurate reason it had.
+        #
+        # Deployment is manual, so without this the next proof that the gate
+        # still matches the app is a failed release.
+        run: deploy/bin/health-check.sh --url http://127.0.0.1:4399/ --attempts 10 --interval 1
+
       - name: An anonymous page is server-rendered resolved, not unresolved
         # The other half of the same defect. Before SSR resolved the session,
         # `/` server-rendered its "we do not know yet" branch to *everybody* and
@@ -384,6 +397,46 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  deploy-scripts:
+    name: Deployment scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      # These harnesses drive the real deployment scripts against throwaway
+      # trees and canned origins. They existed and passed, and CI ran none of
+      # them — docs/production/ci-cd.md told a human to run them by hand, which
+      # is another way of saying they ran when someone remembered. The logic
+      # that switches production traffic and the gate that guards it are now
+      # checked on every push, like everything else.
+      # PyYAML is on the current runner image and workflow.test.sh parses the
+      # workflows with it. Installing it when it is absent keeps a base-image
+      # change from arriving as an unexplained red build on an unrelated push.
+      - name: Ensure the YAML parser the structure tests need
+        run: |
+          set -euo pipefail
+          if ! python3 -c 'import yaml' 2>/dev/null; then
+            python3 -m pip install --quiet pyyaml \
+              || python3 -m pip install --quiet --break-system-packages pyyaml
+          fi
+          python3 -c 'import yaml'
+
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          for script in deploy/bin/*.sh tests/deploy/*.test.sh; do
+            bash -n "$script"
+          done
+
+      - name: Release mechanics, transport, workflow structure and the health gate
+        run: |
+          set -euo pipefail
+          tests/deploy/release.test.sh
+          tests/deploy/remote-exec.test.sh
+          tests/deploy/workflow.test.sh
+          tests/deploy/health-check.test.sh
 
   docs:
     name: Documentation checks

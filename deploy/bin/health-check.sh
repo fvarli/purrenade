@@ -19,21 +19,45 @@
 # loop, or nginx answering for the wrong site would all have been recorded as a
 # successful deployment.
 #
-# So this asserts three things instead:
+# So this asserts four things instead:
 #
 #   1. the status is exactly 200 — no redirect, and redirects are not followed,
 #      because following one would prove something about a different URL;
 #   2. the body carries a Purrenade-specific marker, which a default nginx page,
 #      an error page, or another application on this shared host cannot satisfy;
-#   3. the body does NOT carry the unresolved-session marker, so a page that
+#   3. that marker is the *guest home* contract, so a 200 counts only when an
+#      unauthenticated request rendered the real entry screen — not merely when
+#      something Purrenade-shaped answered;
+#   4. the body does NOT carry the unresolved-session marker, so a page that
 #      rendered but could not resolve its own auth state is not called healthy.
+#
+# ---------------------------------------------------------------------------
+# Why the marker is an attribute, and why this one
+# ---------------------------------------------------------------------------
+#
+# It used to be the CSS class `home__play`. Two things were wrong with that, and
+# they hid each other. A production build inlines the stylesheet, so the string
+# sat in the `<head>` as a rule whether or not the element ever rendered; and
+# `home__play` belonged to the *signed-in* play button, which an unauthenticated
+# check can never legitimately see. The gate was matching a stylesheet rather
+# than a page — passing while proving nothing about the body — right up until the
+# product shell deleted the rule, at which point it rolled back a healthy
+# release for the first honest reason it had ever given.
+#
+# `data-purrenade-health` exists in app/pages/index.vue for this and nothing
+# else. It has no style rule and no behaviour, so it casts no shadow in the
+# head, and it sits on the guest branch, so matching it proves the
+# unauthenticated entry screen genuinely rendered. Both sides are one contract:
+# see docs/production/ci-cd.md and tests/deploy/health-check.test.sh.
 
 set -euo pipefail
 
-# A class emitted by the home page in its resolved state. `home__resolving` is
-# the branch that renders when the session could not be resolved; CI already
-# asserts an anonymous page must not contain it.
-readonly EXPECT_MARKER='home__play'
+readonly EXPECT_MARKER='data-purrenade-health="guest-home"'
+
+# The branch the home page renders when it could not resolve the session. Still
+# a class, because that is what the template carries and CI already asserts an
+# anonymous page must not contain it. It has no CSS rule either, so it cannot
+# appear in the inlined head.
 readonly REJECT_MARKER='home__resolving'
 
 die() { printf '\n  ERROR: %s\n\n' "$1" >&2; exit 1; }
@@ -80,4 +104,4 @@ if grep -qF -- "$REJECT_MARKER" "$body"; then
     die "unhealthy: ${url} returned 200 but rendered the unresolved-session branch"
 fi
 die "unhealthy: ${url} returned 200 but did not carry the '${EXPECT_MARKER}' marker
-  Something answered, but it was not a working Purrenade home page."
+  Something answered, but it was not the Purrenade guest home page."

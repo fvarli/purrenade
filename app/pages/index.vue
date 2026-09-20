@@ -5,6 +5,29 @@
  * Board 08's real, intentionally non-persistent menu. Progress values are not
  * fabricated: until M9 can provide accepted run data, this screen only exposes
  * the product paths that genuinely exist.
+ *
+ * ## Two hooks in the template below are contracts, not decoration
+ *
+ * `data-purrenade-health="guest-home"` on the guest section is what
+ * `deploy/bin/health-check.sh` greps for, on the loopback port and again on the
+ * public origin. A release whose `/` does not serve it is rolled back.
+ *
+ * It is an attribute rather than a class deliberately. The contract used to be
+ * the class `home__play`, and a production build inlines the stylesheet — so
+ * that string sat in the `<head>` as a CSS rule whether or not the element ever
+ * rendered. The gate was matching the stylesheet rather than the page, and it
+ * passed while proving nothing at all about the body. When the product shell
+ * replaced this page the rule went with it, and the next deployment failed a
+ * gate it had never really been passing. An attribute casts no such shadow: it
+ * appears only where it is rendered.
+ *
+ * `home__play` on the play button is the E2E interaction hook, and carries no
+ * style rule. The two are deliberately separate: the health gate runs
+ * unauthenticated and must never depend on a signed-in control existing.
+ *
+ * Neither string is named in a template comment, because template comments are
+ * emitted into dev's server HTML — the string would match itself there.
+ * `docs/production/ci-cd.md` records both.
  */
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -58,7 +81,9 @@ useHead({ title: () => t('home.title') })
       <!-- The run surface. Verified players only, matching the approved
            navigation map, where Run sits in the authenticated branch. -->
       <div v-if="auth.isVerified" class="home__actions">
-        <UiAuthButton @click="navigateTo('/run')">{{ $t('menu.play') }}</UiAuthButton>
+        <!-- The class on the button below is the E2E interaction hook described
+             in <script setup>. It has no style rule; it exists to be selected. -->
+        <UiAuthButton class="home__play" @click="navigateTo('/run')">{{ $t('menu.play') }}</UiAuthButton>
         <div class="home__grid">
           <NuxtLink to="/characters">{{ $t('menu.characters') }}</NuxtLink>
           <NuxtLink to="/settings">{{ $t('menu.settings') }}</NuxtLink>
@@ -69,7 +94,14 @@ useHead({ title: () => t('home.title') })
     </template>
 
     <template v-else>
-      <section class="home__entry" aria-labelledby="entry-title">
+      <!-- The deployment health contract is the data attribute below. See the
+           note in <script setup>: naming it here would put the string into
+           dev's server HTML, where it would match itself. -->
+      <section
+        class="home__entry"
+        data-purrenade-health="guest-home"
+        aria-labelledby="entry-title"
+      >
         <div class="home__sun" aria-hidden="true" />
         <UiBrandWordmark />
         <p class="home__starring">{{ $t('splash.starring') }}</p>

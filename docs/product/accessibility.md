@@ -127,6 +127,14 @@ first time, and the token does not pass it.
 
 **M7 fixed only what M7 introduced.** The two new HUD usages — the score label
 and the SLAYYY control — were moved to `--color-ink` (13.4 : 1 and 11.7 : 1).
+
+**Milestone B did the same.** The reconstructed heads-up display and its two
+desktop side cards were measured against this table rather than eyeballed, and
+two new labels failed it — the card titles at **3.07 : 1** on cream and the
+next-goal note at **2.69 : 1** on `--color-pink-soft`, both at `--type-micro`.
+Both moved to `--color-ink` (13.4 : 1 and 11.7 : 1) before the milestone closed.
+`--color-pink-deep` is a fine colour for a rim, a border or a meter fill, and it
+is not a colour for 11 px text on a pale ground.
 The token itself is used in **nine** files across the authentication and account
 surfaces, and re-deriving a locked colour for all of them is a palette decision
 and a milestone of its own, not a side effect of a scoring milestone. **M12 owns

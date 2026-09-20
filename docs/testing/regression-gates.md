@@ -39,8 +39,9 @@ Run on every pull request and every push to `main`.
 | G17 | **No bearer token in browser storage** | `localStorage`/`sessionStorage` is written with anything token-shaped |
 | G17a | **Loli activation semantics** | A threshold earned but never started is counted as an activation, or unmuting fails to restore the previous volume |
 | G23 | **RNG-stream ownership** | A module draws from a stream it does not own — `pattern` belongs to `obstacles.ts`, `collectible` to `collectibles.ts`, and `cosmetic` to nothing yet |
+| G24 | **Runtime art boundary** | A file under `app/` or `game/` carries a path into `design-reference/`, or a texture the run loads is missing, is not a PNG, or has no alpha channel |
 
-G9–G14, G16 and G23 are cheap static checks that encode approved rules. They
+G9–G14, G16, G23 and G24 are cheap static checks that encode approved rules. They
 exist because each of them is a rule that is easy to break accidentally and
 expensive to unwind later.
 

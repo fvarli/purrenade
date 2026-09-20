@@ -304,6 +304,14 @@
     "slayyyCharging": "SLAYYY doluyor — %{percent}",
     "slayyyReady": "SLAYYY hazır — etkinleştir",
     "slayyyActive": "SLAYYY etkin",
-    "slayyyHint": "Etkinleştirmek için E'ye bas veya dokun"
+    "slayyyMultiplier": "SLAYYY · ×2 skor · korunuyor",
+    "slayyyHint": "Etkinleştirmek için E'ye bas veya dokun",
+    "keysTitle": "Klavye",
+    "keysLanes": "← →  şerit değiştir",
+    "keysJump": "Boşluk / ↑  zıpla",
+    "keysSlayyy": "E  SLAYYY",
+    "keysPause": "Esc  duraklat",
+    "nextGoalTitle": "Sonraki hedef",
+    "nextGoalNote": "Loli Bonusu yaklaşıyor!"
   }
 }

@@ -304,6 +304,14 @@
     "slayyyCharging": "SLAYYY cargando — {percent} %",
     "slayyyReady": "SLAYYY lista — activar",
     "slayyyActive": "SLAYYY activa",
-    "slayyyHint": "Pulsa E o toca para activar"
+    "slayyyMultiplier": "SLAYYY · ×2 puntuación · protegida",
+    "slayyyHint": "Pulsa E o toca para activar",
+    "keysTitle": "Teclado",
+    "keysLanes": "← →  cambiar de carril",
+    "keysJump": "Espacio / ↑  saltar",
+    "keysSlayyy": "E  SLAYYY",
+    "keysPause": "Esc  pausar",
+    "nextGoalTitle": "Próxima meta",
+    "nextGoalNote": "¡El Bonus de Loli se acerca!"
   }
 }

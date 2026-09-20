@@ -72,3 +72,8 @@ certs/
 # A saved Playwright session. Holds a live BFF session cookie for a local test
 # account — a credential, not test output.
 tests/e2e/.auth/
+
+# The asset preparation tool is Python and runs by hand; its bytecode cache is
+# not part of the repository.
+__pycache__/
+*.pyc

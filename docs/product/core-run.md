@@ -15,19 +15,27 @@ and read from configuration.
 
 - A fixed sea horizon occupies the upper portion of the frame; the promenade
   fills the lower portion.
-- **Three parallel lanes run vertically with near-orthographic projection.** The
-  lanes do **not** converge toward a vanishing point.
-- Ayşenur is anchored near the bottom-centre of the playfield and does not move
-  vertically except when jumping.
-- Obstacles and collectibles enter at the horizon edge and scroll toward the
+- **Three lanes, and the picture converges on a vanishing point at the horizon.**
+  Amended 2026-09-20 — see
+  [design-reference-conflicts.md](design-reference-conflicts.md) #3a, accepted at
+  the visual review. This paragraph previously read *"near-orthographic
+  projection … the lanes do not converge"*, which the promenade no longer does.
+- **The lane *semantics* are unchanged and are not derived from the picture.**
+  There are three lanes, they are indices, distance is in road units, and
+  collision is decided from those two. Nothing about the projection reaches a
+  rule: the same obstacle is hit at the same moment whatever size it is drawn.
+- Ayşenur faces the camera and is anchored near the bottom-centre of the
+  playfield; she does not move vertically except when jumping.
+- Obstacles and collectibles enter at the vanishing point and grow toward the
   player.
 
-> The ChatGPT art-direction board shows a converging-perspective, behind-the-back
-> camera. That is **not** the approved composition. See
-> [design-reference-conflicts.md](design-reference-conflicts.md) #3. This matters
-> technically: the approved composition is achievable with straightforward 2D
-> scrolling, while the art-board framing would require faux-3D lane projection
-> and per-depth sprite scaling.
+> #3 still stands for everything it settled other than the projection — the
+> camera faces the player, and the ChatGPT board's behind-the-back framing is
+> **not** approved. What #3a changes is only how the promenade is *drawn*: its
+> stated risk was "a different collision model", and the acceptance rules that
+> out in terms. Per-depth sprite scaling is presentation arithmetic in
+> `game/engine/layout.ts`; there is no faux-3D collision model and none may be
+> introduced.
 
 ### 1.2 Play column — APPROVED
 

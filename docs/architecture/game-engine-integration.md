@@ -244,6 +244,37 @@ product decision about which of the two values is load-bearing.
 
 ---
 
+## 7C. The presentation layer, after the B3 reconstruction — APPROVED
+
+The engine's rendering half is three modules rather than one scene, and the
+split follows the boundary that already exists on screen:
+
+| Module | Draws | May read |
+| --- | --- | --- |
+| `promenade.ts` | Sky, painted coast, road, lane markings, balustrade, dressing, the desktop column's light | The layout, a scroll offset, and three presentation flags — how far into the SLAYYY world, whether the run is live, and the reduced-motion preference. **Not the snapshot's obstacles.** |
+| `actors.ts` | Ayşenur, Loli, the hazards, the Paw Tokens, the SLAYYY effect | The render snapshot |
+| `scene.ts` | Nothing | Everything, and it hands each of the other two exactly what it needs |
+
+`promenade.ts` cannot draw a hazard even by accident: it is never given one.
+
+### The scroll offset does not come from the bridge
+
+The promenade's paving, lane dashes, balusters and palms are laid out in world
+units and projected, so they need to know how far the world has moved — and the
+snapshot carries no speed. **It was not given one.** An obstacle present in two
+consecutive frames reports its own distance in both, and the difference *is* the
+distance travelled, so `scene.ts` measures the rate from data the renderer
+already receives and integrates its own offset.
+
+That is a deliberate choice against the easier one. Adding `scrollUnits` to
+`RenderSnapshot` would have widened a contract §3 describes as "three payloads,
+three directions, and nothing else" for the benefit of scenery, and every later
+field would have had that precedent to point at. The measurement is presentation
+arithmetic in the presentation layer, it freezes when the run is not `running`,
+and nothing downstream of it can reach the rules.
+
+---
+
 ## 8. Open questions
 
 | Ref | Question |

@@ -304,6 +304,14 @@
     "slayyyCharging": "SLAYYY charging — {percent}%",
     "slayyyReady": "SLAYYY ready — activate",
     "slayyyActive": "SLAYYY active",
-    "slayyyHint": "Press E or tap to activate"
+    "slayyyMultiplier": "SLAYYY · ×2 score · protected",
+    "slayyyHint": "Press E or tap to activate",
+    "keysTitle": "Keyboard",
+    "keysLanes": "← →  change lane",
+    "keysJump": "Space / ↑  jump",
+    "keysSlayyy": "E  SLAYYY",
+    "keysPause": "Esc  pause",
+    "nextGoalTitle": "Next goal",
+    "nextGoalNote": "The Loli Bonus is getting closer!"
   }
 }

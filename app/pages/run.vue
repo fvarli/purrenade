@@ -17,6 +17,17 @@ import { HEARTS, PLAY_COLUMN_MAX_PX, PROGRESS } from '~~/game/bridge'
  * is hidden, and tearing the WebGL context down on leave — lives in
  * `useRunSurface`, where it can be driven by a fake engine in a test instead of
  * being verified by opening a browser and hoping.
+ *
+ * ---
+ *
+ * **The display is a heads-up display, not a page around a game.** v0.3's
+ * gameplay boards float four small pieces of chrome over a full-bleed
+ * playfield — a score card, a pause control, the hearts and Paw readouts, and
+ * the SLAYYY meter along the bottom — and its desktop board keeps every one of
+ * them in the same protected column, with the seaside spreading out behind. The
+ * previous build put a bordered portrait frame in the middle of a page and a
+ * white readout card beside it, which is a phone screenshot next to a web
+ * widget. Everything below is one overlay on one canvas.
  */
 
 definePageMeta({
@@ -49,6 +60,19 @@ const {
  */
 const nearThreshold = computed(
   () => cyclePaws.value >= PROGRESS.loliThreshold - PROGRESS.hudThresholdProximity,
+)
+
+/**
+ * How full the Paw counter is, as a percentage, for the desktop goal card.
+ *
+ * `cyclePaws` for the same reason the readout above uses it: progress toward
+ * the *next* bonus is the thing being shown, and `runPaws` stops meaning that
+ * the moment the first bonus lands. Clamped because a threshold crossing is
+ * handled by the domain on its own clock, and a meter briefly over 100% would
+ * paint outside its own track.
+ */
+const goalPercent = computed(
+  () => Math.min(100, (cyclePaws.value / PROGRESS.loliThreshold) * 100),
 )
 
 /**
@@ -91,7 +115,7 @@ const slayyyAnnouncement = computed(() => (
  * was running. Escape alone stayed reachable, which is why this survived M6: the
  * exemption that rescued the pause trap hid the rest of it.
  *
- * One function for all three controls rather than a per-button workaround. It
+ * One function for all the controls rather than a per-button workaround. It
  * moves focus, never removes it, so there is no moment with nothing focused and
  * no trap — the surface is `tabindex="0"` and Tab still reaches every control
  * from there. `preventScroll` keeps the page from jumping on a short viewport,
@@ -126,9 +150,9 @@ useHead({
  * already sets `touch-action: none`, which by specification takes every
  * browser panning and zooming gesture — pinch included — away from that
  * element. So the meta bought nothing for the surface and took page zoom away
- * from everything else, including the 13px phase pill and status panel, which
- * are exactly what a low-vision player would pinch to read. That is a WCAG 2.2
- * 1.4.4 failure in exchange for nothing.
+ * from everything else, including the small readouts, which are exactly what a
+ * low-vision player would pinch to read. That is a WCAG 2.2 1.4.4 failure in
+ * exchange for nothing.
  */
 
 onMounted(() => {
@@ -166,147 +190,239 @@ onBeforeUnmount(stop)
       :aria-label="t('run.surfaceLabel')"
     />
 
-    <div class="run__chrome">
-      <NuxtLink to="/" class="run__exit">
-        {{ t('run.leave') }}
-      </NuxtLink>
-
-      <p class="run__phase" aria-live="polite">
-        {{ t(`run.phase.${phase}`) }}
-      </p>
-
-      <UiAuthButton
-        v-if="!failed"
-        type="button"
-        variant="quiet"
-        :disabled="loading || hasEnded"
-        @click="pauseFromControl"
-      >
-        {{ isPaused ? t('run.resume') : t('run.pause') }}
-      </UiAuthButton>
-    </div>
-
     <!--
       The heads-up display.
 
-      Four facts, one row each on a narrow screen, all inside the same play
-      column as the rest of the chrome. Every one of them is real text as well
-      as a shape: `accessibility.md` §4 requires gameplay state to exist as DOM
-      outside the canvas, and none of it may rest on hue alone.
+      One overlay over the whole canvas, held to the play column so it stays
+      beside the game on a wide monitor instead of drifting to the window edges.
+      It takes no touches; each genuinely interactive child opts back in.
+
+      Every readout is real text as well as a shape: `accessibility.md` §4
+      requires gameplay state to exist as DOM outside the canvas, and none of it
+      may rest on hue alone.
     -->
-    <div class="run__hud">
-      <p class="run__score">
-        <span class="run__score-label">{{ t('run.scoreLabel') }}</span>
-        <span class="run__score-value">{{ score }}</span>
-      </p>
+    <div class="run__readouts">
+      <div class="run__hud">
+        <p class="run__score">
+          <span class="run__score-label">{{ t('run.scoreLabel') }}</span>
+          <span class="run__score-value">{{ score }}</span>
+        </p>
 
-      <p class="run__paws">
-        <span aria-hidden="true" class="run__paw-glyph">🐾</span>
-        <span>{{ nearThreshold
-          ? t('run.cycleProgress', { count: cyclePaws, total: PROGRESS.loliThreshold })
-          : t('run.paws', { count: cyclePaws })
-        }}</span>
-      </p>
+        <p class="run__phase" aria-live="polite">
+          {{ t(`run.phase.${phase}`) }}
+        </p>
+      </div>
 
-      <p v-if="loliActive" class="run__loli" role="status">
-        <span aria-hidden="true">🐈</span>
-        {{ t('run.loliActive') }}
-      </p>
-    </div>
+      <div class="run__chrome">
+        <!--
+          A plain button with an icon and a name.
 
-    <div class="run__slayyy">
+          It was a text button that read "Pause"/"Resume" in three languages of
+          differing length, which is why the top strip used to reflow. The state
+          is in the accessible name and in the glyph, and the glyph is two
+          shapes rather than an emoji so it cannot land on a font that has none.
+        -->
+        <button
+          v-if="!failed"
+          type="button"
+          class="run__pause"
+          :disabled="loading || hasEnded"
+          :aria-label="isPaused ? t('run.resume') : t('run.pause')"
+          @click="pauseFromControl"
+        >
+          <svg
+            class="run__pause-glyph"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path v-if="isPaused" d="M8 5.5 18.5 12 8 18.5Z" />
+            <template v-else>
+              <rect x="7.5" y="5.5" width="3.6" height="13" rx="1.4" />
+              <rect x="13" y="5.5" width="3.6" height="13" rx="1.4" />
+            </template>
+          </svg>
+        </button>
+
+        <NuxtLink to="/" class="run__exit">
+          {{ t('run.leave') }}
+        </NuxtLink>
+      </div>
+
+      <div class="run__meta">
+        <!--
+          Hearts and Paws, the two counters v0.3 pins under the pause control.
+
+          The heart shapes are decorative and the count beside them is the
+          accessible fact. Countable shapes rather than a colour bar, and spent
+          hearts are hollow rather than merely faded, so nothing here depends on
+          hue.
+        -->
+        <p class="run__hearts">
+          <span aria-hidden="true" class="run__heart-row">
+            <span
+              v-for="index in HEARTS.max"
+              :key="index"
+              class="run__heart"
+              :class="{ 'run__heart--spent': index > hearts }"
+            >♥</span>
+          </span>
+          <span class="run__hearts-count">{{ t('run.hearts', { count: hearts, max: HEARTS.max }) }}</span>
+        </p>
+
+        <p class="run__paws">
+          <span aria-hidden="true" class="run__paw-glyph">🐾</span>
+          <span>{{ nearThreshold
+            ? t('run.cycleProgress', { count: cyclePaws, total: PROGRESS.loliThreshold })
+            : t('run.paws', { count: cyclePaws })
+          }}</span>
+        </p>
+      </div>
+
       <!--
-        A real button, not a bar with a tap handler.
+        The two moments the world announces.
 
-        `accessibility.md` §3.1 is explicit: the armed control is focusable and
-        labelled, and its accessible name carries both state and action. The
-        meter behind it is decorative — the state is in the text, so a player
-        who cannot see the fill still knows the power is available.
+        Centred banners rather than rows in the counter stack, because they are
+        events and not state: v0.3 shows "LOLİ GELDİ!" and "SLAYYY — her şey
+        güzel!" arriving over the sea, and a player who is watching the road
+        sees a banner there and would not see another chip in the corner.
       -->
-      <button
-        type="button"
-        class="run__slayyy-button"
-        :class="`run__slayyy-button--${slayyy}`"
-        :style="{ '--slayyy-fill': `${slayyyPercent}%` }"
-        :disabled="loading || hasEnded || slayyy !== 'ready'"
-        :aria-label="slayyyLabel"
-        @click="slayyyFromControl"
-      >
-        <span aria-hidden="true" class="run__slayyy-mark">✨</span>
-        <span class="run__slayyy-text">{{ slayyyLabel }}</span>
-      </button>
+      <div class="run__banners">
+        <p v-if="slayyy === 'active'" class="run__slayyy-state" role="status">
+          <span aria-hidden="true">✨</span>
+          {{ t('run.slayyyMultiplier') }}
+        </p>
+
+        <p v-if="loliActive" class="run__loli" role="status">
+          <span aria-hidden="true">🐈</span>
+          {{ t('run.loliActive') }}
+        </p>
+      </div>
+
+      <div class="run__foot">
+        <p v-if="loading" class="run__status">
+          {{ t('run.loading') }}
+        </p>
+
+        <UiAuthNotice v-else-if="failed" variant="error">
+          {{ t('run.failed') }}
+        </UiAuthNotice>
+
+        <p v-else-if="hasEnded" class="run__status run__status--ended" role="status">
+          {{ t('run.ended') }}
+        </p>
+      </div>
+
+      <div class="run__slayyy">
+        <!--
+          A real button, not a bar with a tap handler.
+
+          `accessibility.md` §3.1 is explicit: the armed control is focusable and
+          labelled, and its accessible name carries both state and action. The
+          meter behind it is decorative — the state is in the text, so a player
+          who cannot see the fill still knows the power is available.
+        -->
+        <button
+          type="button"
+          class="run__slayyy-button"
+          :class="`run__slayyy-button--${slayyy}`"
+          :style="{ '--slayyy-fill': `${slayyyPercent}%` }"
+          :disabled="loading || hasEnded || slayyy !== 'ready'"
+          :aria-label="slayyyLabel"
+          @click="slayyyFromControl"
+        >
+          <span aria-hidden="true" class="run__slayyy-mark">✨</span>
+          <span class="run__slayyy-text">{{ slayyyLabel }}</span>
+        </button>
+
+        <!--
+          The global `sr-only` utility, not a page-local copy: this is exactly the
+          case `base.css` documents it for — live-region text a screen reader
+          needs and the design does not show.
+        -->
+        <p class="sr-only" role="status">
+          {{ slayyyAnnouncement }}
+        </p>
+      </div>
+    </div>
+
+    <!--
+      The desktop side cards.
+
+      v0.3's desktop board puts exactly two things in the space beside the play
+      column — the keyboard bindings on the left and the next goal on the right —
+      and lets the seaside fill everything else. They are part of the same
+      picture rather than a panel bolted to its edge, so they float on the
+      promenade with no rail behind them, and they do not exist at all on a
+      screen narrow enough for the column to fill it.
+    -->
+    <aside class="run__aside run__aside--keys" :aria-label="t('run.keysTitle')">
+      <p class="run__aside-title">
+        {{ t('run.keysTitle') }}
+      </p>
+      <ul class="run__keys">
+        <li>{{ t('run.keysLanes') }}</li>
+        <li>{{ t('run.keysJump') }}</li>
+        <li>{{ t('run.keysSlayyy') }}</li>
+        <li>{{ t('run.keysPause') }}</li>
+      </ul>
+    </aside>
+
+    <aside class="run__aside run__aside--goal" :aria-label="t('run.nextGoalTitle')">
+      <p class="run__aside-title">
+        {{ t('run.nextGoalTitle') }}
+      </p>
+      <p class="run__goal-value">
+        <span aria-hidden="true">🐾</span>
+        {{ t('run.cycleProgress', { count: cyclePaws, total: PROGRESS.loliThreshold }) }}
+      </p>
 
       <!--
-        The global `sr-only` utility, not a page-local copy: this is exactly the
-        case `base.css` documents it for — live-region text a screen reader
-        needs and the design does not show.
+        The fill is a second reading of the number above it, never the only one.
+        `accessibility.md` §4 wants the fact in text and forbids it resting on
+        colour, so this is decorative and hidden — remove it and the card still
+        says exactly how many Paw Tokens are left.
       -->
-      <p class="sr-only" role="status">
-        {{ slayyyAnnouncement }}
+      <div
+        class="run__goal-meter"
+        aria-hidden="true"
+        :style="{ '--goal-fill': `${goalPercent}%` }"
+      />
+
+      <p class="run__goal-note">
+        {{ t('run.nextGoalNote') }}
       </p>
-    </div>
-
-    <div class="run__meta">
-      <!--
-        Hearts, the fourth HUD fact.
-
-        Separate from `.run__hud` only because it predates it and its own tests
-        address it by that class; it is part of the same display and sits in the
-        same column. The shapes are decorative and the count beside them is the
-        accessible fact. Countable shapes rather than a colour bar, so nothing
-        here depends on hue alone.
-      -->
-      <p class="run__hearts">
-        <span aria-hidden="true">
-          <span
-            v-for="index in HEARTS.max"
-            :key="index"
-            class="run__heart"
-            :class="{ 'run__heart--spent': index > hearts }"
-          >♥</span>
-        </span>
-        <span class="run__hearts-count">{{ t('run.hearts', { count: hearts, max: HEARTS.max }) }}</span>
-      </p>
-    </div>
-
-    <div class="run__foot">
-      <p v-if="loading" class="run__status">
-        {{ t('run.loading') }}
-      </p>
-
-      <UiAuthNotice v-else-if="failed" variant="error">
-        {{ t('run.failed') }}
-      </UiAuthNotice>
-
-      <p v-else-if="hasEnded" class="run__status run__status--ended" role="status">
-        {{ t('run.ended') }}
-      </p>
-
-      <p v-else class="run__status">
-        {{ t('run.scopeNotice') }}
-      </p>
-    </div>
+    </aside>
   </div>
 </template>
 
 <style scoped>
 .run {
   position: relative;
-  display: flex;
-  flex-direction: column;
   min-block-size: 100dvh;
-  background: var(--bg-page);
+  overflow: hidden;
+
+  /*
+   * The page ground is the sea's own colour, not a gradient standing in for
+   * one. Everything a player sees is painted on the canvas; this exists only
+   * for the moment before Phaser's first frame and for the strip a browser
+   * paints under an overscroll bounce.
+   */
+  background: var(--color-sky-soft);
 
   /*
    * No pull-to-refresh anywhere on this page.
    *
-   * `touch-action: none` covers the play surface, but the chrome and the foot
-   * sit above it with their own stacking context and no touch-action of their
-   * own — so a downward drag starting on the top strip reached the browser's
-   * overscroll gesture and reloaded the run away. The milestone's own
-   * acceptance criterion names refresh alongside scroll and zoom.
+   * `touch-action: none` covers the play surface, but the overlay sits above it
+   * with its own stacking context and no touch-action of its own — so a
+   * downward drag starting on the top strip reached the browser's overscroll
+   * gesture and reloaded the run away. The milestone's own acceptance criterion
+   * names refresh alongside scroll and zoom.
    */
   overscroll-behavior: none;
+
+  /* Half the play column, for placing the desktop side cards against it. */
+  --run-column-half: calc(min(100vw, var(--run-column)) / 2);
 }
 
 /*
@@ -354,52 +470,146 @@ onBeforeUnmount(stop)
 }
 
 /*
- * Chrome and foot are held to the play column, not the viewport.
+ * The overlay.
  *
- * The playfield caps at the approved column width and lets the seaside expand
- * decoratively around it. Letting the controls span the full window put them
- * seven hundred pixels from the game on a wide monitor, out in the decorative
- * area, while the player's attention was on the centre.
+ * Held to the play column, not the viewport: the playfield caps at the approved
+ * column width and lets the seaside expand decoratively around it. Letting the
+ * readouts span the whole window put them seven hundred pixels from the game on
+ * a wide monitor, out in the decorative area, while the player's attention was
+ * on the centre.
+ *
+ * It takes no touches, and the rule is on the container rather than on each
+ * row: `.run__surface` is `position: absolute; inset: 0`, so the canvas is the
+ * whole viewport and every readout is painted *over* the playfield. Without
+ * this, each one is also a hit target — a touch starting on it has that element
+ * as its `event.target`, Phaser's `pointerdown` only fires when the target is
+ * the canvas, and the gesture never begins. At 360x640 that made roughly the
+ * top quarter and the bottom third of the screen dead to swipes, including the
+ * strip a thumb naturally rests on. Keyboard play was unaffected, which is why
+ * it went unnoticed through two milestones. Anything added here is inert until
+ * someone says otherwise, which is the safe default for a layer over a game.
  */
-.run__chrome,
-.run__foot {
-  inline-size: min(100%, var(--run-column));
-  margin-inline: auto;
-}
-
-/*
- * The chrome rows do not take touches; their controls do.
- *
- * `.run__surface` is `position: absolute; inset: 0`, so the canvas is the whole
- * viewport and every row below is painted *over* the playfield. Without this,
- * each row is also a hit target: a touch starting on one has that row as its
- * `event.target`, Phaser's `pointerdown` only fires when the target is the
- * canvas, and the gesture never begins. At 360x640 that made roughly the top
- * quarter and the entire bottom third of the screen dead to swipes — including
- * the strip a thumb naturally rests on. Keyboard play was unaffected, which is
- * why it went unnoticed through two milestones.
- *
- * So every row is transparent to pointers and each genuinely interactive child
- * opts back in. The rule is deliberately on the children rather than on a
- * wrapper: anything new added to these rows is inert until someone says it
- * should not be, which is the safe default for a layer sitting on the game.
- */
-.run__chrome {
-  position: relative;
+.run__readouts {
+  position: absolute;
+  inset: 0;
   z-index: 1;
   pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  inline-size: min(100%, var(--run-column));
+  margin-inline: auto;
+
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-areas:
+    "score   .       chrome"
+    ".       .       meta"
+    "banners banners banners"
+    "foot    foot    foot"
+    "slayyy  slayyy  slayyy";
+  gap: var(--space-2);
+
+  padding:
+    calc(env(safe-area-inset-top) + var(--space-2))
+    var(--space-3)
+    calc(env(safe-area-inset-bottom) + var(--space-3));
 }
 
 .run__exit,
-.run__chrome button,
+.run__pause,
 .run__slayyy-button {
   pointer-events: auto;
+}
+
+/* --- the score card, top left ------------------------------------------- */
+
+.run__hud {
+  grid-area: score;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+/*
+ * v0.3's score card: ink, generous radius, a small gold caption over a large
+ * cream number. It is the only dark shape in the display, which is what makes
+ * the score the first thing read on a bright promenade.
+ */
+.run__score {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--color-ink);
+  box-shadow: var(--elevation-card);
+}
+
+.run__score-label {
+  font-size: var(--type-micro);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-yellow);
+}
+
+.run__score-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-cream);
+  /* Tabular figures, so a rising score does not jitter the card's width. */
+  font-variant-numeric: tabular-nums;
+}
+
+.run__phase {
+  margin: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-cream) 82%, transparent);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+/* --- pause and exit, top right ------------------------------------------- */
+
+.run__chrome {
+  grid-area: chrome;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.run__pause {
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-cream);
+  box-shadow: var(--elevation-card);
+  color: var(--color-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.run__pause:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.run__pause-glyph {
+  inline-size: 20px;
+  block-size: 20px;
+  fill: currentcolor;
 }
 
 .run__exit {
@@ -413,86 +623,131 @@ onBeforeUnmount(stop)
    */
   white-space: nowrap;
   min-block-size: var(--touch-min);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-cream) 82%, transparent);
+  font-size: var(--type-micro);
   font-weight: 700;
   color: var(--color-ink);
 }
 
-/*
- * The heart row sits on its own line, below the controls.
- *
- * Four things across a 320 px viewport do not fit, and the first attempt let
- * the control row wrap instead — which dropped the pause button onto the sea,
- * out of the chrome and into the middle of the picture. A separate row is
- * predictable at every width.
- */
-/*
- * The HUD rows.
- *
- * Same column idiom as the chrome and the hearts: `min(100%, --run-column)`
- * centred, so on a wide monitor the readouts stay beside the 460 px playfield
- * instead of drifting to the window edges. `flex-wrap` rather than a fixed
- * layout, because Turkish and Spanish run longer than English and a HUD that
- * only fits in one language is a HUD that is broken in two.
- */
-.run__hud {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
-  inline-size: min(100%, var(--run-column));
-  margin-inline: auto;
-  padding: 0 var(--space-4);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-3);
-}
+/* --- hearts and paws, under the pause control ---------------------------- */
 
-.run__score {
+.run__meta {
+  grid-area: meta;
+  justify-self: end;
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-1);
-  margin: 0;
+  min-inline-size: 0;
 }
 
-.run__score-label {
-  font-size: var(--type-caption);
-  /* Ink for the same reason as the SLAYYY control: `--text-secondary` is
-     3.81:1 on the page ground, and 13px is small text. The hierarchy is
-     carried by size and weight against the value beside it, not by fading
-     the label below the contrast floor. */
-  color: var(--color-ink);
-}
-
-.run__score-value {
-  font-family: var(--font-display);
-  font-size: var(--type-title);
-  font-weight: 800;
-  color: var(--color-ink);
-  /* Tabular figures, so a rising score does not jitter the row beside it. */
-  font-variant-numeric: tabular-nums;
-}
-
-.run__paws,
-.run__loli {
+.run__hearts,
+.run__paws {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin: 0;
-  font-size: var(--type-caption);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-cream);
+  box-shadow: var(--elevation-card);
+  font-size: var(--type-micro);
+  font-weight: 700;
   color: var(--color-ink);
+}
+
+.run__heart-row {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.run__heart {
+  color: var(--color-coral);
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+/* Hollow, not merely faded: the difference must survive a greyscale display. */
+.run__heart--spent {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--color-border);
+}
+
+.run__hearts-count {
+  font-variant-numeric: tabular-nums;
 }
 
 .run__paw-glyph {
   font-size: 1.1em;
 }
 
+/* --- the banners --------------------------------------------------------- */
+
+.run__banners {
+  grid-area: banners;
+  align-self: start;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-inline-size: 100%;
+}
+
+.run__loli,
+.run__slayyy-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-caption);
+  font-weight: 800;
+  color: var(--color-ink);
+  text-align: center;
+  box-shadow: var(--elevation-card);
+}
+
+.run__slayyy-state {
+  background: var(--color-pink);
+  border: 2px solid var(--color-pink-deep);
+}
+
+.run__loli {
+  background: var(--color-pink-soft);
+  border: 2px solid var(--color-pink);
+}
+
+/* --- the foot and the meter ---------------------------------------------- */
+
+.run__foot {
+  grid-area: foot;
+  /* Laid out even when empty, so nothing below it shifts when a status
+     appears — and so the touch-transparency check has a box to aim at. */
+  min-block-size: var(--space-2);
+}
+
+.run__status {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-cream) 92%, transparent);
+  font-size: var(--type-caption);
+  color: var(--color-ink);
+  text-align: center;
+  box-shadow: var(--elevation-card);
+}
+
+.run__status--ended {
+  font-weight: 700;
+}
+
 .run__slayyy {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
-  inline-size: min(100%, var(--run-column));
-  margin-inline: auto;
-  padding: var(--space-2) var(--space-4) 0;
+  grid-area: slayyy;
+  align-self: end;
 }
 
 /*
@@ -512,7 +767,7 @@ onBeforeUnmount(stop)
    */
   background-image: linear-gradient(
     to right,
-    var(--color-pink-soft) 0 var(--slayyy-fill, 0%),
+    var(--color-pink) 0 var(--slayyy-fill, 0%),
     transparent var(--slayyy-fill, 0%)
   );
   background-repeat: no-repeat;
@@ -534,25 +789,26 @@ onBeforeUnmount(stop)
   gap: var(--space-2);
   inline-size: 100%;
   min-block-size: var(--touch-min);
-  padding: 0 var(--space-3);
-  border: 2px solid var(--color-border);
+  padding: 0 var(--space-4);
+  border: 2px solid var(--color-cream);
   border-radius: var(--radius-pill);
   /* `background-color`, never the shorthand: the shorthand would reset the
      fill layer declared above and the meter would silently stop showing. */
-  background-color: transparent;
+  background-color: color-mix(in srgb, var(--color-cream) 88%, transparent);
+  box-shadow: var(--elevation-card);
   /*
    * Ink, not `--text-secondary`.
    *
    * The muted grey is 3.81:1 on the page and 3.34:1 over a filled meter, and
-   * this is 13px bold — small text, so WCAG 2.2 1.4.3 wants 4.5:1 and neither
-   * figure reaches it. Ink is 13.4:1 and 11.7:1 respectively. The disabled
-   * state is carried by the border, the fill and the word "charging", none of
-   * which needs the text to be hard to read.
+   * this is small bold text — WCAG 2.2 1.4.3 wants 4.5:1 and neither figure
+   * reaches it. Ink is 13.4:1 and 11.7:1 respectively. The disabled state is
+   * carried by the border, the fill and the word "charging", none of which
+   * needs the text to be hard to read.
    */
   color: var(--color-ink);
   font: inherit;
   font-size: var(--type-caption);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.04em;
   cursor: not-allowed;
   transition: background var(--motion-base) var(--ease-out),
@@ -577,76 +833,153 @@ onBeforeUnmount(stop)
 }
 
 .run__slayyy-mark {
-  font-size: 1.1em;
+  font-size: 1.15em;
 }
 
 .run__slayyy-button:disabled {
-  opacity: 0.85;
+  opacity: 0.92;
 }
 
-.run__meta {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
-  inline-size: min(100%, var(--run-column));
-  margin-inline: auto;
-  padding: 0 var(--space-4);
+/* --- the desktop side cards ---------------------------------------------- */
+
+.run__aside {
+  display: none;
 }
 
-.run__hearts {
-  display: flex;
-  flex: 0 1 auto;
-  min-inline-size: 0;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--type-caption);
+/*
+ * Game UI, not web cards.
+ *
+ * They were a diffuse `--elevation-card` shadow under body text with no border,
+ * which is the shape of every panel on every website. The app's own idiom —
+ * v0.3's buttons and panels, and `--elevation-button` in the token file — is a
+ * *solid pressed rim* under a soft shadow, with Baloo 2 on the label. Same
+ * size, same place, same content; it just belongs to the same product as the
+ * thing it is sitting next to now.
+ *
+ * `box-sizing: border-box` is global, so the border cannot widen them and the
+ * geometry that keeps them out of the protected column is unchanged.
+ */
+@media (min-width: 1024px) {
+  .run__aside {
+    position: absolute;
+    z-index: 1;
+    display: block;
+    inset-block-end: 7vh;
+    inline-size: min(16rem, calc(50vw - var(--run-column-half) - 3rem));
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    border: 2px solid var(--color-cream);
+    border-radius: var(--radius-lg);
+    pointer-events: none;
+  }
+
+  /*
+   * Anchored to the column rather than to the window, so the gap beside the
+   * playfield is the same at 1024px and at 2560px and neither card ever drifts
+   * over the game.
+   */
+  .run__aside--keys {
+    inset-inline-end: calc(50% + var(--run-column-half) + 1.5rem);
+    background: color-mix(in srgb, var(--color-cream) 92%, transparent);
+    box-shadow: 0 4px 0 var(--color-turquoise-soft), var(--elevation-card);
+  }
+
+  .run__aside--goal {
+    inset-inline-start: calc(50% + var(--run-column-half) + 1.5rem);
+    border-color: var(--color-pink);
+    background: color-mix(in srgb, var(--color-pink-soft) 94%, transparent);
+    box-shadow: 0 4px 0 var(--color-pink-deep), var(--elevation-card);
+  }
+}
+
+/*
+ * Ink, not `--color-pink-deep`.
+ *
+ * The pink label looked right and measured 3.07:1 on cream and 2.69:1 on
+ * pink-soft. This is 11px, so WCAG 2.2 1.4.3 wants 4.5:1 and it is nowhere
+ * near — the same failure `accessibility.md` §5A records for the locked
+ * tokens, reintroduced by a new component. Ink is 13.4:1 and 11.7:1. The
+ * card's identity is carried by its rim, its border and its ground, none of
+ * which anyone has to read.
+ */
+.run__aside-title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--type-micro);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--color-ink);
 }
 
-.run__heart {
-  color: var(--color-coral);
-  font-size: 1.1em;
-}
-
-/* Hollow, not merely faded: the difference must survive a greyscale display. */
-.run__heart--spent {
-  color: transparent;
-  -webkit-text-stroke: 1px var(--color-border);
-}
-
-.run__hearts-count {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--color-white);
-}
-
-.run__phase {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--color-white);
+.run__keys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
   font-size: var(--type-caption);
-  color: var(--color-ink);
-}
-
-.run__foot {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
-  margin-block-start: auto;
-  padding: var(--space-4);
-}
-
-.run__status--ended {
   font-weight: 700;
   color: var(--color-ink);
 }
 
-.run__status {
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-white);
-  font-size: var(--type-caption);
-  color: var(--text-secondary);
-  text-align: center;
+.run__keys li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * A brand marker rather than a bullet glyph. Empty content with a background,
+ * so there is nothing for a screen reader to read out and nothing that depends
+ * on a font having the character.
+ */
+.run__keys li::before {
+  content: '';
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-turquoise);
+}
+
+.run__goal-value {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-body-lg);
+  font-weight: 800;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The same fill idiom as the SLAYYY control, at a quarter of the height.
+ *
+ * Decorative and `aria-hidden`: the count above it is the fact, and
+ * `accessibility.md` §4.1 forbids the progress resting on a colour. It is here
+ * because "128 / 200" on its own is a line of text, and the card's job is to
+ * be a glanceable target while the player is looking somewhere else.
+ */
+.run__goal-meter {
+  block-size: 6px;
+  margin-block: var(--space-2) 0;
+  border-radius: var(--radius-pill);
+  background-color: color-mix(in srgb, var(--color-white) 70%, transparent);
+  background-image: linear-gradient(
+    to right,
+    var(--color-pink-deep) 0 var(--goal-fill, 0%),
+    transparent var(--goal-fill, 0%)
+  );
+  background-repeat: no-repeat;
+}
+
+/* Ink for the same reason as the title above: 2.69:1 is not a readable line. */
+.run__goal-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--type-micro);
+  font-weight: 700;
+  color: var(--color-ink);
 }
 </style>

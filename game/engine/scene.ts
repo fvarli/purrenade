@@ -1,127 +1,86 @@
 import type Phaser from 'phaser'
-import type { RunLoop } from '../bridge'
+import type { RunLoop, RenderSnapshot } from '../bridge'
 import { PLAYFIELD } from '../bridge'
-import { GROUND_Y_RATIO, distanceScale, distanceToY, heightToY, laneToX, resolveLayout } from './layout'
+import { RUN_ASSETS, textureKey } from './assets'
+import type { RunAssetKey } from './assets'
+import { createCast } from './actors'
+import type { Cast } from './actors'
+import { createPromenade, texturesReady } from './promenade'
+import type { Promenade } from './promenade'
+import { resolveLayout } from './layout'
 import type { PlayfieldLayout } from './layout'
 import { inputForKeyCode, shouldHandleKey } from './input/keyboard'
 import { IDLE_POINTER, pointerCancel, pointerDown, pointerUp } from './input/pointer'
 import type { PointerTracker } from './input/pointer'
 
 /**
- * The Phaser scene: draws the playfield, captures input, decides nothing.
+ * The Phaser scene: loads the art, owns the lifetime, captures input, decides
+ * nothing.
  *
  * Every gameplay question — did that input move the player, is the jump over,
  * which lane are they in — is answered by the domain through the loop. If this
  * file ever decided one, the domain would stop being authoritative and
  * determinism would go with it.
  *
- * The art here is deliberately primitive: coloured rectangles for the sea, the
- * promenade, the lanes and the player. Production sprites are an asset-pipeline
- * concern and no approved artwork exists yet; drawing shapes keeps the boundary
- * honest and testable rather than blocking it on a texture atlas.
+ * What it draws lives next door: `promenade.ts` is the place, `actors.ts` is
+ * everything standing on it. What is left here is the part that has to be
+ * exactly right rather than merely good-looking — texture loading, teardown,
+ * and the keyboard and pointer handling that three milestones of defects have
+ * been fixed in.
  */
+
+/*
+ * Re-exported, so the rest of the codebase has one door into the engine's
+ * presentation layer. `scene.spec.ts`'s palette gate and asset gate both read
+ * them from here.
+ */
+export { PALETTE } from './palette'
+export { RUN_ASSETS } from './assets'
 
 /**
- * Colours, from the approved token palette. Presentation only.
+ * How far the world has travelled, measured rather than assumed.
  *
- * A copy of the tokens rather than a read of them: a canvas cannot resolve a CSS
- * custom property per frame. `scene.spec.ts` asserts every value here still
- * exists in `tokens.css`, so the copy cannot drift silently.
+ * The promenade's paving, its lane dashes, its balusters and its palms are laid
+ * out in world units and projected, so they need to know how far the world has
+ * moved — and the snapshot does not carry a speed. It does not need to: an
+ * obstacle that is in two consecutive frames reports its own distance in both,
+ * and the difference *is* the distance travelled. Watching the data the
+ * renderer already receives keeps the bridge exactly as narrow as it was; the
+ * alternative was a new field on a frozen contract, for scenery.
+ *
+ * The last known rate carries the gaps between obstacles, which are short and
+ * rare. It is deliberately never zero after the first measurement, because a
+ * road that stops scrolling for half a second reads as a stutter.
  */
-export const PALETTE = {
-  sky: 0xC9ECF2,
-  sea: 0x2EC4B6,
-  sand: 0xF0E3D2,
-  road: 0xE8D9C5,
-  laneLine: 0xB9AFA6,
-  player: 0xFF6B4A,
-  playerAirborne: 0xFF8FAB,
-  cone: 0xFF8C42,
-  barrier: 0x6A8CAF,
+function createOdometer() {
+  const seen = new Map<number, number>()
+  let unitsPerMs = 0
+  let travelled = 0
 
-  // --- M7 -------------------------------------------------------------------
-  paw: 0xD96A8C,
-  loli: 0xFFFFFF,
-  loliMark: 0xFF8C42,
-  /*
-   * The SLAYYY variants.
-   *
-   * "Cones become flowers" is APPROVED; the barrier's variant is AA-1 and still
-   * OPEN, so this is a restrained recolour rather than an invented design — the
-   * silhouette, the size and the class are all untouched, which is the part
-   * that matters for readability.
-   */
-  slayyyCone: 0xC9A0E8,
-  slayyyBarrier: 0x7FD1C7,
-  sparkle: 0xFFC93C,
-} as const
+  return {
+    /** Advance by whatever the world moved since the previous frame. */
+    advance(snapshot: RenderSnapshot, deltaMs: number): number {
+      if (deltaMs > 0) {
+        for (const obstacle of snapshot.obstacles) {
+          const previous = seen.get(obstacle.id)
 
-/**
- * The composition, derived from one number.
- *
- * The player stands at `GROUND_Y_RATIO`, and every band is placed around that so
- * the promenade cannot drift away from the feet standing on it. These ratios were
- * written out five times as literals first, in two functions, which is precisely
- * how the ground and the character end up in different places after someone
- * adjusts one of them.
- *
- * Presentation, not gameplay — the domain has no opinion about where the horizon
- * is — so these live here rather than in the tuning registry, matching the rule
- * already stated in `layout.ts`.
- */
-const SAND_HEIGHT_RATIO = 2 * (1 - GROUND_Y_RATIO)
-/** Where the sea meets the sand: the top edge of the promenade band. */
-const HORIZON_Y_RATIO = GROUND_Y_RATIO - (1 - GROUND_Y_RATIO)
+          if (previous !== undefined && previous > obstacle.distanceUnits) {
+            unitsPerMs = (previous - obstacle.distanceUnits) / deltaMs
+            break
+          }
+        }
+      }
 
-/** Lane boundaries, in lane units: two interior lines for three lanes. */
-const LANE_BOUNDARIES = [0.5, 1.5] as const
-const LANE_LINE_WIDTH_PX = 2
+      seen.clear()
+      for (const obstacle of snapshot.obstacles) seen.set(obstacle.id, obstacle.distanceUnits)
 
-/** The player's radius as a fraction of the lane pitch. */
-const PLAYER_RADIUS_LANE_RATIO = 0.3
-/** Above every band, so the player is never occluded by the scenery. */
-const PLAYER_DEPTH = 10
-/** Below the player, above the road. */
-const OBSTACLE_DEPTH = 5
+      // Paused and ended runs freeze the world; the scenery freezes with it.
+      if (snapshot.phase === 'running') travelled += unitsPerMs * deltaMs
 
-/**
- * How many obstacle shapes to keep around.
- *
- * Pooled rather than created per spawn: the world turns over continuously, and
- * building and destroying Phaser objects at that rate is how a run starts
- * stuttering after a minute. The pool is sized well above what the generator
- * can put on screen — a long-run test asserts the world stays under forty — and
- * unused slots are simply hidden.
- */
-const OBSTACLE_POOL_SIZE = 48
-
-/**
- * Paw Tokens on screen at once.
- *
- * Sized the same way the obstacle pool is: a long-run domain test asserts the
- * token array stays under forty, and this sits above that. Overflow throws
- * rather than dropping a token silently — an uncollectable paw that is visibly
- * absent is a bug report; one that is invisible is a mystery.
- */
-const PAW_POOL_SIZE = 48
-
-/** A token is a small disc, a little under half a lane wide. */
-const PAW_RADIUS_LANE_RATIO = 0.16
-/** Between the road and the obstacles, so a token never hides a hazard. */
-const PAW_DEPTH = 4
-
-/** The companion, drawn beside the player rather than on top of them. */
-const LOLI_RADIUS_LANE_RATIO = 0.22
-const LOLI_MARK_RADIUS_LANE_RATIO = 0.1
-const LOLI_LANE_OFFSET = 0.55
-const LOLI_DEPTH = 9
-const LOLI_LIFT_PX = 6
-
-/** A lane blocker is tall and narrow; a barrier is low and wide. */
-const CONE_WIDTH_LANE_RATIO = 0.42
-const CONE_HEIGHT_PX = 34
-const BARRIER_WIDTH_LANE_RATIO = 0.86
-const BARRIER_HEIGHT_PX = 14
+      return travelled
+    },
+  }
+}
 
 /** How far the character fades on the dim half of the post-hit pulse. */
 const INVULN_STEADY_ALPHA = 0.45
@@ -139,39 +98,23 @@ const REDUCED_MOTION_BLINK_DIVISOR = 4
 const REDUCED_MOTION_ALPHA = 0.7
 const MS_PER_SECOND = 1000
 
+/** How quickly the SLAYYY world fades in and out, in milliseconds. */
+const BLOOM_FADE_MS = 420
+
 /**
  * The reduced-motion preference, read once per scene.
  *
  * Presentation only, and deliberately so. Slowing the world for a
  * reduced-motion player would change how hard the game is, which is not an
  * accessibility accommodation — it is a different game. What changes is the
- * blink: a steady dim instead of a pulse, so the state stays legible without
- * flickering. The road keeps scrolling, because motion that carries gameplay
- * information is preserved.
+ * decoration: the blink becomes slower and shallower, the run bob and the
+ * SLAYYY petals hold still, the far coast stops drifting. The road keeps
+ * scrolling, because motion that carries gameplay information is preserved.
  */
 function readsReducedMotion(): boolean {
   if (typeof globalThis.matchMedia !== 'function') return false
 
   return globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
-/** Dimming while the run is not live. Enough to read as inactive, not a curtain. */
-const DIM_ROAD_ALPHA = 0.75
-const DIM_PLAYER_ALPHA = 0.6
-
-/** The vertical bands, for a given viewport height. Exported to be tested. */
-export function bands(height: number): {
-  seaCentreY: number
-  seaHeight: number
-  groundCentreY: number
-  sandHeight: number
-} {
-  return {
-    seaCentreY: (height * HORIZON_Y_RATIO) / 2,
-    seaHeight: height * HORIZON_Y_RATIO,
-    groundCentreY: height * GROUND_Y_RATIO,
-    sandHeight: height * SAND_HEIGHT_RATIO,
-  }
 }
 
 export interface RunSceneOptions {
@@ -193,19 +136,14 @@ export function createRunScene(
 ): Phaser.Scene {
   let layout: PlayfieldLayout
   let pointer: PointerTracker = IDLE_POINTER
+  let promenade: Promenade
+  let cast: Cast
 
-  let sky: Phaser.GameObjects.Rectangle
-  let sea: Phaser.GameObjects.Rectangle
-  let sand: Phaser.GameObjects.Rectangle
-  let road: Phaser.GameObjects.Rectangle
-  let laneLines: Phaser.GameObjects.Rectangle[] = []
-  let obstacleShapes: Phaser.GameObjects.Rectangle[] = []
-  let pawShapes: Phaser.GameObjects.Arc[] = []
-  let loliBody: Phaser.GameObjects.Arc
-  let loliMark: Phaser.GameObjects.Arc
-
+  const odometer = createOdometer()
   const prefersReducedMotion = readsReducedMotion()
-  let player: Phaser.GameObjects.Arc
+
+  /** The SLAYYY wash, eased rather than switched. `0`–`1`. */
+  let bloom = 0
 
   /** Every listener this scene attached, so shutdown can remove all of them. */
   const teardown: Array<() => void> = []
@@ -215,28 +153,44 @@ export function createRunScene(
       super({ key: 'run' })
     }
 
-    create(): void {
-      layout = resolveLayout({
-        widthPx: this.scale.width,
-        heightPx: this.scale.height,
-      })
+    preload(): void {
+      for (const [key, path] of Object.entries(RUN_ASSETS)) {
+        this.load.image(textureKey(key as RunAssetKey), path)
+      }
+    }
 
-      this.buildPlayfield()
+    create(): void {
+      layout = resolveLayout({ widthPx: this.scale.width, heightPx: this.scale.height })
+
+      /*
+       * One decision, taken here, for the whole run.
+       *
+       * Phaser has finished loading by the time `create` runs, so whether the
+       * prepared art is usable is a fact rather than a per-frame question. The
+       * world and the cast each build only the objects their chosen
+       * presentation needs.
+       */
+      const artReady = texturesReady(this)
+
+      promenade = createPromenade(this, { artReady })
+      cast = createCast(this, { artReady })
+
+      promenade.resize(layout)
+      cast.resize(layout)
+
       this.bindInput()
 
       this.scale.on('resize', this.handleResize, this)
       teardown.push(() => this.scale.off('resize', this.handleResize, this))
 
-      // One place that undoes everything, called however the scene ends. A
-      // listener that outlives its scene is a listener that fires into a
-      // destroyed renderer on the next route visit.
       /*
-       * Both events, and neither is optional.
+       * One place that undoes everything, called however the scene ends.
        *
-       * `game.destroy(true)` reaches `Systems.destroy`, which emits `destroy`
-       * and then `removeAllListeners()`. It never emits `shutdown` — that comes
-       * only from `SceneManager.stop`/`sleep`. Registering on `shutdown` alone,
-       * as this did, meant the teardown never ran on the one path the run route
+       * Both events, and neither is optional. `game.destroy(true)` reaches
+       * `Systems.destroy`, which emits `destroy` and then
+       * `removeAllListeners()`. It never emits `shutdown` — that comes only
+       * from `SceneManager.stop`/`sleep`. Registering on `shutdown` alone, as
+       * this did, meant the teardown never ran on the one path the run route
        * actually takes, and every visit left its `document` keydown listener
        * attached: swallowing Space and the arrows on every later page and
        * enqueueing into a loop that would never run another frame.
@@ -253,87 +207,7 @@ export function createRunScene(
 
     override update(_time: number, deltaMs: number): void {
       loop.frame(deltaMs)
-      this.render()
-    }
-
-    /**
-     * Create the playfield objects, then position them.
-     *
-     * Creation and resizing share `positionPlayfield` deliberately: they used to
-     * carry the same geometry twice, and two copies of a layout is one copy that
-     * gets updated.
-     */
-    private buildPlayfield(): void {
-      sky = this.add.rectangle(0, 0, 0, 0, PALETTE.sky)
-      sea = this.add.rectangle(0, 0, 0, 0, PALETTE.sea)
-      sand = this.add.rectangle(0, 0, 0, 0, PALETTE.sand)
-      road = this.add.rectangle(0, 0, 0, 0, PALETTE.road)
-
-      laneLines = LANE_BOUNDARIES.map(() => this.add.rectangle(0, 0, 0, 0, PALETTE.laneLine))
-
-      obstacleShapes = Array.from({ length: OBSTACLE_POOL_SIZE }, () => {
-        const shape = this.add.rectangle(0, 0, 0, 0, PALETTE.cone)
-
-        shape.setDepth(OBSTACLE_DEPTH)
-        shape.setVisible(false)
-
-        return shape
-      })
-
-      pawShapes = Array.from({ length: PAW_POOL_SIZE }, () => {
-        const shape = this.add.circle(0, 0, 1, PALETTE.paw)
-
-        shape.setDepth(PAW_DEPTH)
-        shape.setVisible(false)
-
-        return shape
-      })
-
-      /*
-       * The companion, as two circles.
-       *
-       * Provisional and deliberately replaceable: no production Loli sprite
-       * exists yet, and fabricating a detailed one here would mean shipping an
-       * unapproved asset as though it were the design. A white body with a
-       * ginger mark carries the established direction — predominantly white,
-       * ginger markings — without pretending to be final art.
-       */
-      loliBody = this.add.circle(0, 0, 1, PALETTE.loli)
-      loliBody.setDepth(LOLI_DEPTH)
-      loliBody.setVisible(false)
-
-      loliMark = this.add.circle(0, 0, 1, PALETTE.loliMark)
-      loliMark.setDepth(LOLI_DEPTH + 1)
-      loliMark.setVisible(false)
-
-      player = this.add.circle(0, 0, 1, PALETTE.player)
-      player.setDepth(PLAYER_DEPTH)
-
-      this.positionPlayfield()
-    }
-
-    /** Place every object for the current viewport. */
-    private positionPlayfield(): void {
-      const { width, height } = this.scale
-      const { seaCentreY, seaHeight, groundCentreY, sandHeight } = bands(height)
-
-      sky.setPosition(width / 2, height / 2).setSize(width, height)
-      sea.setPosition(width / 2, seaCentreY).setSize(width, seaHeight)
-      sand.setPosition(width / 2, groundCentreY).setSize(width, sandHeight)
-      road.setPosition(layout.centreXPx, groundCentreY).setSize(layout.roadWidthPx, sandHeight)
-
-      // Lines between lanes, not on them.
-      laneLines.forEach((line, index) => {
-        line
-          .setPosition(laneToX(layout, LANE_BOUNDARIES[index]!), groundCentreY)
-          .setSize(LANE_LINE_WIDTH_PX, sandHeight)
-      })
-
-      player.setRadius(layout.lanePitchPx * PLAYER_RADIUS_LANE_RATIO)
-      player.setPosition(layout.centreXPx, layout.groundYPx)
-
-      loliBody.setRadius(layout.lanePitchPx * LOLI_RADIUS_LANE_RATIO)
-      loliMark.setRadius(layout.lanePitchPx * LOLI_MARK_RADIUS_LANE_RATIO)
+      this.render(deltaMs)
     }
 
     /**
@@ -342,17 +216,25 @@ export function createRunScene(
      * Reads only what the bridge exposes. It has no access to `RunState` and
      * could not consult the rules even if a future edit wanted it to.
      */
-    private render(): void {
+    private render(deltaMs: number): void {
       const snapshot = loop.snapshot()
+      const live = snapshot.phase === 'running'
+      const scrollUnits = odometer.advance(snapshot, deltaMs)
 
-      player.setPosition(
-        laneToX(layout, snapshot.lanePosition),
-        heightToY(layout, snapshot.heightPx),
-      )
+      /*
+       * The SLAYYY world arrives and leaves, it does not switch.
+       *
+       * A hard cut between two palettes on a surface the player is reading at
+       * speed is a flash, and the reduced-motion preference does not help with
+       * it — the fade is what keeps it out of flash territory in the first
+       * place, so it stays on for everyone.
+       */
+      const wanted = snapshot.slayyy.phase === 'active' ? 1 : 0
+      const step = deltaMs / BLOOM_FADE_MS
 
-      // A colour change rather than a sprite swap: enough to make the airborne
-      // state legible while the character art does not exist.
-      player.setFillStyle(snapshot.heightPx > 0 ? PALETTE.playerAirborne : PALETTE.player)
+      bloom = wanted > bloom
+        ? Math.min(wanted, bloom + step)
+        : Math.max(wanted, bloom - step)
 
       /*
        * The post-hit blink.
@@ -360,8 +242,9 @@ export function createRunScene(
        * A partial-alpha pulse on the character, never a full-screen flash: the
        * tuned rate sits inside the range associated with photosensitive
        * seizures, so the rule is that it stays on the sprite and stays partial.
-       * Under a reduced-motion preference it becomes a steady dim instead of a
-       * pulse — the state is still visible, it just stops flickering.
+       * Under a reduced-motion preference it becomes slower and shallower
+       * rather than a steady dim — the state is still visible, and it is still
+       * a pulse.
        */
       const blinkHz = prefersReducedMotion
         ? PLAYFIELD.blinkHz / REDUCED_MOTION_BLINK_DIVISOR
@@ -373,183 +256,30 @@ export function createRunScene(
         ? (Math.floor(snapshot.elapsedMs / (MS_PER_SECOND / blinkHz)) % 2 === 0 ? dimAlpha : 1)
         : 1
 
-      /*
-       * The world.
-       *
-       * Read straight off the snapshot and drawn; nothing here decides whether
-       * anything was hit. Slots beyond the current obstacle count are hidden
-       * rather than destroyed, so the pool stays stable across the run.
-       */
-      snapshot.obstacles.forEach((obstacle, index) => {
-        const shape = obstacleShapes[index]
-
-        if (shape === undefined) return
-
-        const depthScale = distanceScale(obstacle.distanceUnits)
-        const isCone = obstacle.kind === 'lane_blocking'
-
-        const widthPx = layout.lanePitchPx
-          * (isCone ? CONE_WIDTH_LANE_RATIO : BARRIER_WIDTH_LANE_RATIO)
-          * depthScale
-
-        const heightPx = (isCone ? CONE_HEIGHT_PX : BARRIER_HEIGHT_PX) * layout.scale * depthScale
-        const groundY = distanceToY(layout, obstacle.distanceUnits)
-
-        /*
-         * Visible only while it is on the road ahead.
-         *
-         * The far edge was checked and the near one was not, so a passed
-         * obstacle kept full size, slid down past the player's feet and
-         * vanished mid-frame instead of leaving at the bottom of the picture.
-         */
-        const onScreen = obstacle.distanceUnits <= PLAYFIELD.visibleUnits
-          && obstacle.distanceUnits + obstacle.lengthUnits > 0
-
-        /*
-         * SLAYYY beautifies, and beautification is a fill.
-         *
-         * The class, the footprint, the lane and the silhouette are all read
-         * from the same snapshot fields as before — only the colour changes. A
-         * cone that becomes a flower is still `LANE_BLOCKING`, and a renderer
-         * that changed its size here would be a renderer quietly changing what
-         * the collision rules already decided.
-         */
-        const pretty = snapshot.slayyy.phase === 'active'
-
-        shape.setVisible(onScreen)
-        shape.setFillStyle(isCone
-          ? (pretty ? PALETTE.slayyyCone : PALETTE.cone)
-          : (pretty ? PALETTE.slayyyBarrier : PALETTE.barrier))
-        shape.setSize(widthPx, heightPx)
-        // Standing on the road rather than centred on it.
-        shape.setPosition(laneToX(layout, obstacle.lane), groundY - heightPx / 2)
-
-        /*
-         * Nearer obstacles draw on top.
-         *
-         * Every shape shared one depth, so Phaser fell back to display-list
-         * order — which is pool index, which is snapshot order, which is
-         * nearest *first*. The nearest obstacle was painted underneath the one
-         * behind it, visible wherever a pattern puts two in the same lane.
-         */
-        shape.setDepth(OBSTACLE_DEPTH + (PLAYFIELD.visibleUnits - obstacle.distanceUnits))
+      promenade.render({
+        layout,
+        scrollUnits,
+        bloom,
+        live,
+        reducedMotion: prefersReducedMotion,
       })
 
-      for (let index = snapshot.obstacles.length; index < obstacleShapes.length; index++) {
-        obstacleShapes[index]?.setVisible(false)
-      }
-
-      /*
-       * An obstacle with no shape is an invisible hazard that still costs a
-       * heart. The pool is sized well above anything the generator can produce,
-       * so this is a developer error rather than a runtime condition — but it
-       * must be loud rather than a silent `return`.
-       */
-      if (snapshot.obstacles.length > obstacleShapes.length) {
-        throw new Error(
-          `run scene: ${snapshot.obstacles.length} obstacles exceed the pool of ${obstacleShapes.length}`,
-        )
-      }
-
-      /*
-       * Paw Tokens.
-       *
-       * `laneOffset` rather than a lane index: the Loli magnet moves a token
-       * between lanes, and the domain reports where it actually is. Drawn below
-       * the obstacles so a token can never hide a hazard.
-       */
-      snapshot.pawTokens.forEach((token, index) => {
-        const shape = pawShapes[index]
-
-        if (shape === undefined) return
-
-        const depthScale = distanceScale(token.distanceUnits)
-        const onScreen = token.distanceUnits <= PLAYFIELD.visibleUnits
-          && token.distanceUnits + PLAYFIELD.pawLengthUnits > 0
-
-        shape.setVisible(onScreen)
-        shape.setRadius(layout.lanePitchPx * PAW_RADIUS_LANE_RATIO * depthScale)
-        shape.setPosition(
-          laneToX(layout, token.laneOffset),
-          distanceToY(layout, token.distanceUnits) - layout.lanePitchPx * PAW_RADIUS_LANE_RATIO * depthScale,
-        )
-        shape.setDepth(PAW_DEPTH + (PLAYFIELD.visibleUnits - token.distanceUnits) / PLAYFIELD.visibleUnits)
+      cast.render({
+        layout,
+        snapshot,
+        live,
+        reducedMotion: prefersReducedMotion,
+        blink,
+        bloom,
       })
-
-      for (let index = snapshot.pawTokens.length; index < pawShapes.length; index++) {
-        pawShapes[index]?.setVisible(false)
-      }
-
-      // The same rule the obstacle pool follows: a token with no shape is a
-      // reward the player cannot see and therefore cannot take.
-      if (snapshot.pawTokens.length > pawShapes.length) {
-        throw new Error(
-          `run scene: ${snapshot.pawTokens.length} paw tokens exceed the pool of ${pawShapes.length}`,
-        )
-      }
-
-      /*
-       * The companion.
-       *
-       * Beside the player, never over them, and never over a hazard: it sits
-       * below the player's depth and is offset laterally, so it cannot mask the
-       * thing the player has to react to. It is visible for the whole
-       * lifecycle, riding the entrance and exit in as a scale.
-       */
-      const loliVisible = snapshot.loli.phase !== 'inactive'
-
-      loliBody.setVisible(loliVisible)
-      loliMark.setVisible(loliVisible)
-
-      if (loliVisible) {
-        /*
-         * The "puf" entrance and exit, unless the player asked for less.
-         *
-         * `accessibility.md` §2.2 puts UI transitions on the reduced side of
-         * the line — instant rather than scale — and a companion popping into
-         * existence is decoration, not information. What survives the setting
-         * is the companion *being there*, which is the part that tells the
-         * player the magnet is on.
-         */
-        const grow = prefersReducedMotion
-          ? 1
-          : snapshot.loli.phase === 'entering'
-            ? snapshot.loli.phaseProgress
-            : snapshot.loli.phase === 'exiting'
-              ? 1 - snapshot.loli.phaseProgress
-              : 1
-
-        const side = snapshot.lanePosition <= 1 ? 1 : -1
-        const x = laneToX(layout, snapshot.lanePosition + LOLI_LANE_OFFSET * side)
-        const y = layout.groundYPx - LOLI_LIFT_PX * layout.scale
-
-        loliBody.setRadius(Math.max(0.01, layout.lanePitchPx * LOLI_RADIUS_LANE_RATIO * grow))
-        loliBody.setPosition(x, y)
-
-        loliMark.setRadius(Math.max(0.01, layout.lanePitchPx * LOLI_MARK_RADIUS_LANE_RATIO * grow))
-        loliMark.setPosition(x + layout.lanePitchPx * LOLI_MARK_RADIUS_LANE_RATIO, y - LOLI_LIFT_PX * layout.scale)
-      }
-
-      // Dimmed while paused or waiting, so the surface reads as not-yet-live.
-      const live = snapshot.phase === 'running'
-
-      road.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
-      player.setAlpha((live ? 1 : DIM_PLAYER_ALPHA) * blink)
-
-      // The hazards dim with the road. They were left at full brightness, so a
-      // paused world sat vividly on top of a greyed-out one.
-      for (const shape of obstacleShapes) shape.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
-      for (const shape of pawShapes) shape.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
-
-      loliBody.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
-      loliMark.setAlpha(live ? 1 : DIM_ROAD_ALPHA)
     }
 
     private handleResize(): void {
       layout = resolveLayout({ widthPx: this.scale.width, heightPx: this.scale.height })
 
-      this.positionPlayfield()
-      this.render()
+      promenade.resize(layout)
+      cast.resize(layout)
+      this.render(0)
     }
 
     /**

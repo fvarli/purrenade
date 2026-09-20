@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { GESTURE, PLAYFIELD } from '../bridge'
 
-import { GROUND_Y_RATIO, heightToY, laneToX, resolveLayout } from './layout'
-import { bands } from './scene'
+import {
+  FAR_SCALE,
+  SCENERY_UNITS,
+  distanceScale,
+  distanceToY,
+  heightToY,
+  laneToX,
+  laneToXAtDistance,
+  projectionAt,
+  resolveLayout,
+  roadHalfWidthAt,
+  yToDistance,
+} from './layout'
 import { inputForKeyCode, isGameplayKey, shouldHandleKey } from './input/keyboard'
 import { IDLE_POINTER, gestureToInput, pointerDown, pointerUp } from './input/pointer'
 
@@ -266,46 +277,93 @@ describe('the pointer tracker', () => {
   })
 })
 
-describe('the scene composition', () => {
+describe('the promenade projection', () => {
   /*
-   * These bands were five repeated literals across two functions, and one of
-   * them repeated `layout.ts`'s ground ratio. Deriving them is only worth
-   * anything if the derivation is pinned, so this asserts the relationships
-   * rather than the numbers: change the ground ratio and the promenade must
-   * follow it.
+   * The road is the milestone's central visual claim, so these pin the claim
+   * rather than the numbers: it converges, it converges *projectively*, and the
+   * lanes converge with it. A linear ramp passes the first of those and fails
+   * the second, which is exactly what the previous "three vertical columns"
+   * road was.
    */
-  const HEIGHT = 800
+  const layout = resolveLayout({ widthPx: 390, heightPx: 844 })
 
-  it('stands the player at the centre of the promenade band', () => {
-    const { groundCentreY, sandHeight } = bands(HEIGHT)
-    const layout = resolveLayout({ widthPx: 360, heightPx: HEIGHT })
+  it('puts the player\'s feet on the road and runs the promenade to the vanishing point', () => {
+    const span = layout.groundYPx - layout.horizonYPx
 
-    expect(groundCentreY).toBeCloseTo(layout.groundYPx, 6)
-    expect(groundCentreY - sandHeight / 2).toBeLessThan(layout.groundYPx)
-    expect(groundCentreY + sandHeight / 2).toBeGreaterThan(layout.groundYPx)
+    expect(distanceToY(layout, 0)).toBeCloseTo(layout.groundYPx, 6)
+
+    // The scenery, not the gameplay range: the promenade is longer than the
+    // game is, and it has to close on the horizon or there is a visible seam
+    // where the road stops and the sea starts.
+    expect(distanceToY(layout, SCENERY_UNITS) - layout.horizonYPx).toBeLessThan(span * 0.02)
+    expect(distanceToY(layout, SCENERY_UNITS)).toBeGreaterThan(layout.horizonYPx)
   })
 
-  it('reaches the bottom of the viewport with no gap under the promenade', () => {
-    const { groundCentreY, sandHeight } = bands(HEIGHT)
-
-    expect(groundCentreY + sandHeight / 2).toBeCloseTo(HEIGHT, 6)
+  it('keeps a gameplay obstacle large enough to react to at the far end', () => {
+    // The clamp that separates the two ranges. An obstacle spawning at the edge
+    // of the playable road is a third of its near size, not a sub-pixel speck.
+    expect(distanceScale(PLAYFIELD.visibleUnits)).toBeCloseTo(FAR_SCALE, 9)
+    expect(FAR_SCALE).toBeGreaterThan(0.3)
+    expect(distanceScale(SCENERY_UNITS)).toBe(distanceScale(PLAYFIELD.visibleUnits))
   })
 
-  it('meets the sea exactly at the horizon, with no seam and no overlap', () => {
-    const { seaCentreY, seaHeight, groundCentreY, sandHeight } = bands(HEIGHT)
+  it('moves an approaching obstacle towards the player without ever reversing', () => {
+    let previous = distanceToY(layout, PLAYFIELD.visibleUnits)
 
-    const seaBottom = seaCentreY + seaHeight / 2
-    const sandTop = groundCentreY - sandHeight / 2
+    for (let units = PLAYFIELD.visibleUnits - 0.1; units >= 0; units -= 0.1) {
+      const y = distanceToY(layout, units)
 
-    expect(seaBottom).toBeCloseTo(sandTop, 6)
-    expect(seaCentreY - seaHeight / 2).toBeCloseTo(0, 6)
+      expect(y).toBeGreaterThan(previous)
+      previous = y
+    }
   })
 
-  it('moves the horizon when the ground ratio moves', () => {
-    // The point of the derivation. If this ever fails, the bands have been
-    // pinned to literals again and the promenade can drift off the player.
-    const { groundCentreY, sandHeight } = bands(HEIGHT)
+  it('compresses distance towards the horizon rather than spacing it evenly', () => {
+    // The near half of the road takes up more screen than the far half. Under
+    // the old linear mapping these two were equal, which is why evenly spaced
+    // paving read as a flat texture instead of as ground going away.
+    const near = distanceToY(layout, 0) - distanceToY(layout, PLAYFIELD.visibleUnits / 2)
+    const far = distanceToY(layout, PLAYFIELD.visibleUnits / 2)
+      - distanceToY(layout, PLAYFIELD.visibleUnits)
 
-    expect(groundCentreY - sandHeight / 2).toBeCloseTo(HEIGHT * (2 * GROUND_Y_RATIO - 1), 6)
+    expect(near).toBeGreaterThan(far * 1.5)
+  })
+
+  it('shrinks and narrows by the same factor, which is what makes it one projection', () => {
+    for (const units of [0, 1, 3.5, 7, PLAYFIELD.visibleUnits, 40]) {
+      const scale = projectionAt(units)
+      const heightAbove = distanceToY(layout, units) - layout.horizonYPx
+
+      expect(heightAbove / (layout.groundYPx - layout.horizonYPx)).toBeCloseTo(scale, 9)
+      expect(roadHalfWidthAt(layout, units)).toBeCloseTo(layout.roadWidthPx / 2 * scale, 9)
+    }
+  })
+
+  it('converges the lanes on the vanishing point', () => {
+    const nearLeft = laneToXAtDistance(layout, 0, 0)
+    const farLeft = laneToXAtDistance(layout, 0, PLAYFIELD.visibleUnits)
+
+    expect(nearLeft).toBeCloseTo(laneToX(layout, 0), 9)
+    expect(farLeft).toBeGreaterThan(nearLeft)
+    expect(farLeft).toBeLessThan(layout.centreXPx)
+
+    // The centre lane is the axis of the projection and does not move.
+    expect(laneToXAtDistance(layout, PLAYFIELD.startLane, PLAYFIELD.visibleUnits))
+      .toBeCloseTo(layout.centreXPx, 9)
+  })
+
+  it('inverts cleanly, so the road can be drawn in screen rows as well', () => {
+    for (const units of [0, 0.75, 4, 9.5]) {
+      expect(yToDistance(layout, distanceToY(layout, units))).toBeCloseTo(units, 6)
+    }
+  })
+
+  it('leaves the player most of the screen to read ahead in', () => {
+    // The failure the reconstruction was commissioned for: with the feet at
+    // 0.78 and the vanishing point at 0.56, the entire playfield was 22% of a
+    // phone screen.
+    const roadband = (layout.groundYPx - layout.horizonYPx) / layout.viewportHeightPx
+
+    expect(roadband).toBeGreaterThan(0.35)
   })
 })

@@ -6,6 +6,9 @@ not invented around.**
 
 **Last full review:** 2026-09-19, against Claude Design v0.3, the ChatGPT Art
 Direction Board v1 and the nine production-art development masters then present.
+**Last amendment:** 2026-09-20 — #3a, **accepted at the Milestone B visual
+review**: the promenade is drawn in perspective and the lane rules stay
+orthographic. [`core-run.md`](core-run.md) §1.1 was amended to match.
 **Last decision pass:** 2026-09-12 (M0.6) — #10, #13, #14 and #15 resolved; #16 partially
 resolved, with a complete catalogue proposed and awaiting approval.
 
@@ -66,6 +69,49 @@ near-orthographic lanes with a fixed horizon** and the character facing the came
 projection with per-depth sprite scaling — a different renderer architecture, a
 different art pipeline, and a different collision model. This must be settled
 before any engine work begins.
+
+**Amended by #3a below**, and only in one respect: the promenade is now *drawn*
+in perspective. The camera still faces the player, and the collision model this
+entry was written to protect is untouched.
+
+#### #3a — Converging promenade, orthographic rules · ACCEPTED 2026-09-20 at visual review
+
+The gameplay-presentation reconstruction brief directed that the promenade narrow
+towards the horizon and that lane markers and environmental edges reinforce
+forward movement, while authoritative logical lane positions and collisions
+remain unchanged. It was implemented on that basis, reviewed, and **accepted**.
+The reviewer's words, recorded verbatim because they are the boundary of the
+decision:
+
+> ACCEPT #3a. Perspective is approved as a PRESENTATION-ONLY projection.
+> Authoritative three-lane semantics, collision geometry, domain state and bridge
+> contracts remain unchanged. Do not reinterpret this as permission to change
+> gameplay geometry.
+
+The character still faces the camera, which #3 settled and which neither the
+reconstruction nor this acceptance reopened.
+
+**Resolution: the *picture* converges; the *rules* do not.** This is not #3
+being overturned — #3's stated risk was "a different collision model", and the
+acceptance rules that out in terms.
+
+What this means in practice, and what must stay true:
+
+| | |
+| --- | --- |
+| Domain | Unchanged. Lanes are indices, distance is in road units, collision is decided from the two. Nothing in `game/domain` knows a pixel. |
+| Bridge | Unchanged. No field was added for the renderer's benefit; the scene measures the world's speed from the obstacle distances it is already given. |
+| Engine | `layout.ts` maps distance to screen position and size through one projective function instead of a linear ramp, and adds a lane-x-at-distance mapping. Presentation only, and tested. |
+| Readability | `distanceScale` is clamped across the playable range, so an obstacle entering at the far end is a third of its near size rather than a speck. The escape-path guarantee is unaffected, because it never depended on pixels. |
+
+The v0.2.1-era near-orthographic lane columns are **superseded for the
+playfield**. v0.3 remains authoritative for HUD layout, the protected desktop
+column and the character's camera — all three are implemented as drawn.
+
+**Still true, and still the reason #3 exists:** no gameplay decision may be
+derived from the projection. A renderer that resized a hazard to fit its
+artwork, or moved one to a prettier x, would be a renderer quietly changing what
+the collision rules already decided.
 
 ### #4 — Menu presentation · RESOLVED
 

@@ -77,6 +77,15 @@ afterEach(() => {
 })
 
 describe('the score', () => {
+  it('groups the desktop-movable display in one structural readout rail', () => {
+    const page = render()
+    const rail = page.get('.run__readouts')
+
+    expect(rail.find('.run__hud').exists()).toBe(true)
+    expect(rail.find('.run__slayyy').exists()).toBe(true)
+    expect(rail.find('.run__meta').exists()).toBe(true)
+  })
+
   it('is text, not a bar', () => {
     state.score.value = 1234
     const page = render()
@@ -248,6 +257,19 @@ describe('the SLAYYY control', () => {
   })
 })
 
+describe('the active power-state cue', () => {
+  it('communicates score doubling and protection as text, not only scene colour', async () => {
+    const page = render()
+
+    state.slayyy.value = 'active'
+    await page.vm.$nextTick()
+
+    const cue = page.get('.run__slayyy-state')
+    expect(cue.attributes('role')).toBe('status')
+    expect(cue.text()).toContain('run.slayyyMultiplier')
+  })
+})
+
 describe('what a screen reader is told', () => {
   /*
    * A changing `aria-label` announces nothing: a name is read when the control
@@ -354,5 +376,115 @@ describe('hearts', () => {
       `run.hearts(count=1,max=${HEARTS.max})`,
     )
     expect(page.findAll('.run__heart--spent')).toHaveLength(HEARTS.max - 1)
+  })
+})
+
+describe('the pause control', () => {
+  /*
+   * It was a text button carrying "Pause"/"Resume" in three languages of
+   * differing length, which is what made the top strip reflow when the run was
+   * paused. An icon has no such width — but an icon with no name is a control a
+   * screen reader cannot describe, so the state moves into the accessible name
+   * rather than disappearing with the label.
+   */
+  it('carries its state in the accessible name rather than in visible text', async () => {
+    const page = render()
+    const button = page.get('.run__pause')
+
+    expect(button.attributes('aria-label')).toBe('run.pause')
+    expect(button.get('.run__pause-glyph').attributes('aria-hidden')).toBe('true')
+
+    state.isPaused.value = true
+    await page.vm.$nextTick()
+
+    expect(page.get('.run__pause').attributes('aria-label')).toBe('run.resume')
+  })
+
+  it('is gone entirely when the engine failed, rather than disabled and lying', () => {
+    state.failed.value = true
+
+    expect(render().find('.run__pause').exists()).toBe(false)
+  })
+})
+
+describe('the desktop side cards', () => {
+  /*
+   * v0.3's desktop board puts two things beside the play column and nothing
+   * else. They are rendered at every width and hidden by a media query rather
+   * than branched on in script: a JavaScript width check would have to re-run
+   * on resize, and a HUD that decides its own layout in script is a HUD that
+   * disagrees with the stylesheet the first time one of them is edited.
+   */
+  it('label themselves, so neither is an unnamed landmark', () => {
+    const page = render()
+
+    expect(page.get('.run__aside--keys').attributes('aria-label')).toBe('run.keysTitle')
+    expect(page.get('.run__aside--goal').attributes('aria-label')).toBe('run.nextGoalTitle')
+  })
+
+  it('states every binding the engine actually accepts', () => {
+    const keys = render().get('.run__keys').text()
+
+    for (const binding of ['run.keysLanes', 'run.keysJump', 'run.keysSlayyy', 'run.keysPause']) {
+      expect(keys).toContain(binding)
+    }
+  })
+
+  it('reports progress toward the next bonus, not the run total', () => {
+    state.runPaws.value = 617
+    state.cyclePaws.value = 17
+    const page = render()
+
+    expect(page.get('.run__goal-value').text()).toContain(
+      `run.cycleProgress(count=17,total=${PROGRESS.loliThreshold})`,
+    )
+    expect(page.get('.run__goal-value').text()).not.toContain('617')
+  })
+
+  it('keeps the goal meter decorative, with the count carrying the fact', async () => {
+    /*
+     * `accessibility.md` §4.1: progress may not rest on a fill's colour. The
+     * meter is a second reading of the number printed above it — delete it and
+     * the card still says exactly how many Paw Tokens are left — so it is
+     * hidden from the accessibility tree rather than given a role of its own.
+     */
+    state.cyclePaws.value = 50
+    const page = render()
+    const meter = page.get('.run__goal-meter')
+
+    expect(meter.attributes('aria-hidden')).toBe('true')
+    expect(meter.attributes('style')).toContain('--goal-fill: 25%')
+
+    state.cyclePaws.value = PROGRESS.loliThreshold
+    await page.vm.$nextTick()
+
+    expect(page.get('.run__goal-meter').attributes('style')).toContain('--goal-fill: 100%')
+  })
+
+  it('never paints the goal meter past its own track', async () => {
+    // A threshold crossing is the domain's to handle on its own clock, and the
+    // counter can read past it for a frame before the bonus starts.
+    state.cyclePaws.value = PROGRESS.loliThreshold + 40
+    const page = render()
+    await page.vm.$nextTick()
+
+    expect(page.get('.run__goal-meter').attributes('style')).toContain('--goal-fill: 100%')
+  })
+})
+
+describe('the display claims nothing the run does not know', () => {
+  /*
+   * v0.3's score card shows a personal best under the score, and there is no
+   * such number: persistence is M9, and `useRunSurface` has no field for it.
+   * Printing one would be the HUD inventing state — so the card carries the
+   * caption and the score, and stops there.
+   */
+  it('shows no personal best, no unlocks and no profile progression', () => {
+    state.score.value = 4210
+    const page = render()
+
+    expect(page.get('.run__score').text()).toBe('run.scoreLabel4210')
+    expect(page.find('.run__record').exists()).toBe(false)
+    expect(page.find('.run__highscore').exists()).toBe(false)
   })
 })

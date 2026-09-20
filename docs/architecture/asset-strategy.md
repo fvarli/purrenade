@@ -1,5 +1,79 @@
 # Asset Strategy
 
+## Gameplay presentation — reconstructed in Milestone B3
+
+The run route draws a seaside promenade in one-point projection from **twenty
+prepared RGBA PNGs** under `public/game/`. The manifest is
+`game/engine/assets.ts`; the world that uses it is `game/engine/promenade.ts`
+and `game/engine/actors.ts`. Nothing in `app/`, `game/` or the Nuxt build reads
+`design-reference/`, and `game/engine/scene.spec.ts` asserts that, that every
+manifest path exists, and that every file is a real PNG with an alpha channel.
+
+### How the runtime files are made — APPROVED
+
+`tools/prepare-run-assets.py` is an **authoring tool, not a build step**. It is
+run by hand, its output is committed, and it implements §4.5 below: development
+masters are not delivery inputs, they are *extracted* into rights-cleared,
+text-free runtime files.
+
+Each entry in the tool records the master, the panel and the pixel box it comes
+from, so a later art pass can re-cut from an updated master rather than guess.
+Two keying modes exist because the masters need both: a colour key for coloured
+art on the cream panel, and a morphologically closed silhouette for art that is
+itself nearly white — Loli's coat and the low barrier's stripes are within a few
+points of the panel, and a colour key opens holes straight through them.
+
+| Family | Files | Source |
+| --- | --- | --- |
+| Ayşenur | `aysenur-run`, `aysenur-lean-left`, `aysenur-lean-right`, `aysenur-hit` | Character reference sheet turnaround (front, 3/4, mirrored 3/4) and the action master's own hit pose |
+| Loli | `loli-companion` | Character master, 3/4 turnaround — the one cell carrying the tail, the head markings and the nose marking together |
+| Obstacles | `traffic-cone`, `traffic-cone-slayyy`, `low-barrier`, `low-barrier-slayyy` | Gameplay master panels 1 and 2 |
+| World | `world-horizon`, `prop-railing`, `prop-lamp`, `prop-bench`, `prop-palm`, `prop-flowerpot` | World kit panels 1 and 3; the coast is mirrored onto itself so it tiles with no seam |
+| Drawn | `paw-token`, `paw-token-slayyy`, `fx-petal`, `fx-sparkle`, `fx-shadow` | Drawn to the master's design rather than cut: the Paw Token is a pink paw inside a *white* glow on a cream panel, which no key can separate |
+
+No file carries a label, a caption or a callout. No file is a reference board.
+Total payload is roughly 2.4 MB, of which the coastline backdrop is 576 KiB —
+the only file over 300 KiB, and the one that is upscaled rather than downscaled
+on a high-DPR phone, so it is deliberately not reduced further.
+
+**This hits a §2.1 review trigger, and the trigger is answered rather than
+ignored.** The size thresholds are nowhere near: no single binary approaches
+10 MB and the repository is far under 100 MB. The one that does fire is *"the
+first runtime sprite set is about to be committed"*. **Decision: commit these
+twenty files normally, in git, with no LFS and no external store.** They are
+individually small, they are content that changes rarely, and the question the
+trigger exists for — how a multi-megabyte packed atlas re-exported dozens of
+times should be stored — is a question about the atlas, which is still OPEN
+below. Revisit at that point, as ASSET-1 says, and not before.
+
+### The camera and the character, and why these cells
+
+`design-reference-conflicts.md` #3 resolves the camera to v0.3: the player faces
+the camera. So the runtime uses the turnaround's front and three-quarter views
+rather than the action master's run-cycle strip, which is drawn in side view and
+would put the protagonist in a different camera from the world she runs through.
+
+The master contains no front-facing run cycle, and cutting turnaround cells and
+calling them frames would be inventing an animation it does not contain. What
+the states are driven by instead: the master's own hit pose for a lost heart,
+its own three-quarter views for a lane change, and controlled motion — a run
+bob, a lean, a jump stretch, a ground shadow that shrinks with height — for
+everything else. Quality and identity over a fabricated frame count.
+
+### Remaining production-art preparation requirements — OPEN
+
+- A front-facing Ayşenur **run cycle** and **jump sequence**, so the bob and the
+  stretch can be replaced by real frames.
+- Loli follow/enter/exit frames in the same camera.
+- Approved SLAYYY variants for anything beyond the cone and the barrier, which
+  the master already draws.
+- A packed atlas: twenty individual files is twenty texture binds, and §3 wants
+  one.
+
+No design master is a fallback network asset. If a prepared asset fails to load,
+`actors.ts` builds its primitive presentation instead — a hazard the player
+cannot see is a hazard they cannot fairly avoid.
+
 How binary assets are stored, delivered, and kept from degrading the repository.
 
 **Status legend:** APPROVED / PROPOSED / OPEN.
@@ -14,7 +88,7 @@ How binary assets are stored, delivered, and kept from degrading the repository.
 | Git LFS | **Not used, and not introduced in M0** |
 | Storage | The current design-reference set is committed normally |
 | Production-art development masters | Nine PNG visual specifications/candidates under `design-reference/production-asset-development/`; they are reference-only and not runtime assets |
-| Runtime-ready / packaged production assets | **None exist yet** — no approved extracted sprites, texture atlases or delivered production-art package exists |
+| Runtime-ready / packaged production assets | Twenty prepared, label-free RGBA PNGs under `public/game/` (~2.4 MB), cut from the masters by `tools/prepare-run-assets.py`; a packed atlas and a real run cycle remain future production art |
 
 **Decision: no Git LFS in M0.** ~18 MB is acceptable for an initial repository,
 and introducing LFS adds a tooling dependency for every future clone before there

@@ -127,7 +127,7 @@ test.describe('the heads-up display during a run', () => {
     await open(page, '/run')
     await running(page)
 
-    await expect(page.locator('.run__status--ended')).toBeVisible({ timeout: 150_000 })
+    await expect(page.locator('.run__complete')).toBeVisible({ timeout: 150_000 })
 
     const final = await score(page)
     const finalPaws = await paws(page)

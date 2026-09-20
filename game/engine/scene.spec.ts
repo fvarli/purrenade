@@ -1231,3 +1231,201 @@ describe('a failed texture falls back to shapes rather than to nothing', () => {
     expect(() => scene.frame(1000 / 120)).toThrow(/exceed the pool/)
   })
 })
+
+/**
+ * The reduced-motion preference, while a run is on screen.
+ *
+ * It used to be read once, when the scene was built, and never again — so a
+ * player who turned the setting on mid-run kept the decoration until the scene
+ * was destroyed and rebuilt, which in practice meant leaving the route and
+ * coming back. Every consumer already reads the flag off the view object once
+ * per frame, so the whole fix is to keep watching; what needs testing is the
+ * listener's lifetime, not the sampling.
+ */
+function fakeMotionPreference(initial: boolean) {
+  const handlers = new Set<(event: { matches: boolean }) => void>()
+
+  const query = {
+    matches: initial,
+    addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+      handlers.add(fn)
+    },
+    removeEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+      handlers.delete(fn)
+    },
+  }
+
+  return {
+    query,
+    listeners: () => handlers.size,
+    /** The player changes the system setting with the run already running. */
+    set: (matches: boolean) => {
+      query.matches = matches
+      for (const fn of [...handlers]) fn({ matches })
+    },
+  }
+}
+
+describe('reduced motion is watched, not sampled once', () => {
+  it('installs exactly one listener for the life of the scene', () => {
+    const preference = fakeMotionPreference(false)
+    vi.stubGlobal('matchMedia', () => preference.query)
+
+    try {
+      mountScene()
+
+      expect(preference.listeners()).toBe(1)
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('lands on the next frame, with no rebuild and no reload', () => {
+    const preference = fakeMotionPreference(false)
+    vi.stubGlobal('matchMedia', () => preference.query)
+
+    try {
+      const scene = atRunning()
+      const base = scene.loop.snapshot()
+
+      // Two points of the run bob a full half-cycle apart, so "it moved" and
+      // "it held still" cannot be confused for one another.
+      const renderAt = (elapsedMs: number): void => {
+        vi.spyOn(scene.loop, 'snapshot').mockReturnValue({
+          ...base,
+          elapsedMs,
+          heightPx: 0,
+          jumpProgress: 0,
+        } as never)
+        scene.frame(1000 / 120)
+      }
+
+      renderAt(170)
+      const crest = scene.player().y
+
+      renderAt(510)
+      expect(scene.player().y, 'the bob must be live to begin with')
+        .not.toBe(crest)
+
+      preference.set(true)
+
+      renderAt(170)
+      const stilled = scene.player().y
+
+      renderAt(510)
+      expect(scene.player().y, 'the bob must stop without the scene being rebuilt')
+        .toBe(stilled)
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('goes back when the preference does', () => {
+    const preference = fakeMotionPreference(true)
+    vi.stubGlobal('matchMedia', () => preference.query)
+
+    try {
+      const scene = atRunning()
+      const base = scene.loop.snapshot()
+      const renderAt = (elapsedMs: number): void => {
+        vi.spyOn(scene.loop, 'snapshot').mockReturnValue({
+          ...base,
+          elapsedMs,
+          heightPx: 0,
+          jumpProgress: 0,
+        } as never)
+        scene.frame(1000 / 120)
+      }
+
+      renderAt(170)
+      const stilled = scene.player().y
+      renderAt(510)
+      expect(scene.player().y).toBe(stilled)
+
+      preference.set(false)
+
+      renderAt(170)
+      const crest = scene.player().y
+      renderAt(510)
+      expect(scene.player().y).not.toBe(crest)
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  /*
+   * Both teardown events, for the reason the rest of this file's teardown is
+   * registered on both: `game.destroy(true)` emits `destroy` and never
+   * `shutdown`, which is the path the run route actually takes.
+   */
+  for (const event of ['destroy', 'shutdown'] as const) {
+    it(`removes its listener on ${event}`, () => {
+      const preference = fakeMotionPreference(false)
+      vi.stubGlobal('matchMedia', () => preference.query)
+
+      try {
+        const scene = mountScene()
+        expect(preference.listeners()).toBe(1)
+
+        scene.events.emit(event)
+
+        expect(preference.listeners()).toBe(0)
+      }
+      finally {
+        vi.unstubAllGlobals()
+      }
+    })
+  }
+
+  /*
+   * Replay is a destroy and a fresh mount, so a listener that outlived its
+   * scene would accumulate one per play-again and apply the preference N times
+   * on every change.
+   */
+  it('does not accumulate across replays', () => {
+    const preference = fakeMotionPreference(false)
+    vi.stubGlobal('matchMedia', () => preference.query)
+
+    try {
+      for (let replay = 0; replay < 3; replay++) {
+        const scene = mountScene()
+        expect(preference.listeners()).toBe(1)
+        scene.events.emit('destroy')
+        expect(preference.listeners()).toBe(0)
+      }
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  /*
+   * A media query that reports `matches` and nothing else is a reasonable stub
+   * and an old browser's reality alike. The preference still applies; only the
+   * watching is skipped.
+   */
+  it('still reads the preference when the query cannot be listened to', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+
+    try {
+      expect(() => mountScene()).not.toThrow()
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('survives an environment with no matchMedia at all', () => {
+    vi.stubGlobal('matchMedia', undefined)
+
+    try {
+      expect(() => mountScene()).not.toThrow()
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})

@@ -218,7 +218,8 @@ Paw Tokens — and `cosmetic` remains reserved, drawn from by nothing.
 At M5 nothing in `game/` read `prefers-reduced-motion`, and that was honest: the scene
 drew static shapes and the only movement was the player responding to input, which is not
 decoration. M6 added the thing the setting is actually about — the post-hit blink. The
-scene now reads the query directly (`game/engine/scene.ts`), and under `reduce` the 10 Hz
+scene now reads the query directly (`game/engine/scene.ts`) — and, since Milestone C,
+keeps watching it (§7D) — and under `reduce` the 10 Hz
 blink becomes a slower, lower-contrast pulse rather than either a flash or a static dim:
 the invulnerable state still has to be *visible*, so switching the feedback off would trade
 an accessibility problem for a legibility one. This satisfies `accessibility.md`'s
@@ -272,6 +273,79 @@ three directions, and nothing else" for the benefit of scenery, and every later
 field would have had that precedent to point at. The measurement is presentation
 arithmetic in the presentation layer, it freezes when the run is not `running`,
 and nothing downstream of it can reach the rules.
+
+---
+
+## 7D. The run lifecycle, after Milestone C — APPROVED
+
+Milestone C closed the session around the run — pause, run complete, replay —
+without changing a byte under `game/domain/` or `game/bridge/`. Three facts about
+the boundary follow from it.
+
+### Replay is a teardown and a fresh mount, never a reset
+
+`RunPhase.ended` is terminal by construction: `step()` returns the sealed state
+before it looks at anything else, so no input can reopen a finished run. There is
+therefore no state to rewind, and `useRunSurface.restart()` does not try — it runs
+the same `stop()` the route leave runs, then the same `start()` the route entry
+runs.
+
+That is the point rather than a shortcut. The generation counter, the listener
+list and `MountedRun.destroy()` are the mechanisms this composable exists for, and
+the ones already hardened twice; a replay path with reset logic of its own would
+be a second lifecycle to keep correct, and the first symptom of it drifting would
+be two live WebGL contexts.
+
+One consequence is worth stating because it is not obvious. `createRunLoop` emits
+`run_started` but **no opening `phase_changed`** — `lastPhase` is seeded from the
+fresh state, so the first phase event a new run produces is `ready → running`, at
+the *end* of the readiness beat. The phase therefore has to be reset by `stop()`
+alongside the score and the hearts. Without that, the run-complete overlay stays
+mounted over a live new run for the whole beat.
+
+### The reduced-motion preference is watched, not sampled
+
+The scene resolves the media query once in `create()`, installs exactly one
+`change` listener, and pushes its removal into the same `teardown` list as the
+resize and input handlers — the list `drain()` empties on `shutdown` **and** on
+`destroy`. Every consumer already reads `reducedMotion` off the view object once
+per frame, so a change lands on the next frame with no reload and no rebuild.
+
+A query object that reports `matches` without `addEventListener` is handled: the
+preference still applies, only the watching is skipped.
+
+### Overlays are DOM, and the scrim is load-bearing
+
+No text is drawn inside the canvas, and the pause and run-complete screens do not
+change that. They are Vue components, siblings of `.run__readouts` rather than
+children of it, because the readout rail is clamped to the play column and takes
+no pointer events — an overlay inside it would leave the seaside either side of
+the column live to touches.
+
+Covering the canvas is how gameplay input stops: Phaser's `pointerdown` only fires
+when the target is the canvas, so a tap on the scrim reaches nothing. Keyboard is
+stopped independently, by `shouldHandleKey` declining every binding but Escape
+while an activatable element has focus — and the dialog's focus trap guarantees
+one always does. Two mechanisms, neither relying on the other.
+
+### The tutorial seam — for M8, not built here
+
+M8 needs a run-like presentation in which the player cannot die, and it is blocked
+on an OPEN visual decision (`TU-1`), so none of it is built. What Milestone C
+leaves it is the shape it needs:
+
+| A tutorial must | and can, because |
+| --- | --- |
+| enter a controlled run | `mountRun()` is the single entry point, and takes its options at the call site |
+| suppress lethal behaviour | the rules are pure functions of state — a tutorial flag belongs in `game/domain`, where `step()` can honour it, not in the engine |
+| observe movement, jump and collect | `RunEvent` already carries them as coarse events, and the app layer already subscribes to exactly that |
+| leave cleanly | `stop()` is the same teardown a replay and a route leave use |
+| not corrupt a normal run | nothing is persisted, and every run-scoped counter resets with the surface |
+
+The one thing M8 has to add is the flag itself, in the domain. That is where it
+belongs, and it is deliberately not pre-empted here: inventing a parameter before
+the milestone that needs it knows its own shape is how a boundary acquires fields
+nobody uses.
 
 ---
 

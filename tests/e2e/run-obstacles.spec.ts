@@ -71,7 +71,7 @@ test.describe('obstacles, damage and the end of a run', () => {
       .toBe(0)
 
     await expect(page.locator('.run__phase')).toHaveText(/Bitti|Over|Fin/)
-    await expect(page.locator('.run__status--ended')).toBeVisible()
+    await expect(page.locator('.run__complete')).toBeVisible()
 
     // Terminal: the canvas must stop changing.
     const canvas = page.locator('canvas')

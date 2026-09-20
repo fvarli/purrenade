@@ -5,6 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRunSurface } from '~/composables/useRunSurface'
+import { HEARTS } from '~~/game/bridge'
 import type { RunEvent, RunPhase } from '~~/game/bridge'
 
 /**
@@ -570,5 +571,143 @@ describe('the M7 heads-up display', () => {
     expect(run.loliActive.value).toBe(false)
     expect(run.slayyy.value).toBe('charging')
     expect(run.slayyyPercent.value).toBe(0)
+  })
+})
+
+describe('replaying a run', () => {
+  /**
+   * Drive the fake to the state a lost run leaves behind.
+   *
+   * The domain seals `ended`, so this is genuinely terminal: the only way out
+   * of it is a new run.
+   */
+  const loseTheRun = (): void => {
+    emit({ type: 'score_changed', total: 4210 })
+    emit({ type: 'paws_changed', runPaws: 37, cyclePaws: 37 })
+    emit({ type: 'heart_lost', hearts: 0 })
+    emit({ type: 'phase_changed', phase: 'ended' })
+    emit({ type: 'run_ended' })
+    fake.phase = 'ended'
+  }
+
+  it('destroys the finished run and mounts a new one', async () => {
+    const run = surface()
+    await run.start(container())
+
+    loseTheRun()
+    await run.restart()
+
+    expect(mountCalls).toBe(2)
+    expect(fake.destroyed).toBe(true)
+  })
+
+  /*
+   * The bug this exists for.
+   *
+   * `createRunLoop` emits `run_started` but no opening `phase_changed` — its
+   * `lastPhase` is seeded from the fresh state, so the first phase event a new
+   * run produces is `ready -> running`, at the *end* of the readiness beat.
+   * A replay that left `phase` at `'ended'` therefore showed the run-complete
+   * overlay over a live new run for that whole second and a half.
+   */
+  it('is back at the readiness beat before the new run says anything', async () => {
+    const run = surface()
+    await run.start(container())
+
+    loseTheRun()
+    expect(run.hasEnded.value).toBe(true)
+
+    await run.restart()
+
+    expect(run.phase.value).toBe('ready')
+    expect(run.hasEnded.value).toBe(false)
+    expect(run.isPaused.value).toBe(false)
+  })
+
+  it('resets every run-scoped counter', async () => {
+    const run = surface()
+    await run.start(container())
+
+    emit({ type: 'slayyy_charge', percent: 80 })
+    emit({ type: 'slayyy_ready' })
+    emit({ type: 'loli_started' })
+    loseTheRun()
+
+    await run.restart()
+
+    expect(run.score.value).toBe(0)
+    expect(run.runPaws.value).toBe(0)
+    expect(run.cyclePaws.value).toBe(0)
+    expect(run.hearts.value).toBe(HEARTS.start)
+    expect(run.slayyy.value).toBe('charging')
+    expect(run.slayyyPercent.value).toBe(0)
+    expect(run.loliActive.value).toBe(false)
+  })
+
+  /*
+   * The leak this composable exists to prevent, in its replay form.
+   *
+   * Three replays is three mounts, and a `start()` that added its listeners
+   * without the matching `stop()` having removed them would read as three
+   * copies here — after which one tab switch would fire three pauses.
+   */
+  it('does not multiply listeners however often it is replayed', async () => {
+    const run = surface()
+    await run.start(container())
+
+    await run.restart()
+    await run.restart()
+    await run.restart()
+
+    expect(mountCalls).toBe(4)
+    expect(listeners['document:visibilitychange']).toBe(1)
+    expect(listeners['window:blur']).toBe(1)
+    expect(listeners['window:pagehide']).toBe(1)
+
+    run.stop()
+
+    expect(listeners['document:visibilitychange']).toBe(0)
+    expect(listeners['window:blur']).toBe(0)
+    expect(listeners['window:pagehide']).toBe(0)
+  })
+
+  it('leaves exactly one live engine behind, not a stack of them', async () => {
+    const run = surface()
+    await run.start(container())
+
+    await run.restart()
+    await run.restart()
+
+    // Every mount but the current one was destroyed on its way out, so a single
+    // `stop()` is enough to leave nothing running.
+    run.stop()
+
+    expect(listeners['document:visibilitychange']).toBe(0)
+  })
+
+  it('is a no-op before anything has been mounted', async () => {
+    const run = surface()
+
+    await run.restart()
+
+    expect(mountCalls).toBe(0)
+    expect(run.loading.value).toBe(true)
+  })
+
+  /*
+   * Leaving the route releases the container.
+   *
+   * Holding it would pin a detached element for as long as the composable
+   * lives, and would let a late `restart()` — from a handler that outlived the
+   * page — mount a game into an element no longer in the document.
+   */
+  it('does not mount into a surface the page has already left', async () => {
+    const run = surface()
+    await run.start(container())
+    run.stop()
+
+    await run.restart()
+
+    expect(mountCalls).toBe(1)
   })
 })

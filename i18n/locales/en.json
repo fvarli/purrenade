@@ -283,7 +283,19 @@
     "resume": "Resume",
     "loading": "Loading the game engine…",
     "failed": "The game engine could not load. Refresh the page and try again.",
-    "scopeNotice": "This build has lanes, jumping, obstacles, hearts, score, Paw Tokens, the Loli Bonus and SLAYYY. Saving your progress arrives in a later milestone.",
+    "mainMenu": "Main menu",
+    "restart": "Restart",
+    "replay": "Play again",
+    "pauseScreen": {
+      "title": "BREAK TIME! 🫖",
+      "scoreSafe": "Your score is safe: {score}"
+    },
+    "complete": {
+      "title": "GAME OVER!",
+      "flavour": "Ayşenur is catching her breath. The seaside is still here.",
+      "pawsGained": "+{count} Paw Tokens",
+      "persistenceNotice": "Saving your progress arrives in a later milestone."
+    },
     "phase": {
       "ready": "Getting ready",
       "running": "Running",
@@ -292,7 +304,6 @@
     },
     "hearts": "Lives: {count} / {max}",
     "heartsLabel": "Lives remaining",
-    "ended": "Run over. Leave and enter again to start a new one.",
     "score": "Score: {score}",
     "scoreLabel": "Score",
     "paws": "Paws: {count}",

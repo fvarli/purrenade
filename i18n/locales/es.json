@@ -283,7 +283,19 @@
     "resume": "Reanudar",
     "loading": "Cargando el motor del juego…",
     "failed": "No se ha podido cargar el motor del juego. Actualiza la página e inténtalo de nuevo.",
-    "scopeNotice": "Esta versión tiene carriles, salto, obstáculos, vidas, puntuación, Huellas, el Bonus de Loli y SLAYYY. Guardar tu progreso llega en una fase posterior.",
+    "mainMenu": "Menú principal",
+    "restart": "Reiniciar",
+    "replay": "Jugar otra vez",
+    "pauseScreen": {
+      "title": "¡DESCANSO! 🫖",
+      "scoreSafe": "Tu puntuación está a salvo: {score}"
+    },
+    "complete": {
+      "title": "¡FIN DEL JUEGO!",
+      "flavour": "Ayşenur recupera el aliento. La playa sigue aquí.",
+      "pawsGained": "+{count} Huellas",
+      "persistenceNotice": "Guardar tu progreso llega en una fase posterior."
+    },
     "phase": {
       "ready": "Preparándose",
       "running": "En marcha",
@@ -292,7 +304,6 @@
     },
     "hearts": "Vidas: {count} / {max}",
     "heartsLabel": "Vidas restantes",
-    "ended": "Carrera terminada. Sal y vuelve a entrar para empezar otra.",
     "score": "Puntuación: {score}",
     "scoreLabel": "Puntuación",
     "paws": "Huellas: {count}",

@@ -39,8 +39,8 @@ const { t } = useI18n()
 
 const surface = useTemplateRef<HTMLElement>('surface')
 const {
-  phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause,
-  score, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
+  phase, loading, failed, isPaused, hasEnded, hearts, start, stop, restart, togglePause,
+  score, runPaws, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
 } = useRunSurface()
 
 /**
@@ -136,6 +136,48 @@ function pauseFromControl(): void {
 function slayyyFromControl(): void {
   activateSlayyy()
   returnFocusToSurface()
+}
+
+/** Back to the menu, board 08. */
+function leaveToMenu(): void {
+  void navigateTo('/')
+}
+
+/**
+ * Leaving pauses first.
+ *
+ * This control used to be a link straight to the menu, one tap from the top
+ * corner of a phone screen, with a live run behind it and nothing between the
+ * two. Abandoning a run is not undoable — there is no revive and no continue —
+ * so it should take more than a mistimed thumb.
+ *
+ * The confirmation is the approved pause screen rather than a dialog invented
+ * for the purpose: board 12 already offers *return to menu* beside *resume*,
+ * so pausing here reaches a decision the player can reverse, using UX that was
+ * approved for exactly this moment.
+ *
+ * A run that never started is exempt. There is nothing to pause while the
+ * engine is loading or after it has failed, and a control that did nothing
+ * there would strand the player on a blank screen.
+ */
+function leaveFromControl(): void {
+  if (loading.value || failed.value || isPaused.value || hasEnded.value) {
+    leaveToMenu()
+
+    return
+  }
+
+  togglePause()
+}
+
+/** Resume from the overlay. Focus returns with the dialog, not from here. */
+function resumeFromOverlay(): void {
+  togglePause()
+}
+
+/** Play again: a genuinely new run in the same surface. */
+function replayRun(): void {
+  void restart()
 }
 
 useHead({
@@ -244,9 +286,13 @@ onBeforeUnmount(stop)
           </svg>
         </button>
 
-        <NuxtLink to="/" class="run__exit">
+        <button
+          type="button"
+          class="run__exit"
+          @click="leaveFromControl"
+        >
           {{ t('run.leave') }}
-        </NuxtLink>
+        </button>
       </div>
 
       <div class="run__meta">
@@ -307,10 +353,6 @@ onBeforeUnmount(stop)
         <UiAuthNotice v-else-if="failed" variant="error">
           {{ t('run.failed') }}
         </UiAuthNotice>
-
-        <p v-else-if="hasEnded" class="run__status run__status--ended" role="status">
-          {{ t('run.ended') }}
-        </p>
       </div>
 
       <div class="run__slayyy">
@@ -345,6 +387,39 @@ onBeforeUnmount(stop)
         </p>
       </div>
     </div>
+
+    <!--
+      The two screens that interrupt a run.
+
+      Siblings of the readouts rather than children of them: `.run__readouts` is
+      clamped to the play column and takes no pointer events, so an overlay
+      inside it would leave the seaside either side of the column live to
+      touches, and a scrim that lets gameplay gestures through is not a scrim.
+      These cover the viewport and take the taps; their panels are held to the
+      column.
+
+      `v-if` on the phase, so the overlay is mounted exactly when the domain
+      says so and unmounted the moment it does not — which is what makes focus
+      move in and back out without anything having to remember to do it.
+    -->
+    <RunPauseOverlay
+      v-if="isPaused"
+      :score="score"
+      :restore-focus-to="surface"
+      @resume="resumeFromOverlay"
+      @restart="replayRun"
+      @menu="leaveToMenu"
+    />
+
+    <RunCompleteOverlay
+      v-if="hasEnded"
+      :score="score"
+      :paws="runPaws"
+      :busy="loading"
+      :restore-focus-to="surface"
+      @replay="replayRun"
+      @menu="leaveToMenu"
+    />
 
     <!--
       The desktop side cards.
@@ -616,6 +691,11 @@ onBeforeUnmount(stop)
   display: inline-flex;
   align-items: center;
 
+  /* It is a `<button>` now, so it has a border and a font to unset. */
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+
   /*
    * The label carries a leading arrow. Inside a flex container its intrinsic
    * width came out a few pixels under the text's own, so the arrow wrapped onto
@@ -739,10 +819,6 @@ onBeforeUnmount(stop)
   color: var(--color-ink);
   text-align: center;
   box-shadow: var(--elevation-card);
-}
-
-.run__status--ended {
-  font-weight: 700;
 }
 
 .run__slayyy {

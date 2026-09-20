@@ -60,6 +60,20 @@ async function open(page: import('@playwright/test').Page, path: string): Promis
   await page.waitForLoadState('networkidle')
 }
 
+/**
+ * Leave the run the way a player now has to.
+ *
+ * The leave control pauses instead of navigating: abandoning a run is not
+ * undoable — there is no revive and no continue — so it goes through the
+ * approved pause screen, which already offers *return to menu* beside
+ * *resume*. Two deliberate taps, and the second one is the confirmation.
+ */
+async function leaveRun(page: import('@playwright/test').Page): Promise<void> {
+  await page.click('.run__exit')
+  await page.click('.run__menu')
+  await page.waitForURL('**/')
+}
+
 test.describe('the run surface', () => {
   /*
    * Serial, and not for speed.
@@ -209,7 +223,7 @@ test.describe('the run surface', () => {
     await open(page, '/run')
     await expect(page.locator('.run__phase')).toHaveText(/Koşuyor|Running|En marcha/, { timeout: 20_000 })
 
-    const control = page.locator('.run__chrome button')
+    const control = page.locator('.run__pause')
 
     await control.click()
     await expect(page.locator('.run__phase')).toHaveText(/Duraklatıldı|Paused|En pausa/)
@@ -235,7 +249,7 @@ test.describe('the run surface', () => {
     await open(page, '/run')
     await expect(page.locator('.run__phase')).toHaveText(/Koşuyor|Running|En marcha/, { timeout: 20_000 })
 
-    const control = page.locator('.run__chrome button')
+    const control = page.locator('.run__pause')
 
     await control.click()
     await expect(page.locator('.run__phase')).toHaveText(/Duraklatıldı|Paused|En pausa/)
@@ -345,7 +359,7 @@ test.describe('the run surface', () => {
       await open(page, '/run')
       await page.waitForFunction(() => document.querySelector('canvas') !== null, null, { timeout: 20_000 })
 
-      for (const selector of ['.run__exit', '.run__chrome button', '.run__slayyy-button']) {
+      for (const selector of ['.run__exit', '.run__pause', '.run__slayyy-button']) {
         const control = page.locator(selector)
 
         await expect(control).toBeVisible()
@@ -410,8 +424,7 @@ test.describe('the run surface', () => {
     await page.waitForFunction(() => document.querySelector('canvas') !== null, null, { timeout: 20_000 })
 
     for (let visit = 0; visit < 3; visit++) {
-      await page.click('.run__exit')
-      await page.waitForURL('**/')
+      await leaveRun(page)
 
       // Phaser defers `destroy()` to its next game step, so the canvas goes
       // within a frame or two rather than synchronously. Polling is the honest

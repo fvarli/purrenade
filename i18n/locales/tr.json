@@ -283,7 +283,19 @@
     "resume": "Devam et",
     "loading": "Oyun motoru yükleniyor…",
     "failed": "Oyun motoru yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
-    "scopeNotice": "Bu sürümde şeritler, zıplama, engeller, canlar, skor, Pati Jetonları, Loli Bonusu ve SLAYYY var. İlerlemenin kaydedilmesi sonraki aşamada geliyor.",
+    "mainMenu": "Ana menü",
+    "restart": "Yeniden başla",
+    "replay": "Tekrar oyna",
+    "pauseScreen": {
+      "title": "MOLA! 🫖",
+      "scoreSafe": "Skorun güvende: {score}"
+    },
+    "complete": {
+      "title": "OYUN BİTTİ!",
+      "flavour": "Ayşenur nefesleniyor. Sahil hâlâ burada.",
+      "pawsGained": "+{count} Pati Jetonu",
+      "persistenceNotice": "İlerlemenin kaydedilmesi sonraki aşamada geliyor."
+    },
     "phase": {
       "ready": "Hazırlanıyor",
       "running": "Koşuyor",
@@ -292,7 +304,6 @@
     },
     "hearts": "Can: {count} / {max}",
     "heartsLabel": "Kalan can",
-    "ended": "Koşu bitti. Yeniden başlamak için ayrıl ve tekrar gir.",
     "score": "Skor: {score}",
     "scoreLabel": "Skor",
     "paws": "Pati: {count}",

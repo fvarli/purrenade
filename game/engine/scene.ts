@@ -102,7 +102,7 @@ const MS_PER_SECOND = 1000
 const BLOOM_FADE_MS = 420
 
 /**
- * The reduced-motion preference, read once per scene.
+ * The reduced-motion preference, watched for the life of the scene.
  *
  * Presentation only, and deliberately so. Slowing the world for a
  * reduced-motion player would change how hard the game is, which is not an
@@ -110,11 +110,32 @@ const BLOOM_FADE_MS = 420
  * decoration: the blink becomes slower and shallower, the run bob and the
  * SLAYYY petals hold still, the far coast stops drifting. The road keeps
  * scrolling, because motion that carries gameplay information is preserved.
+ *
+ * Returns the query rather than a boolean, because the preference is not a
+ * constant: a player can turn it on from the system settings with a run already
+ * on screen, and until M-C that change was invisible until the scene was
+ * destroyed and built again — in practice, until they left the route and came
+ * back. Every consumer reads `reducedMotion` off the view object once per
+ * frame, so flipping one variable is enough to make the change land on the next
+ * frame with no reload and no rebuild.
  */
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+function reducedMotionQuery(): MediaQueryList | null {
+  if (typeof globalThis.matchMedia !== 'function') return null
+
+  const query = globalThis.matchMedia(REDUCED_MOTION_QUERY)
+
+  // `matchMedia` is stubbed in more than one test environment, and a stub that
+  // returns only `matches` is a reasonable stub. Treat the listener as the
+  // optional part rather than requiring the whole interface.
+  return typeof query?.addEventListener === 'function' ? query : null
+}
+
 function readsReducedMotion(): boolean {
   if (typeof globalThis.matchMedia !== 'function') return false
 
-  return globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return globalThis.matchMedia(REDUCED_MOTION_QUERY).matches === true
 }
 
 export interface RunSceneOptions {
@@ -140,7 +161,7 @@ export function createRunScene(
   let cast: Cast
 
   const odometer = createOdometer()
-  const prefersReducedMotion = readsReducedMotion()
+  let prefersReducedMotion = readsReducedMotion()
 
   /** The SLAYYY wash, eased rather than switched. `0`–`1`. */
   let bloom = 0
@@ -182,6 +203,32 @@ export function createRunScene(
 
       this.scale.on('resize', this.handleResize, this)
       teardown.push(() => this.scale.off('resize', this.handleResize, this))
+
+      /*
+       * One listener for the whole scene, removed with everything else.
+       *
+       * It goes into the same `teardown` list as the resize and input handlers,
+       * so it is removed on `shutdown` and on `destroy` alike. That is what
+       * keeps replay honest: replaying destroys the scene and builds a new one,
+       * so a listener that outlived its scene would be added again on every
+       * play-again and the preference would be applied N times per change.
+       *
+       * The preference is re-read here as well as at construction, because
+       * `create` runs after the asset load and the setting can have changed in
+       * between.
+       */
+      const motionQuery = reducedMotionQuery()
+
+      if (motionQuery !== null) {
+        prefersReducedMotion = motionQuery.matches === true
+
+        const onMotionPreferenceChange = (event: MediaQueryListEvent): void => {
+          prefersReducedMotion = event.matches
+        }
+
+        motionQuery.addEventListener('change', onMotionPreferenceChange)
+        teardown.push(() => motionQuery.removeEventListener('change', onMotionPreferenceChange))
+      }
 
       /*
        * One place that undoes everything, called however the scene ends.

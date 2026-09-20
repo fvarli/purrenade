@@ -211,6 +211,20 @@ implementation. The mechanism is documented in
 
 ---
 
+## 0B. Resolved in Milestone C — now APPROVED
+
+| Decision | Outcome | Owning document |
+| --- | --- | --- |
+| **SI-7** — confirming an abandoned run | **The leave control pauses instead of navigating.** Leaving is not undoable — there is no revive and no continue — and the control sat one tap from the corner of a phone screen with a live run behind it. *Return to menu* is now reached through the pause screen, which already offers it beside *resume*, so the confirmation is approved UX doing a second job rather than a dialog invented for the purpose. A run that has not started — still loading, or failed to load — keeps the direct exit, because there is nothing to pause and nothing to lose. | [screen-inventory](screen-inventory.md) §4 |
+| **Run-complete truthfulness** | **Board 13 ships without the record, the achievement chip and the audio controls, and board 14 is not built.** Each states something the frontend cannot source: there is no personal best anywhere in it, no achievement is evaluated client-side, and Phaser is started with `audio: { noAudio: true }`. The record slot carries the honest sentence instead — that saving progress arrives later. Nothing here is a decision *against* those elements; each returns with the milestone that makes it true (M9, M11, M12). | [screen-inventory](screen-inventory.md) §4 |
+| **`run.scopeNotice` retired** | The orphaned key listed the build's features and was rendered nowhere. Its one durable clause — progress saving arrives in a later milestone — is now `run.complete.persistenceNotice`, where it does a job. `run.ended` was removed with it: it told the player to leave and re-enter to play again, which stopped being true when Replay arrived. | [localization](localization.md) |
+
+**`CR-4` is untouched.** Resuming still restores the phase it left; the shortened
+readiness beat remains PROPOSED and unimplemented. Shipping the pause screen does
+not decide it.
+
+---
+
 ## 0A. Resolved in M0.6 — now APPROVED
 
 | Decision | Outcome | Owning document |

@@ -71,6 +71,37 @@ not specified by any reference. See the backend's `docs/security/authentication.
 | **13** | **Game over / Oyun Bitti** | "OYUN BİTTİ!", flavour line, score vs record, **`+runPaws`**, achievement progress chip (e.g. "Ramak Kala +1"), play again, return to menu | **No revive and no continue.** |
 | **14** | **New high score / Yeni Rekor** | "YENİ REKOR! ⭐", new score, previous record, "Ayşenur is dancing", `+runPaws`, achievement chip, play again, **view leaderboard** | Uses the record-dance animation state. |
 
+### What boards 12 and 13 ship at Milestone C — APPROVED
+
+Both screens are built. Three elements of their approved content are
+deliberately absent, because none of them can be stated truthfully yet, and a
+screen that shows a number it cannot source is worse than one that does not show
+it. Each returns with the milestone that makes it true.
+
+| Element | Board | Status at Milestone C | Returns with |
+| --- | --- | --- | --- |
+| Score **vs record** | 13 | **Omitted.** There is no personal best anywhere in the frontend — no store, no web-storage write, no field on the run surface. The authoritative score is decided by the backend on submission. | **M9** |
+| **Board 14** — new high score, previous record, record dance, view leaderboard | 14 | **Not built.** It is a comparison against a record that does not exist. | **M9** / **M10** |
+| Achievement progress chip | 13 | **Omitted.** No achievement is evaluated client-side. | **M11** |
+| Music and effects controls | 12 | **Omitted.** The contract is approved (§7A), but there is nothing to control: the engine starts Phaser with `audio: { noAudio: true }`, there is no settings store, and no preference is persisted. A toggle that changed nothing would be a screenshot of a feature. | **M12** |
+
+In place of the record, board 13 carries the one durable sentence from the
+retired `run.scopeNotice`: saving progress arrives in a later milestone. That is
+the same information, stated as a fact about the build rather than dressed as a
+result.
+
+**Board 12 gains a role the boards do not show it in.** Leaving a run is not
+undoable — there is no revive and no continue — and the leave control sat one tap
+from the corner of a phone screen with a live run behind it. It now pauses
+instead of navigating, so *return to menu* is reached through the pause screen,
+which already offers it beside *resume*. The confirmation is approved UX doing a
+second job rather than a dialog invented for the purpose. See
+[`open-decisions.md`](open-decisions.md) `SI-7`.
+
+**The readiness beat on resume (`CR-4`) is still not implemented.** Resuming
+restores the phase it left. The proposal stands; shipping the pause screen does
+not decide it.
+
 **Desktop board — APPROVED:** the playfield runs in a protected 460 px column
 with the environment expanding decoratively; side cards show the keyboard legend
 and the next goal. The desktop board omits hearts and the paw counter; that is an

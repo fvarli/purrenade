@@ -6,6 +6,43 @@ This project does not yet have released versions.
 
 ## [Unreleased]
 
+### Added — the run becomes a session
+
+Enter, play, pause, lose, understand, replay or leave. The gameplay model is
+untouched: **not one byte changed under `game/domain/` or `game/bridge/`.**
+
+- **A pause screen, not a paused button.** Pause already worked — Escape, the
+  touch control, and an automatic pause when the tab stops being watched — but
+  the only sign of it was a glyph and a two-word pill. Board 12 is now built:
+  the title, the reassurance that the score is safe with the score beside it,
+  and resume, restart and return to menu. The simulation was always genuinely
+  frozen and still is; every gameplay timer is a counter advanced by `step()`,
+  and `step()` returns early while paused, so nothing burns.
+- **A run-complete screen.** Losing the last heart used to produce one sentence
+  telling the player to leave the route and come back. It now ends into board
+  13, with the score and the Paw Tokens the run actually produced.
+- **Play again.** `restart()` runs the same teardown a route leave runs and then
+  the same mount a route entry runs, because `ended` is terminal by
+  construction and there is no state to rewind. Replaying four times leaves one
+  canvas, one set of listeners and one engine.
+- **Leaving a run takes two taps.** The leave control pauses rather than
+  navigating, so *return to menu* is reached through the pause screen that
+  already offers it. A run that never started keeps the direct exit.
+- **Reduced motion is watched rather than sampled once.** Turning the setting on
+  mid-run used to do nothing until the scene was destroyed and rebuilt — in
+  practice, until the player left and came back. The scene now installs exactly
+  one `change` listener and removes it with everything else, and the change
+  lands on the next frame.
+
+**What it does not claim.** No record, no personal best, no "NEW RECORD" — there
+is no such number in this frontend and inventing one in browser storage would be
+imitating M9 rather than waiting for it. No achievement chip (M11), no
+leaderboard link (M10), and no pause-screen audio controls: the engine starts
+Phaser with `audio: { noAudio: true }`, so a mute toggle would control nothing.
+The orphaned `run.scopeNotice` key was retired and its one durable clause — that
+saving progress arrives later — now sits where the record would go.
+
+
 ### Fixed — the server now knows who is visiting
 
 - **Server-rendered pages resolve the session.** The auth store was never resolved during SSR, so

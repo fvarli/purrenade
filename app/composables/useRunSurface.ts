@@ -37,6 +37,20 @@ export interface RunSurface {
   readonly isPaused: ComputedRef<boolean>
   start: (container: HTMLElement) => Promise<void>
   stop: () => void
+  /**
+   * Play again, in the same container, as a genuinely new run.
+   *
+   * A full `stop()` then `start()` rather than a reset applied to the living
+   * simulation. The domain seals `ended` and nothing leads out of it, so there
+   * is no state to rewind — and going back through the existing teardown is
+   * what makes replay free of the leak class this composable exists to prevent:
+   * the generation counter, the listener list and `destroy()` are the same ones
+   * a route leave uses, already hardened.
+   *
+   * A no-op before the first `start()`, because there is no container to
+   * mount into yet.
+   */
+  restart: () => Promise<void>
   togglePause: () => void
   readonly hasEnded: ComputedRef<boolean>
   readonly hearts: Readonly<Ref<number>>
@@ -101,6 +115,15 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
   const slayyyPercent = ref(0)
 
   let run: MountedRun | null = null
+
+  /**
+   * The element the current run was mounted into, for `restart()`.
+   *
+   * Held rather than asked for again, so replaying does not require the page to
+   * hand back a template ref it has already given once. Cleared by `stop()`:
+   * keeping it would pin a detached element after the route is left.
+   */
+  let mountedContainer: HTMLElement | null = null
 
   /**
    * Which mount is current, and whether one is in flight.
@@ -225,6 +248,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
       }
 
       run = mounted
+      mountedContainer = container
 
       const onVisibility = (): void => {
         if (document.visibilityState === 'hidden') pauseIfUnwatched()
@@ -258,7 +282,21 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     // when it resolves. It must happen even when there is nothing to tear down.
     generation++
     mounting = false
+    mountedContainer = null
     hearts.value = STARTING_HEARTS
+
+    /*
+     * The phase resets with everything else, and it has to.
+     *
+     * `createRunLoop` emits `run_started` but **no** opening `phase_changed`:
+     * `lastPhase` is seeded from the fresh state, so the first phase event a new
+     * run produces is the `ready -> running` transition at the end of the
+     * readiness beat. Leaving `phase` at `'ended'` here therefore left the
+     * run-complete overlay covering a live new run for that whole beat — the
+     * one bug replay could not have without this line, and the reason it sits
+     * with the other resets rather than inside `restart()`.
+     */
+    phase.value = 'ready'
 
     // Every M7 counter resets with the surface. A stale score surviving a
     // teardown would reappear on the next run before its first event arrives.
@@ -275,6 +313,17 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
 
     run?.destroy()
     run = null
+  }
+
+  const restart = async (): Promise<void> => {
+    const container = mountedContainer
+
+    // Nothing has been mounted yet, so there is nothing to replay.
+    if (container === null) return
+
+    stop()
+
+    await start(container)
   }
 
   const togglePause = (): void => {
@@ -299,7 +348,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
   }
 
   return {
-    phase, loading, failed, isPaused, hasEnded, hearts, start, stop, togglePause,
+    phase, loading, failed, isPaused, hasEnded, hearts, start, stop, restart, togglePause,
     score, runPaws, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
   }
 }

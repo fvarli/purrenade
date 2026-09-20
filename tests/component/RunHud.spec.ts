@@ -2,6 +2,9 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref, useTemplateRef } from 'vue'
 import RunPage from '~/pages/run.vue'
+import RunCompleteOverlay from '~/components/run/CompleteOverlay.vue'
+import RunOverlayDialog from '~/components/run/OverlayDialog.vue'
+import RunPauseOverlay from '~/components/run/PauseOverlay.vue'
 import { HEARTS, PROGRESS } from '~~/game/bridge'
 
 /**
@@ -35,6 +38,7 @@ function surfaceState() {
     slayyyPercent: ref(0),
     start: vi.fn(async () => {}),
     stop: vi.fn(),
+    restart: vi.fn(async () => {}),
     togglePause: vi.fn(),
     activateSlayyy: vi.fn(),
   }
@@ -48,6 +52,15 @@ function render() {
   return mount(RunPage, {
     attachTo: document.body,
     global: {
+      /*
+       * The overlays are mounted for real, not stubbed.
+       *
+       * Their modal semantics and their focus behaviour are the point of the
+       * cases below, and a stub would assert the page's `v-if` and nothing
+       * else. Only the shared button is stubbed, for the same reason it is
+       * stubbed everywhere else here.
+       */
+      components: { RunPauseOverlay, RunCompleteOverlay, RunOverlayDialog },
       stubs: {
         NuxtLink: { template: '<a><slot /></a>' },
         // Forwards attrs and listeners, so the pause control behaves like the
@@ -69,6 +82,7 @@ beforeEach(() => {
   globals.definePageMeta = () => {}
   globals.useHead = () => {}
   globals.useTemplateRef = useTemplateRef
+  globals.navigateTo = vi.fn()
   globals.useRunSurface = () => state
 })
 
@@ -338,7 +352,7 @@ describe('using an on-screen control hands the keyboard back', () => {
 
   it('returns focus to the play surface after the pause control', async () => {
     const page = render()
-    const button = page.get('.run__chrome button')
+    const button = page.get('.run__pause')
 
     ;(button.element as HTMLButtonElement).focus()
     expect(document.activeElement).toBe(button.element)
@@ -486,5 +500,227 @@ describe('the display claims nothing the run does not know', () => {
     expect(page.get('.run__score').text()).toBe('run.scoreLabel4210')
     expect(page.find('.run__record').exists()).toBe(false)
     expect(page.find('.run__highscore').exists()).toBe(false)
+  })
+})
+
+describe('the pause screen', () => {
+  it('is mounted only while the domain says the run is paused', async () => {
+    const page = render()
+    expect(page.find('.run__pause-screen').exists()).toBe(false)
+
+    state.isPaused.value = true
+    await page.vm.$nextTick()
+
+    expect(page.find('.run__pause-screen').exists()).toBe(true)
+  })
+
+  it('is a modal dialog named by its own heading', () => {
+    state.isPaused.value = true
+    const page = render()
+    const dialog = page.get('[role="dialog"]')
+
+    expect(dialog.attributes('aria-modal')).toBe('true')
+
+    const heading = page.get('.run__pause-screen .run__overlay-title')
+    expect(dialog.attributes('aria-labelledby')).toBe(heading.attributes('id'))
+    expect(heading.text()).toBe('run.pauseScreen.title')
+  })
+
+  it('says the score is safe, with the score', () => {
+    state.isPaused.value = true
+    state.score.value = 1240
+    const page = render()
+
+    expect(page.get('.run__overlay-line').text()).toBe('run.pauseScreen.scoreSafe(score=1240)')
+  })
+
+  it('offers resume, restart and return to menu — the approved three', () => {
+    state.isPaused.value = true
+    const page = render()
+
+    expect(page.find('.run__resume').exists()).toBe(true)
+    expect(page.find('.run__restart').exists()).toBe(true)
+    expect(page.find('.run__menu').exists()).toBe(true)
+  })
+
+  it('resumes the same run rather than restarting it', async () => {
+    state.isPaused.value = true
+    const page = render()
+
+    await page.get('.run__resume').trigger('click')
+
+    expect(state.togglePause).toHaveBeenCalledTimes(1)
+    expect(state.restart).not.toHaveBeenCalled()
+  })
+
+  it('restarts exactly once per activation', async () => {
+    state.isPaused.value = true
+    const page = render()
+
+    await page.get('.run__restart').trigger('click')
+
+    expect(state.restart).toHaveBeenCalledTimes(1)
+  })
+
+  /*
+   * No audio controls, and that is deliberate rather than unfinished.
+   *
+   * Board 12 shows a quick music and effects mute. The contract is approved,
+   * but nothing exists to mute: Phaser is started with `audio: { noAudio: true
+   * }`, there is no settings store, and no preference is persisted. A toggle
+   * that changed nothing would be a claim this build cannot keep.
+   */
+  it('shows no audio control it could not honour', () => {
+    state.isPaused.value = true
+    const page = render()
+
+    expect(page.find('.run__mute-music').exists()).toBe(false)
+    expect(page.find('.run__mute-effects').exists()).toBe(false)
+  })
+
+  it('takes focus when it opens and hands it back to the surface when it closes', async () => {
+    state.isPaused.value = true
+    const page = render()
+    await page.vm.$nextTick()
+
+    expect(document.activeElement).toBe(page.get('.run__resume').element)
+
+    state.isPaused.value = false
+    await page.vm.$nextTick()
+
+    expect(document.activeElement).toBe(page.get('.run__surface').element)
+  })
+
+  it('keeps Tab inside the dialog', async () => {
+    state.isPaused.value = true
+    const page = render()
+    await page.vm.$nextTick()
+
+    const first = page.get('.run__resume')
+    const last = page.get('.run__menu')
+
+    // Backwards off the first stop wraps to the last, rather than reaching the
+    // pause control behind the scrim.
+    await first.trigger('keydown', { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last.element)
+
+    await last.trigger('keydown', { key: 'Tab' })
+    expect(document.activeElement).toBe(first.element)
+  })
+})
+
+describe('the run-complete screen', () => {
+  it('is mounted only when the run has ended', async () => {
+    const page = render()
+    expect(page.find('.run__complete').exists()).toBe(false)
+
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    expect(page.find('.run__complete').exists()).toBe(true)
+  })
+
+  it('replaces the sentence that told the player to leave and come back', () => {
+    state.hasEnded.value = true
+    const page = render()
+
+    expect(page.find('.run__status--ended').exists()).toBe(false)
+    expect(page.find('.run__replay').exists()).toBe(true)
+  })
+
+  it('is a modal dialog named by its own heading', () => {
+    state.hasEnded.value = true
+    const page = render()
+    const dialog = page.get('[role="dialog"]')
+
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    expect(dialog.attributes('aria-labelledby'))
+      .toBe(page.get('.run__complete .run__overlay-title').attributes('id'))
+  })
+
+  it('reports the two facts the finished run actually produced', () => {
+    state.hasEnded.value = true
+    state.score.value = 4210
+    state.runPaws.value = 37
+    const page = render()
+
+    expect(page.get('.run__final-score-value').text()).toBe('4210')
+    expect(page.get('.run__final-paws').text()).toContain('run.complete.pawsGained(count=37)')
+  })
+
+  /*
+   * The run total, not the Loli cycle counter.
+   *
+   * The HUD deliberately shows `cyclePaws` — progress toward the next bonus —
+   * and those two numbers stop agreeing the moment the first bonus lands. The
+   * summary is about the run, so it takes `runPaws`.
+   */
+  it('summarises the run total rather than the bonus cycle', () => {
+    state.hasEnded.value = true
+    state.runPaws.value = 240
+    state.cyclePaws.value = 40
+    const page = render()
+
+    expect(page.get('.run__final-paws').text()).toContain('count=240')
+  })
+
+  it('claims no record, no best and no persistence it does not have', () => {
+    state.hasEnded.value = true
+    state.score.value = 4210
+    const page = render()
+
+    expect(page.find('.run__record').exists()).toBe(false)
+    expect(page.find('.run__highscore').exists()).toBe(false)
+    // What it says instead: the truth, which is that nothing is saved yet.
+    expect(page.get('.run__overlay-note').text()).toBe('run.complete.persistenceNotice')
+  })
+
+  it('replays exactly once per activation', async () => {
+    state.hasEnded.value = true
+    const page = render()
+
+    await page.get('.run__replay').trigger('click')
+
+    expect(state.restart).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns to the menu without restarting', async () => {
+    state.hasEnded.value = true
+    const page = render()
+
+    await page.get('.run__menu').trigger('click')
+
+    expect(navigateTo).toHaveBeenCalledWith('/')
+    expect(state.restart).not.toHaveBeenCalled()
+  })
+})
+
+describe('abandoning a run', () => {
+  it('pauses rather than leaving, so the exit is a decision and not a slip', async () => {
+    const page = render()
+
+    await page.get('.run__exit').trigger('click')
+
+    expect(state.togglePause).toHaveBeenCalledTimes(1)
+    expect(navigateTo).not.toHaveBeenCalled()
+  })
+
+  it('still leaves directly when there is no run to lose', async () => {
+    state.failed.value = true
+    const page = render()
+
+    await page.get('.run__exit').trigger('click')
+
+    expect(navigateTo).toHaveBeenCalledWith('/')
+    expect(state.togglePause).not.toHaveBeenCalled()
+  })
+
+  it('leaves directly from the pause screen, which is already the confirmation', async () => {
+    state.isPaused.value = true
+    const page = render()
+
+    await page.get('.run__menu').trigger('click')
+
+    expect(navigateTo).toHaveBeenCalledWith('/')
   })
 })

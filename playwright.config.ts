@@ -68,7 +68,7 @@ export default defineConfig({
       // The anonymous pass: sign-in, registration, the guards. These must run
       // with no session, so they deliberately do not adopt the saved state.
       name: 'chrome',
-      testIgnore: [/auth\.setup\.ts/, /run-surface\.spec\.ts/, /run-lifecycle\.spec\.ts/, /run-obstacles\.spec\.ts/, /run-scoring\.spec\.ts/, /run-touch\.spec\.ts/, /ssr-auth-session\.spec\.ts/],
+      testIgnore: [/auth\.setup\.ts/, /run-surface\.spec\.ts/, /run-lifecycle\.spec\.ts/, /run-obstacles\.spec\.ts/, /run-scoring\.spec\.ts/, /run-tutorial\.spec\.ts/, /run-touch\.spec\.ts/, /ssr-auth-session\.spec\.ts/],
       use: {
         // The system Chrome, not Playwright's bundled build. These tests are an
         // acceptance pass against the machine's real stack, so the real browser
@@ -81,7 +81,7 @@ export default defineConfig({
       // The authenticated pass: the run surface, which lives behind the
       // verified-account guard.
       name: 'chrome-auth',
-      testMatch: /(run-(surface|lifecycle|obstacles|scoring)|ssr-auth-session)\.spec\.ts/,
+      testMatch: /(run-(surface|lifecycle|obstacles|scoring|tutorial)|ssr-auth-session)\.spec\.ts/,
       dependencies: ['setup'],
       use: {
         channel: 'chrome',

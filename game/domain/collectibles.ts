@@ -49,6 +49,13 @@ export function advancePawTokens(state: RunState, deltaMs: number): RunState {
 export function advancePawSpawning(state: RunState): RunState {
   if (state.phase !== 'running') return state
 
+  /*
+   * The tutorial's road is authored, so the generator is off and its stream is
+   * never consulted — which is what keeps `rng.collectible` untouched across a
+   * whole tutorial, and why a tutorial cannot inherit a token it did not place.
+   */
+  if (state.tutorial !== null) return state
+
   let next = state
   let guard = 0
 
@@ -226,7 +233,20 @@ export interface PawCollection {
   readonly state: RunState
   /** How many tokens were taken this step. Unbounded: two may resolve at once. */
   readonly collected: number
+  /**
+   * Which tokens, by id.
+   *
+   * The count is what scoring needs; the identity is what the tutorial needs.
+   * Its paw lesson asks "was *my* token collected", and answering that from the
+   * count would only work while nothing else can award one — true today, since
+   * the generator is off in tutorial mode, and exactly the kind of accidental
+   * coupling that survives until the day it does not.
+   */
+  readonly collectedIds: readonly number[]
 }
+
+/** Shared empty result, so the common "took nothing" step allocates nothing. */
+export const NOTHING_COLLECTED: readonly number[] = Object.freeze([])
 
 /**
  * Collect every token the player is on top of.
@@ -242,10 +262,13 @@ export interface PawCollection {
  * sequence for the same seed.
  */
 export function resolvePawTokens(state: RunState): PawCollection {
-  if (state.pawTokens.length === 0) return { state, collected: 0 }
+  if (state.pawTokens.length === 0) {
+    return { state, collected: 0, collectedIds: NOTHING_COLLECTED }
+  }
 
   const position = lanePosition(state)
   const pawTokens: PawToken[] = []
+  const collectedIds: number[] = []
 
   let collected = 0
   let changed = false
@@ -261,6 +284,7 @@ export function resolvePawTokens(state: RunState): PawCollection {
 
     if (takes) {
       collected++
+      collectedIds.push(token.id)
       changed = true
       pawTokens.push(Object.freeze({ ...token, outcome: 'collected' as const }))
       continue
@@ -269,7 +293,7 @@ export function resolvePawTokens(state: RunState): PawCollection {
     pawTokens.push(token)
   }
 
-  if (!changed) return { state, collected: 0 }
+  if (!changed) return { state, collected: 0, collectedIds: NOTHING_COLLECTED }
 
   /*
    * A collected token leaves the world immediately.
@@ -282,5 +306,6 @@ export function resolvePawTokens(state: RunState): PawCollection {
   return {
     state: { ...state, pawTokens: pawTokens.filter(token => token.outcome !== 'collected') },
     collected,
+    collectedIds: Object.freeze(collectedIds),
   }
 }

@@ -41,6 +41,15 @@ export type InputEvent =
   | { readonly type: 'slayyy' }
   | { readonly type: 'pause' }
   | { readonly type: 'resume' }
+  /**
+   * Leave the tutorial without finishing it.
+   *
+   * A control input rather than a gameplay one: it changes what the run *is*,
+   * not what the player is doing inside it, so it travels the same path as
+   * pause and resume and is never buffered. A no-op on a normal run — the
+   * rules refuse it rather than the caller remembering not to send it.
+   */
+  | { readonly type: 'tutorial_skip' }
 
 /** An input that arrived while it could not be acted on, waiting to become legal. */
 export interface BufferedInput {
@@ -221,6 +230,18 @@ export interface RunState {
 
   /** Times SLAYYY actually entered its active window in this run. */
   readonly slayyyActivations: number
+
+  // --- M8 -------------------------------------------------------------------
+
+  /**
+   * The tutorial, or `null` for the ordinary game.
+   *
+   * One nullable field rather than a mode enum threaded through the rules: a
+   * normal run carries `null`, every tutorial branch is guarded on it, and
+   * there is exactly one question to ask anywhere in the domain. `null` is
+   * also what a reader sees first, which keeps the ordinary case ordinary.
+   */
+  readonly tutorial: TutorialState | null
 }
 
 /**
@@ -289,6 +310,100 @@ export interface LoliState {
  * lockout — inventing one would be a mechanic nobody approved.
  */
 export type SlayyyPhase = 'charging' | 'ready' | 'active' | 'cooldown'
+
+/**
+ * The lessons, in the order they are taught.
+ *
+ * `dodge_cone` comes **before** `jump_barrier` deliberately. Physical-phone
+ * testing found that a new player meeting a traffic cone tries to jump it, is
+ * hit, and does not understand why — so the misconception is corrected before
+ * the verb that looks like it should have worked is introduced at all.
+ */
+export type TutorialLesson =
+  | 'intro'
+  | 'move_left'
+  | 'move_right'
+  | 'dodge_cone'
+  | 'jump_barrier'
+  | 'collect_paw'
+  | 'activate_slayyy'
+  | 'final_practice'
+  | 'complete'
+
+/**
+ * Why a lesson did not pass.
+ *
+ * Named by what the player *did*, not by what they should have done, because
+ * the copy has to answer the action they actually took. `jumped_at_cone` is
+ * the one this milestone exists for.
+ */
+export type TutorialCorrection =
+  | 'no_input'
+  | 'jumped_at_cone'
+  | 'contacted_cone'
+  | 'dodged_barrier'
+  | 'contacted_barrier'
+  | 'missed_paw'
+
+/** How a tutorial finished. Both terminal states count as completed for routing. */
+export type TutorialOutcome = 'in_progress' | 'completed' | 'skipped'
+
+/**
+ * The tutorial, as data, exactly like everything else the rules reason over.
+ *
+ * `null` on a normal run — and that null is the whole isolation story. Every
+ * branch the tutorial adds is guarded on it, so a normal run takes the path it
+ * took before this type existed, which `tests/unit/normal-run-golden.spec.ts`
+ * proves rather than asserts.
+ */
+export interface TutorialState {
+  readonly lesson: TutorialLesson
+  /** How long the current lesson has been showing. Drives the re-prompt only. */
+  readonly lessonElapsedMs: number
+  /**
+   * The live correction, paired with the counter below and never read alone.
+   *
+   * The counter is what the bridge compares: two identical corrections in a row
+   * are two events a player needs to see twice, and comparing the value would
+   * emit one. The same reason `slayyyActivations` is a counter and not a flag.
+   */
+  readonly correction: TutorialCorrection | null
+  readonly correctionCount: number
+  /** Corrections within the current lesson, so guidance can become more explicit. */
+  readonly lessonCorrections: number
+  /**
+   * Which beat of the current lesson's script is live.
+   *
+   * Most lessons have exactly one beat and re-present it until they pass. The
+   * closing practice has several, played in order, which is the only reason
+   * this is an index rather than a boolean.
+   */
+  readonly beatIndex: number
+  /** World distance at which the director places this lesson's prop; null when it has none. */
+  readonly nextCueAtUnits: number | null
+  /** The obstacles the live cue owns, so the lesson judges its own prop and no other. */
+  readonly cueObstacleIds: readonly number[]
+  /** The Paw Tokens the live cue owns. Identity, not a count — see `collect_paw`. */
+  readonly cuePawTokenIds: readonly number[]
+  /**
+   * Was the player ever in the cue obstacle's lane while overlapping it?
+   *
+   * This — not the obstacle's `outcome` — is what the lessons judge. An outcome
+   * says what the damage rules concluded; these two say what the player
+   * actually *did*, which is the thing being taught. Reading the outcome would
+   * also be quietly wrong: a second damaging obstacle in one step resolves as
+   * `cleared` because only one heart may be lost, and "cleared" would then mean
+   * "avoided" when it meant "absorbed".
+   */
+  readonly cueOverlapInLane: boolean
+  /** Was the player airborne, in the cue obstacle's lane, while overlapping it? */
+  readonly cueJumped: boolean
+  /** Counts down after a pass, so a success is legible before the next prompt. */
+  readonly celebrateRemainingMs: number
+  /** Set once, when the SLAYYY lesson opens. Never true on a normal run. */
+  readonly slayyyPrimed: boolean
+  readonly outcome: TutorialOutcome
+}
 
 export interface SlayyyState {
   readonly phase: SlayyyPhase

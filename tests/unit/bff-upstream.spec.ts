@@ -30,6 +30,15 @@ describe('the endpoint allow-list', () => {
     }
   })
 
+  it('admits the tutorial-completion endpoint, and admits it deliberately', () => {
+    // Adding an endpoint here is the reviewable act that lets the BFF reach a
+    // new part of the API at all, so the entry is asserted rather than assumed.
+    expect(Endpoint.progressionTutorial).toEqual({
+      method: 'POST',
+      path: '/api/v1/progression/tutorial',
+    })
+  })
+
   it('declares no endpoint with a caller-supplied segment', () => {
     // The one path with a variable segment is built by `sessionRevokePath`,
     // which validates it. Nothing in the table interpolates.

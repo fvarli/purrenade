@@ -1,4 +1,4 @@
-import { STEP_MS, TUNING, createRunState, step } from '../domain'
+import { STEP_MS, TUNING, TUTORIAL_LESSON_COUNT, createRunState, step, tutorialLessonIndex } from '../domain'
 import type { InputEvent, RunPhase, RunState } from '../domain'
 import { interpolateSnapshot, toRenderSnapshot } from './snapshot'
 import type { RenderSnapshot, RunEvent, RunEventSink } from './types'
@@ -35,6 +35,8 @@ export interface RunLoopOptions {
   readonly seed: number
   /** Coarse run events for the app layer. Never called with gameplay state. */
   readonly onEvent?: RunEventSink
+  /** Which game to drive. `'run'` by default — the tutorial is the opt-in. */
+  readonly mode?: 'run' | 'tutorial'
 }
 
 export interface RunLoop {
@@ -51,6 +53,14 @@ export interface RunLoop {
   /** The current phase, for the app layer's UI. */
   phase(): RunPhase
   /**
+   * Leave the tutorial without finishing it.
+   *
+   * Applies immediately, like pause and resume and for the same reason: a
+   * control operation must not depend on the loop it controls. A no-op on a
+   * normal run — the rules refuse it.
+   */
+  skipTutorial(): void
+  /**
    * A copy of the run state, for tests and debugging. Never for rendering.
    *
    * A copy because the live object was reachable from the engine through this
@@ -60,8 +70,8 @@ export interface RunLoop {
   debugState(): RunState
 }
 
-export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
-  let state = createRunState({ seed })
+export function createRunLoop({ seed, onEvent, mode = 'run' }: RunLoopOptions): RunLoop {
+  let state = createRunState({ seed, mode })
   let previous = toRenderSnapshot(state)
   let current = previous
 
@@ -72,6 +82,63 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
   const emit = (event: RunEvent): void => onEvent?.(event)
 
   emit({ type: 'run_started' })
+
+  /*
+   * The opening lesson, announced like any other.
+   *
+   * Emitted rather than left for the first `simulate` to notice, because the
+   * first lesson is not a *change* — there is no previous lesson to differ
+   * from — and a prompt that only appeared once the world started moving would
+   * leave the player looking at an empty road being told nothing.
+   */
+  if (state.tutorial !== null) {
+    emit({
+      type: 'tutorial_lesson',
+      lesson: state.tutorial.lesson,
+      index: tutorialLessonIndex(state.tutorial.lesson),
+      total: TUTORIAL_LESSON_COUNT,
+    })
+  }
+
+  /**
+   * The tutorial's coarse moments, diffed like every other event here.
+   *
+   * Shared by `simulate` and `applyControl`. That sharing is load-bearing for
+   * exactly one case: a skip arrives through `applyControl`, which otherwise
+   * emits nothing but a phase change — so without this the skip button would
+   * change the run and tell the app nothing about it.
+   */
+  const emitTutorialTransitions = (before: RunState): void => {
+    const after = state.tutorial
+
+    if (after === null) return
+
+    const was = before.tutorial
+
+    if (was !== null && after.lesson !== was.lesson) {
+      emit({
+        type: 'tutorial_lesson',
+        lesson: after.lesson,
+        index: tutorialLessonIndex(after.lesson),
+        total: TUTORIAL_LESSON_COUNT,
+      })
+    }
+
+    // The counter, not the value: two identical corrections in a row are two
+    // things the player needs to be told, and comparing the value emits one.
+    if (was !== null && after.correctionCount > was.correctionCount && after.correction !== null) {
+      emit({
+        type: 'tutorial_correction',
+        lesson: after.lesson,
+        correction: after.correction,
+        attempt: after.lessonCorrections,
+      })
+    }
+
+    if (was !== null && was.outcome === 'in_progress' && after.outcome !== 'in_progress') {
+      emit({ type: 'tutorial_completed', outcome: after.outcome })
+    }
+  }
 
   /** Run one simulation step with whatever inputs have arrived. */
   const simulate = (): void => {
@@ -172,6 +239,8 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
     if (state.phase === 'ended' && before.phase !== 'ended') {
       emit({ type: 'run_ended' })
     }
+
+    emitTutorialTransitions(before)
   }
 
   /**
@@ -182,6 +251,8 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
    * renderer that paints once more sees the paused state.
    */
   const applyControl = (input: InputEvent): void => {
+    const before = state
+
     previous = current
     state = step(state, [input], 0)
     current = toRenderSnapshot(state)
@@ -190,6 +261,8 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
       lastPhase = state.phase
       emit({ type: 'phase_changed', phase: state.phase })
     }
+
+    emitTutorialTransitions(before)
   }
 
   return {
@@ -292,6 +365,10 @@ export function createRunLoop({ seed, onEvent }: RunLoopOptions): RunLoop {
 
     phase(): RunPhase {
       return state.phase
+    },
+
+    skipTutorial(): void {
+      applyControl({ type: 'tutorial_skip' })
     },
 
     debugState(): RunState {

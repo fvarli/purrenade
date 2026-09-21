@@ -21,6 +21,15 @@ export interface MountRunOptions {
   readonly seed: number
   /** Coarse run events for the app layer. Never gameplay state. */
   readonly onEvent?: (event: RunEvent) => void
+  /**
+   * Which game to mount. `'run'` by default.
+   *
+   * The engine draws both the same way — the tutorial's props are ordinary
+   * obstacles and Paw Tokens, in the lanes the script chose — so this travels
+   * straight through to the loop and the scene never learns about it. That is
+   * what "no new visual asset family" means in practice.
+   */
+  readonly mode?: 'run' | 'tutorial'
 }
 
 export interface MountedRun {
@@ -37,6 +46,8 @@ export interface MountedRun {
    * while the meter is charging is a deterministic no-op.
    */
   activateSlayyy(): void
+  /** Leave the tutorial without finishing it. A no-op on a normal run. */
+  skipTutorial(): void
   /** Tear down the canvas, the listeners and the WebGL context. */
   destroy(): void
 }
@@ -49,12 +60,12 @@ export interface MountedRun {
  * a WebGL context and a requestAnimationFrame loop, and neither is collected by
  * navigating away.
  */
-export async function mountRun({ container, seed, onEvent }: MountRunOptions): Promise<MountedRun> {
+export async function mountRun({ container, seed, onEvent, mode }: MountRunOptions): Promise<MountedRun> {
   // The lazy boundary. Static-importing Phaser here would put it in every
   // bundle that transitively reaches this module, which is the whole app.
   const phaser = (await import('phaser')).default
 
-  const loop: RunLoop = createRunLoop({ seed, onEvent })
+  const loop: RunLoop = createRunLoop({ seed, onEvent, mode })
 
   let destroyed = false
 
@@ -120,6 +131,10 @@ export async function mountRun({ container, seed, onEvent }: MountRunOptions): P
     },
     activateSlayyy(): void {
       if (!destroyed) loop.enqueue({ type: 'slayyy' })
+    },
+
+    skipTutorial(): void {
+      if (!destroyed) loop.skipTutorial()
     },
 
     resume(): void {

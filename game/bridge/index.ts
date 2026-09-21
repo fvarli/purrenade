@@ -29,4 +29,7 @@ export type {
   RunEvent,
   RunEventSink,
   RunPhase,
+  TutorialCorrection,
+  TutorialLesson,
+  TutorialOutcome,
 } from './types'

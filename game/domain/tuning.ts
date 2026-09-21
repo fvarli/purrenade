@@ -372,6 +372,30 @@ export const TUNING = Object.freeze({
     decayPerSecond: 0,
   }),
 
+  /**
+   * The first-run tutorial.
+   *
+   * Every value here is about **teaching pace**, never about difficulty: the
+   * tutorial cannot hurt the player, so nothing in this group can make it
+   * harder or easier, only slower or quicker to read. That is why none of it
+   * appears in the difficulty curve and why `repeatGapUnits` is a gap rather
+   * than a timeout — the player is never racing anything.
+   */
+  tutorial: Object.freeze({
+    /** @status PROPOSED — how long the opening greeting holds before the first lesson */
+    introDwellMs: 2600,
+    /** @status PROPOSED — tutorial.md §3.2; re-prompt with more explicit guidance */
+    repromptMs: 3000,
+    /** @status PROPOSED — how far ahead the first prop of a lesson is placed */
+    firstCueUnits: 9,
+    /** @status PROPOSED — the gap before an unsatisfied lesson presents its prop again */
+    repeatGapUnits: 11,
+    /** @status PROPOSED — how long a passed lesson is celebrated before the next opens */
+    celebrateMs: 900,
+    /** @status PROPOSED — the closing practice stretch, applying what was taught */
+    finalPracticeUnits: 34,
+  }),
+
   escape: Object.freeze({
     /** @status PROPOSED — the solver may spend at most this many actions per pattern */
     maxActionsPerPattern: 2,

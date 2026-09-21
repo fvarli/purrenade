@@ -68,6 +68,7 @@ export const Endpoint = {
   // somebody can fill.
   sessionRevoke: { method: 'DELETE', path: '/api/v1/auth/sessions' },
   profileUpdate: { method: 'PATCH', path: '/api/v1/profile' },
+  progressionTutorial: { method: 'POST', path: '/api/v1/progression/tutorial' },
   adminOverview: { method: 'GET', path: '/api/v1/admin/overview' },
 } as const satisfies Record<string, { method: string, path: string }>
 

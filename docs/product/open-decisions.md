@@ -211,6 +211,24 @@ implementation. The mechanism is documented in
 
 ---
 
+## 0AH. Resolved at M8 — now APPROVED
+
+The tutorial's four open questions, and where "replay tutorial" lives. All five were decided
+by the product owner at the M8 planning review; none was promoted by implementation.
+
+| Decision | Outcome | Owning document |
+| --- | --- | --- |
+| **TU-1 / #12** — tutorial visual design treatment | **Derived from the production visual system**, not commissioned. Milestones A, B and C established the tokens, typography, card and dialog language, the world, Ayşenur, the cone, the barrier, the Paw Token and the SLAYYY control; the tutorial uses those and **introduces no new visual asset family**. `RenderSnapshot` gained nothing, because a tutorial prop is an ordinary obstacle or token in the lane the script chose. The seven criteria §7 set are each answered there. **This unblocks M8.** | [tutorial](tutorial.md) §7 |
+| **TU-2** — mandatory or skippable? | **Skippable**, with a restrained affordance and a confirmation that defaults to *continue*. A skip counts as completion for routing and is recorded through the same call a finish makes. | [tutorial](tutorial.md) §4.1 |
+| **TU-3** — does the tutorial paw count toward progression? | **It does not**, confirming the standing proposal. Structurally so: the tutorial submits nothing, the paw cycle starts at zero, and one scripted token cannot reach the 200-paw threshold. | [tutorial](tutorial.md) §3.1 |
+| **TU-4** — a separate first-SLAYYY coach mark? | **No — the tutorial teaches SLAYYY**, which reverses the earlier decision that excluded it. The objection that stood behind that exclusion (the meter cannot fill inside a short tutorial) is answered by a tutorial-scoped readiness grant that leaves `chargePerSecond`, `chargePerPaw` and every activation rule untouched. | [tutorial](tutorial.md) §2.2 |
+| **SI-2** — where "replay tutorial" lives on Settings | **Its own section on board 18, between Language and Account.** It is the one row on that screen that *starts* something rather than changing a setting, so filing it under Account would put an action among preferences. A plain link: a replay grants nothing and cannot affect the player's completed status, so there is nothing to confirm. | [screen-inventory](screen-inventory.md) §6 |
+
+**TU-5 is untouched and remains OPEN.** The tutorial does not demonstrate a near miss; whether
+it eventually should is still a product question, and shipping M8 does not decide it.
+
+---
+
 ## 0B. Resolved in Milestone C — now APPROVED
 
 | Decision | Outcome | Owning document |
@@ -273,7 +291,6 @@ These stop work when their milestone is reached.
 | --- | --- | --- | --- |
 | **AU-1** | **Approval of the proposed 16-achievement catalogue**, as a whole. The authoring gap is closed; this is now a review item. | **M11** | [achievements-and-unlocks](achievements-and-unlocks.md) §1.5 |
 | **ANTI-5** | **What validated event data is retained**, in what form and for how long. **Seven** achievements are `DERIVED_TELEMETRY`. Validating at acceptance and keeping only derived run facts is an **explicitly permitted** answer. Interacts with SEC-3 and SEC-5. | **M9**, **M11** | `purrenade-api/docs/security/anti-cheat.md` §2.1 |
-| **TU-1 / #12** | **Tutorial visual design treatment.** Behavior is APPROVED; presentation has no v0.3 screen and must not be invented. | **M8** | [tutorial](tutorial.md) §7 |
 | **LB-5** | **Retention and anonymization policy for deleted players.** Genuinely OPEN — product/legal decision, not architecture. | **M10**, **M14** | [leaderboards](leaderboards.md) §5.3 |
 | **LO-1 / #17** | **English and Spanish copy.** Only Turkish exists. | **M4** onward | [localization](localization.md) §5 |
 | **ADR-0006** | The run validation model itself, and **PWA-1** (offline play), which decides whether a server-issued run token is available. | **M9**, **M10** | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
@@ -286,10 +303,7 @@ These stop work when their milestone is reached.
 | --- | --- | --- |
 | **#6** | Is there an approved **brand tagline**? *"Run Cute. Live Bright."* appears only on the ChatGPT board. If approved, is it localized? | [conflicts #6](design-reference-conflicts.md) |
 | **SP-2** | **Bonus score sources.** Near-miss is now excluded, leaving the component with **no defined source at all**. Removing it from the score composition is a legitimate outcome. **M7 implemented the component and left it empty:** `score.bonusMilli` exists, is summed into the displayed total and is always zero, because nothing in the game is specified to write to it. A test asserts it stays zero across a long run, so the day a source is added it is added deliberately. | [scoring-and-progression](scoring-and-progression.md) §6 |
-| **TU-2** | Is the first-time tutorial **mandatory or skippable**? | [tutorial](tutorial.md) §4 |
-| **TU-3** | Does the **tutorial paw count** toward progression? PROPOSED: no, so the tutorial cannot be farmed. | [tutorial](tutorial.md) §3.1 |
-| **TU-4** | Is there a separate **first-SLAYYY coach mark**? | [tutorial](tutorial.md) §2 |
-| **SI-2** | Where **"replay tutorial"** lives on the Settings screen. | [screen-inventory](screen-inventory.md) §6 |
+| **TU-5** | Does the tutorial **demonstrate a near miss**, or leave it to be discovered? It does not demonstrate one at M8. | [tutorial](tutorial.md) §2.2 |
 | **SI-5 / AU-5** | Do **non-Ayşenur characters have their own special power**? PROPOSED: no — all share SLAYYY in v1. | [achievements-and-unlocks](achievements-and-unlocks.md) §2.4 |
 | **SI-6 / AA-6** | **Avatar system** — uploaded, generated, or initials-based. An upload path adds storage, moderation and a new abuse surface. | [screen-inventory](screen-inventory.md) §9 |
 | **AU-6** | What an achievement's hidden reward (*"gizli ödül"*) actually grants. | [achievements-and-unlocks](achievements-and-unlocks.md) |
@@ -393,7 +407,6 @@ blocks M1 or v1 (LB-7).
 | AC-1 | Target **WCAG 2.2 AA** for non-canvas UI. |
 | AC-2 | Colour independence achieved **structurally** rather than with a separate palette. |
 | AA-5 | Art authored at 3× the 390 baseline; atlases for gameplay sprites; **no text in art**; **self-hosted fonts**. |
-| TU-3 | The tutorial paw does **not** count toward progression. |
 | — | Locale resolution: profile → device → `Accept-Language` → Turkish. |
 
 ---

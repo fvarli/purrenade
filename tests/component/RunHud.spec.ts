@@ -6,6 +6,7 @@ import RunCompleteOverlay from '~/components/run/CompleteOverlay.vue'
 import RunOverlayDialog from '~/components/run/OverlayDialog.vue'
 import RunPauseOverlay from '~/components/run/PauseOverlay.vue'
 import { HEARTS, PROGRESS } from '~~/game/bridge'
+import type { TutorialCorrection, TutorialLesson, TutorialOutcome } from '~~/game/bridge'
 
 /**
  * The heads-up display.
@@ -41,8 +42,31 @@ function surfaceState() {
     restart: vi.fn(async () => {}),
     togglePause: vi.fn(),
     activateSlayyy: vi.fn(),
+
+    // --- M8 -----------------------------------------------------------------
+    mode: 'run' as 'run' | 'tutorial',
+    lesson: ref<TutorialLesson | null>(null),
+    lessonIndex: ref(0),
+    lessonTotal: ref(0),
+    correction: ref<TutorialCorrection | null>(null),
+    correctionAttempt: ref(0),
+    tutorialOutcome: ref<TutorialOutcome | null>(null),
+    skipTutorial: vi.fn(),
   }
 }
+
+/**
+ * The route, faked at its narrowest.
+ *
+ * The page reads exactly one thing from it — `query.mode` — and reads it once,
+ * at setup. A fuller stub would invite a test to change it mid-render and
+ * assert behaviour the real page cannot have, because the mode is fixed for the
+ * life of a mounted engine.
+ */
+let routeQuery: Record<string, string> = {}
+
+/** Only what the page asks of the store: has this player seen the tutorial? */
+let tutorialCompleted = true
 
 type SurfaceState = ReturnType<typeof surfaceState>
 
@@ -78,12 +102,23 @@ function render() {
 
 beforeEach(() => {
   state = surfaceState()
+  routeQuery = {}
+  tutorialCompleted = true
+
   const globals = globalThis as unknown as Record<string, unknown>
   globals.definePageMeta = () => {}
   globals.useHead = () => {}
   globals.useTemplateRef = useTemplateRef
   globals.navigateTo = vi.fn()
   globals.useRunSurface = () => state
+  globals.useRoute = () => ({ query: routeQuery })
+  globals.useAuthStore = () => ({
+    get tutorialCompleted() {
+      return tutorialCompleted
+    },
+    markTutorialCompleted: vi.fn(),
+  })
+  globals.useBffClient = () => ({ completeTutorial: vi.fn(async () => ({ tutorialCompleted: true })) })
 })
 
 afterEach(() => {

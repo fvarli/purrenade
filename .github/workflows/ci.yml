@@ -362,6 +362,7 @@ jobs:
           run-scoring.spec.ts
           run-surface.spec.ts
           run-touch.spec.ts
+          run-tutorial.spec.ts
           ssr-auth-session.spec.ts
           EOF
           sed -i 's/^[[:space:]]*//' /tmp/expected-unrun

@@ -1,6 +1,12 @@
 import type { MountedRun } from '~~/game/engine'
 import { HEARTS } from '~~/game/bridge'
-import type { RunEvent, RunPhase } from '~~/game/bridge'
+import type {
+  RunEvent,
+  RunPhase,
+  TutorialCorrection,
+  TutorialLesson,
+  TutorialOutcome,
+} from '~~/game/bridge'
 
 /**
  * Owning a run's lifetime from the Vue side.
@@ -24,11 +30,23 @@ export interface RunSurfaceOptions {
   readonly mount?: (options: {
     container: HTMLElement
     seed: number
+    mode: RunMode
     onEvent: (event: RunEvent) => void
   }) => Promise<MountedRun>
   /** Injected so a test does not depend on a real random seed. */
   readonly makeSeed?: () => number
+  /**
+   * Which game to mount. `'run'` by default.
+   *
+   * Read once, when the surface is created, and then held for the life of it —
+   * including across `restart()`. A replay of a tutorial is another tutorial,
+   * and a mode that could change under a live engine would be a mode that
+   * changes what the player is playing without remounting it.
+   */
+  readonly mode?: RunMode
 }
+
+export type RunMode = 'run' | 'tutorial'
 
 export interface RunSurface {
   readonly phase: Readonly<Ref<RunPhase>>
@@ -77,6 +95,28 @@ export interface RunSurface {
   readonly slayyyPercent: Readonly<Ref<number>>
   /** Fire SLAYYY. A no-op unless the meter is armed — the domain decides. */
   activateSlayyy: () => void
+
+  // --- M8 -------------------------------------------------------------------
+
+  /** Which game this surface is running. Fixed for its lifetime. */
+  readonly mode: RunMode
+  /** The lesson being taught, or `null` outside a tutorial. */
+  readonly lesson: Readonly<Ref<TutorialLesson | null>>
+  /** Which lesson this is, for a progress indicator that need not count. */
+  readonly lessonIndex: Readonly<Ref<number>>
+  readonly lessonTotal: Readonly<Ref<number>>
+  /**
+   * The live correction, and how many times this lesson has given one.
+   *
+   * Cleared when the lesson changes, so a prompt never carries the previous
+   * lesson's guidance into the next one.
+   */
+  readonly correction: Readonly<Ref<TutorialCorrection | null>>
+  readonly correctionAttempt: Readonly<Ref<number>>
+  /** How the tutorial ended, once it has. `null` while it is still running. */
+  readonly tutorialOutcome: Readonly<Ref<TutorialOutcome | null>>
+  /** Leave the tutorial without finishing it. A no-op on a normal run. */
+  skipTutorial: () => void
 }
 
 /** The approved starting value, projected through the boundary. */
@@ -113,6 +153,21 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
   const loliActive = ref(false)
   const slayyy = ref<'charging' | 'ready' | 'active'>('charging')
   const slayyyPercent = ref(0)
+
+  /*
+   * M8's prompt state, from the same coarse channel.
+   *
+   * The app is told which lesson is live and what the player got wrong. It is
+   * never told where the cone is — the prompt is copy chosen by a lesson id,
+   * and the road is the scene's business.
+   */
+  const mode: RunMode = options.mode ?? 'run'
+  const lesson = ref<TutorialLesson | null>(null)
+  const lessonIndex = ref(0)
+  const lessonTotal = ref(0)
+  const correction = ref<TutorialCorrection | null>(null)
+  const correctionAttempt = ref(0)
+  const tutorialOutcome = ref<TutorialOutcome | null>(null)
 
   let run: MountedRun | null = null
 
@@ -203,6 +258,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
       const mounted = await mount({
         container,
         seed,
+        mode,
         onEvent: (event: RunEvent) => {
           // A late event from an abandoned mount must not drive the UI.
           if (mountGeneration !== generation) return
@@ -236,6 +292,23 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
             loliActive.value = false
             if (slayyy.value === 'active') slayyy.value = 'charging'
           }
+
+          if (event.type === 'tutorial_lesson') {
+            lesson.value = event.lesson
+            lessonIndex.value = event.index
+            lessonTotal.value = event.total
+            // A new lesson starts clean: the previous one's guidance must not
+            // survive into a prompt that is no longer about it.
+            correction.value = null
+            correctionAttempt.value = 0
+          }
+
+          if (event.type === 'tutorial_correction') {
+            correction.value = event.correction
+            correctionAttempt.value = event.attempt
+          }
+
+          if (event.type === 'tutorial_completed') tutorialOutcome.value = event.outcome
         },
       })
 
@@ -307,6 +380,21 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     slayyy.value = 'charging'
     slayyyPercent.value = 0
 
+    /*
+     * And M8's, for exactly the reason the phase reset above exists.
+     *
+     * A tutorial that finished and handed over to a real run would otherwise
+     * leave its last prompt and its completion overlay on screen over the first
+     * frame of the run that replaced it — the same class of bug, one milestone
+     * later. `lesson` back to null is what makes the prompt `v-if` false.
+     */
+    lesson.value = null
+    lessonIndex.value = 0
+    lessonTotal.value = 0
+    correction.value = null
+    correctionAttempt.value = 0
+    tutorialOutcome.value = null
+
     // `splice(0)` empties the list as it reads it, so a second `stop()` — from
     // an unmount racing a navigation — undoes nothing twice.
     for (const undo of teardown.splice(0)) undo()
@@ -347,9 +435,22 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     run?.activateSlayyy()
   }
 
+  /**
+   * Leave the tutorial without finishing it.
+   *
+   * Applied immediately by the loop, like pause, so the overlay it opens is
+   * reacting to a decision the rules have already taken rather than one they
+   * are about to.
+   */
+  const skipTutorial = (): void => {
+    run?.skipTutorial()
+  }
+
   return {
     phase, loading, failed, isPaused, hasEnded, hearts, start, stop, restart, togglePause,
     score, runPaws, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
+    mode, lesson, lessonIndex, lessonTotal, correction, correctionAttempt,
+    tutorialOutcome, skipTutorial,
   }
 }
 

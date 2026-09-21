@@ -5,6 +5,7 @@ import { EMPTY_SLAYYY } from './slayyy'
 import { TUNING } from './tuning'
 import { isLaneIndex } from './lanes'
 import { firstHazardDistanceUnits } from './obstacles'
+import { createTutorialState } from './tutorial'
 import type { RunState } from './types'
 
 /**
@@ -40,6 +41,15 @@ export interface CreateRunOptions {
    * passes nothing and gets zero, which is the truth.
    */
   readonly loliCyclePaws?: number
+
+  /**
+   * Which game this is.
+   *
+   * `'run'` by default, so every existing caller — and every existing test —
+   * keeps the run it already had. The tutorial is the deliberate opt-in, and
+   * the only thing that can produce a non-null `RunState.tutorial`.
+   */
+  readonly mode?: 'run' | 'tutorial'
 }
 
 /**
@@ -50,7 +60,7 @@ export interface CreateRunOptions {
  * about hazards, not a lock on the controls — so a player who already knows
  * what they are doing loses nothing to it.
  */
-export function createRunState({ seed, loliCyclePaws = 0 }: CreateRunOptions): RunState {
+export function createRunState({ seed, loliCyclePaws = 0, mode = 'run' }: CreateRunOptions): RunState {
   /*
    * The seed is the run's identity, so a seed that cannot round-trip is not a
    * seed. Every stream derivation ends in `>>> 0`, which quietly maps `NaN`,
@@ -126,6 +136,8 @@ export function createRunState({ seed, loliCyclePaws = 0 }: CreateRunOptions): R
     slayyy: EMPTY_SLAYYY,
     loliActivations: 0,
     slayyyActivations: 0,
+
+    tutorial: mode === 'tutorial' ? createTutorialState() : null,
   })
 }
 
@@ -176,6 +188,22 @@ export function sealState(state: RunState): RunState {
   Object.freeze(state.score)
   Object.freeze(state.loli)
   Object.freeze(state.slayyy)
+
+  /*
+   * M8's mode, and its two arrays.
+   *
+   * Listed by hand like everything above, and worth naming why that is a
+   * hazard rather than a style: the walk is exhaustive only because somebody
+   * extended it, so a field added without a line here ships mutable and
+   * nothing complains. `tutorial-isolation.spec.ts` now walks the whole state
+   * generically and fails on any unfrozen node, which is the check that should
+   * have existed before there was a third nested thing to forget.
+   */
+  if (state.tutorial !== null) {
+    Object.freeze(state.tutorial.cueObstacleIds)
+    Object.freeze(state.tutorial.cuePawTokenIds)
+    Object.freeze(state.tutorial)
+  }
 
   return Object.freeze(state)
 }

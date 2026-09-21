@@ -12,7 +12,7 @@ Who owns what, and what must never become global mutable state.
 | --- | --- | --- | --- |
 | Session / auth status | **`auth` store** (`app/stores/auth.ts`) — **IMPLEMENTED at M2** | App | Server-side in the BFF. The store holds only a *projection* of who the session belongs to: no token, no challenge token, no password, and **nothing written to web storage**. The status is derived from the server's facts, never received as a state name. |
 | Player profile (username, avatar, favourite character, best score, run count) | `profile` store | App | Server |
-| Progression (`lifetimePaws`, `loliCyclePaws`, achievements, unlocks, `tutorialCompletedAt`) | `progression` store | App | **Server — authoritative** |
+| Progression (`lifetimePaws`, `loliCyclePaws`, achievements, unlocks, `tutorialCompletedAt`) | `progression` store | App | **Server — authoritative.** **At M8** there is no `progression` store: the only field of it that exists is tutorial completion, and it arrives as a boolean on the `auth` store's user projection because first-run routing has to decide during SSR. Progression still **owns** the write (`POST /api/progression/tutorial`); the `auth` store cannot change it. The store arrives with M9, when there are run-derived counters to put in it. |
 | Settings (locale, music, effects, reduced motion) | `settings` store | App | Server profile **and** device mirror |
 | Leaderboard page data | `leaderboard` store | View | Not persisted; cached briefly |
 | **Run state** (lane, hearts, score, SLAYYY charge, timers, spawns, RNG cursor, **`queuedLoliBonuses`**, near-miss events) | **`game/domain` `RunState`** | Run | **Never persisted.** Not in a store. |

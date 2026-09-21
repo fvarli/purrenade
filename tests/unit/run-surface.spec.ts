@@ -24,6 +24,7 @@ interface FakeRun {
   pauseCalls: number
   resumeCalls: number
   slayyyCalls: number
+  skipCalls: number
 }
 
 let fake: FakeRun
@@ -57,11 +58,19 @@ function countListeners(target: EventTarget, label: string): void {
  */
 let created: Array<ReturnType<typeof useRunSurface>> = []
 
-function surface(overrides: { failMount?: boolean, gate?: Promise<void> } = {}) {
+/** What the page asked the engine to mount, so the mode can be asserted. */
+let mountedMode: 'run' | 'tutorial' | undefined
+
+function surface(overrides: {
+  failMount?: boolean
+  gate?: Promise<unknown>
+  mode?: 'run' | 'tutorial'
+} = {}) {
   const instance = useRunSurface({
     makeSeed: () => 12345,
-    mount: async ({ onEvent }) => {
+    mount: async ({ onEvent, mode }) => {
       mountCalls++
+      mountedMode = mode
 
       // Lets a test hold the engine mid-import and leave the route underneath it.
       if (overrides.gate) await overrides.gate
@@ -83,11 +92,15 @@ function surface(overrides: { failMount?: boolean, gate?: Promise<void> } = {}) 
         activateSlayyy: () => {
           fake.slayyyCalls++
         },
+        skipTutorial: () => {
+          fake.skipCalls++
+        },
         destroy: () => {
           fake.destroyed = true
         },
       }
     },
+    mode: overrides.mode,
   })
 
   created.push(instance)
@@ -98,8 +111,16 @@ function surface(overrides: { failMount?: boolean, gate?: Promise<void> } = {}) 
 beforeEach(() => {
   created = []
 
-  fake = { phase: 'running', destroyed: false, pauseCalls: 0, resumeCalls: 0, slayyyCalls: 0 }
+  fake = {
+    phase: 'running',
+    destroyed: false,
+    pauseCalls: 0,
+    resumeCalls: 0,
+    slayyyCalls: 0,
+    skipCalls: 0,
+  }
   mountCalls = 0
+  mountedMode = undefined
   listeners = {}
 
   countListeners(document, 'document')
@@ -219,7 +240,14 @@ describe('stopping a run', () => {
     // The route entered and left five times. Every count must return to zero,
     // and exactly one engine must be alive at the end.
     for (let visit = 0; visit < 5; visit++) {
-      fake = { phase: 'running', destroyed: false, pauseCalls: 0, resumeCalls: 0, slayyyCalls: 0 }
+      fake = {
+        phase: 'running',
+        destroyed: false,
+        pauseCalls: 0,
+        resumeCalls: 0,
+        slayyyCalls: 0,
+        skipCalls: 0,
+      }
 
       const run = surface()
       await run.start(container())
@@ -709,5 +737,139 @@ describe('replaying a run', () => {
     await run.restart()
 
     expect(mountCalls).toBe(1)
+  })
+})
+
+/**
+ * The tutorial's share of the surface.
+ *
+ * The prompt state lives here for the same reason the score does: it arrives on
+ * coarse events, and it has to be cleared by the same teardown. The comment
+ * beside `stop()`'s phase reset records what happens when one of these is
+ * forgotten — the previous run's overlay covering the next run's first frame —
+ * and this is the test that stops it happening again one milestone later.
+ */
+describe('the tutorial, from the Vue side', () => {
+  it('mounts the mode it was created with', async () => {
+    const run = surface({ mode: 'tutorial' })
+
+    await run.start(container())
+
+    expect(mountedMode).toBe('tutorial')
+    expect(run.mode).toBe('tutorial')
+  })
+
+  it('mounts a normal run by default', async () => {
+    const run = surface()
+
+    await run.start(container())
+
+    expect(mountedMode).toBe('run')
+    expect(run.mode).toBe('run')
+  })
+
+  it('stays a tutorial across a replay', async () => {
+    const run = surface({ mode: 'tutorial' })
+
+    await run.start(container())
+    await run.restart()
+
+    // A replay of a tutorial is another tutorial. The mode is held beside the
+    // container rather than re-derived, so a restart cannot silently change
+    // which game the player is in.
+    expect(mountCalls).toBe(2)
+    expect(mountedMode).toBe('tutorial')
+  })
+
+  it('follows the lessons, and clears the guidance when one is passed', async () => {
+    const run = surface({ mode: 'tutorial' })
+
+    await run.start(container())
+
+    emit({ type: 'tutorial_lesson', lesson: 'dodge_cone', index: 3, total: 9 })
+
+    expect(run.lesson.value).toBe('dodge_cone')
+    expect(run.lessonIndex.value).toBe(3)
+    expect(run.lessonTotal.value).toBe(9)
+
+    emit({ type: 'tutorial_correction', lesson: 'dodge_cone', correction: 'jumped_at_cone', attempt: 1 })
+
+    expect(run.correction.value).toBe('jumped_at_cone')
+    expect(run.correctionAttempt.value).toBe(1)
+
+    emit({ type: 'tutorial_lesson', lesson: 'jump_barrier', index: 4, total: 9 })
+
+    // The previous lesson's guidance must not survive into a prompt that is no
+    // longer about it.
+    expect(run.correction.value).toBeNull()
+    expect(run.correctionAttempt.value).toBe(0)
+  })
+
+  it('reports how the tutorial ended', async () => {
+    const run = surface({ mode: 'tutorial' })
+
+    await run.start(container())
+
+    emit({ type: 'tutorial_completed', outcome: 'skipped' })
+
+    expect(run.tutorialOutcome.value).toBe('skipped')
+  })
+
+  it('clears every scrap of tutorial state on teardown', async () => {
+    const run = surface({ mode: 'tutorial' })
+
+    await run.start(container())
+
+    emit({ type: 'tutorial_lesson', lesson: 'collect_paw', index: 5, total: 9 })
+    emit({ type: 'tutorial_correction', lesson: 'collect_paw', correction: 'missed_paw', attempt: 2 })
+    emit({ type: 'tutorial_completed', outcome: 'completed' })
+
+    run.stop()
+
+    expect(run.lesson.value).toBeNull()
+    expect(run.lessonIndex.value).toBe(0)
+    expect(run.lessonTotal.value).toBe(0)
+    expect(run.correction.value).toBeNull()
+    expect(run.correctionAttempt.value).toBe(0)
+    expect(run.tutorialOutcome.value).toBeNull()
+  })
+
+  it('asks the engine to skip, and does nothing before a run exists', () => {
+    const run = surface({ mode: 'tutorial' })
+
+    // No engine yet: a skip must not throw on a surface that never mounted.
+    run.skipTutorial()
+
+    expect(fake.skipCalls).toBe(0)
+  })
+
+  it('asks the engine to skip once a run exists', async () => {
+    const run = surface({ mode: 'tutorial' })
+
+    await run.start(container())
+    run.skipTutorial()
+
+    expect(fake.skipCalls).toBe(1)
+  })
+
+  it('ignores tutorial events from a mount the route already abandoned', async () => {
+    let open = (): void => {}
+    const gate = new Promise<undefined>((resolve) => {
+      open = () => resolve(undefined)
+    })
+
+    const run = surface({ mode: 'tutorial', gate })
+
+    const pending = run.start(container())
+
+    run.stop()
+    open()
+    await pending
+
+    // The abandoned mount's sink is still reachable from this test; the
+    // composable must refuse it, or a destroyed run would drive a live prompt.
+    emit({ type: 'tutorial_lesson', lesson: 'move_left', index: 1, total: 9 })
+
+    expect(run.lesson.value).toBeNull()
   })
 })

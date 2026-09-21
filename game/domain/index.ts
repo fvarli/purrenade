@@ -43,6 +43,10 @@ export type {
   LoliPhase,
   SlayyyState,
   SlayyyPhase,
+  TutorialState,
+  TutorialLesson,
+  TutorialCorrection,
+  TutorialOutcome,
 } from './types'
 
 // --- M6 -----------------------------------------------------------------
@@ -78,3 +82,29 @@ export {
   EMPTY_SLAYYY,
 } from './slayyy'
 export { protectionSources, isProtected } from './collision'
+
+// --- M8 -----------------------------------------------------------------
+
+export {
+  TUTORIAL_LESSON_COUNT,
+  advanceTutorial,
+  advanceTutorialDirector,
+  createTutorialState,
+  skipTutorial,
+  tutorialLessonIndex,
+} from './tutorial'
+export { TUTORIAL_LESSON_ORDER, TUTORIAL_SCRIPT } from './tutorial-script'
+export type { TutorialBeat, TutorialLessonScript } from './tutorial-script'
+
+/*
+ * `primeSlayyy` is deliberately **not** exported.
+ *
+ * It fills the meter outright, which is the one thing in this domain that
+ * hands the player a power they did not earn. It exists for the tutorial's
+ * SLAYYY lesson and `tutorial.ts` is its only caller; publishing it here would
+ * put "grant a full meter" on the domain's public surface, where a later
+ * milestone could reach for it without anyone deciding that it should.
+ *
+ * Nothing outside `game/domain` needs it: the tutorial is entered by mode, and
+ * the readiness grant is a consequence of reaching the lesson.
+ */

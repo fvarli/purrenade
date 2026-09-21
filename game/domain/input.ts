@@ -31,8 +31,10 @@ function isActionable(state: RunState, event: InputEvent): boolean {
       return canActivateSlayyy(state)
     case 'pause':
     case 'resume':
+    case 'tutorial_skip':
       // Never buffered. A pause the player has to wait for is a pause that did
-      // not work, and buffering one would let it fire after they resumed.
+      // not work, and buffering one would let it fire after they resumed. A
+      // skip is the same promise about a different decision.
       return true
   }
 }
@@ -56,6 +58,9 @@ function applyActionable(state: RunState, event: InputEvent): RunState {
       return activateSlayyy(state)
     case 'pause':
     case 'resume':
+    case 'tutorial_skip':
+      // Control inputs are `step`'s to apply: they change the phase or the
+      // mode, and neither is something the movement rules should be able to do.
       return state
   }
 }

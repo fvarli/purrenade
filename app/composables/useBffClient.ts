@@ -298,6 +298,16 @@ export function useBffClient() {
 
     logout: () => bffRequest<{ status: 'signed_out' }>('/api/auth/logout', { method: 'POST' }),
 
+    /**
+     * Record that the first-run tutorial is finished, or was skipped.
+     *
+     * No body: the player is whoever holds the session, and the upstream
+     * endpoint accepts nothing. Idempotent, so a retry after a failed attempt
+     * is safe and cannot move the stored completion.
+     */
+    completeTutorial: () =>
+      bffRequest<{ tutorialCompleted: boolean }>('/api/progression/tutorial', { method: 'POST' }),
+
     verifyEmail: (body: { code: string }) =>
       bffRequest<{ user: import('~/types/auth').AuthUser }>('/api/auth/email/verify', { method: 'POST', body }),
 

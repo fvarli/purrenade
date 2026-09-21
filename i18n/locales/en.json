@@ -11,10 +11,33 @@
     "copied": "Copied!",
     "back": "Back"
   },
-  "splash": { "starring": "STARRING AYŞENUR ⭐", "welcome": "Welcome to the seaside" },
-  "menu": { "play": "PLAY", "characters": "Characters", "settings": "Settings" },
-  "characters": { "title": "Choose your character", "aysenur": "AYŞENUR", "ourStar": "OUR STAR", "aysenurLede": "The seaside's star — she makes everything brighter", "power": "Special power", "lockedGroup": "Locked characters", "locked": "Coming later", "artNote": "More characters are coming later.", "playWith": "PLAY WITH THIS CHARACTER" },
-  "settings": { "title": "Settings", "language": "Language", "account": "Account" },
+  "splash": {
+    "starring": "STARRING AYŞENUR ⭐",
+    "welcome": "Welcome to the seaside"
+  },
+  "menu": {
+    "play": "PLAY",
+    "characters": "Characters",
+    "settings": "Settings"
+  },
+  "characters": {
+    "title": "Choose your character",
+    "aysenur": "AYŞENUR",
+    "ourStar": "OUR STAR",
+    "aysenurLede": "The seaside's star — she makes everything brighter",
+    "power": "Special power",
+    "lockedGroup": "Locked characters",
+    "locked": "Coming later",
+    "artNote": "More characters are coming later.",
+    "playWith": "PLAY WITH THIS CHARACTER"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "account": "Account",
+    "tutorial": "Tutorial",
+    "tutorialReplay": "Replay tutorial"
+  },
   "home": {
     "title": "Seaside",
     "greeting": "Welcome back, {name}!",
@@ -324,5 +347,76 @@
     "keysPause": "Esc  pause",
     "nextGoalTitle": "Next goal",
     "nextGoalNote": "The Loli Bonus is getting closer!"
+  },
+  "tutorial": {
+    "title": "Tutorial",
+    "surfaceLabel": "Tutorial area: three lanes, Ayşenur in the middle.",
+    "skip": "Skip",
+    "progress": "{step} / {total}",
+    "progressLabel": "Tutorial progress",
+    "saveFailed": "Could not save. Check your connection and try again.",
+    "retry": "Try again",
+    "saving": "Saving…",
+    "lesson": {
+      "intro": {
+        "title": "Ready? ✨",
+        "body": "Let's learn a few moves!"
+      },
+      "moveLeft": {
+        "title": "Move left",
+        "keyboard": "Press ← or A",
+        "touch": "Swipe left"
+      },
+      "moveRight": {
+        "title": "Move right",
+        "keyboard": "Press → or D",
+        "touch": "Swipe right"
+      },
+      "dodgeCone": {
+        "title": "A cone! Change lane",
+        "keyboard": "Use ← or → to move aside",
+        "touch": "Swipe sideways to get around it"
+      },
+      "jumpBarrier": {
+        "title": "A barrier! Jump",
+        "keyboard": "Press Space, ↑ or W",
+        "touch": "Swipe up"
+      },
+      "collectPaw": {
+        "title": "Collect the Paw Token",
+        "keyboard": "Move across and run over it",
+        "touch": "Swipe across and run over it"
+      },
+      "activateSlayyy": {
+        "title": "SLAYYY is ready! ✨",
+        "keyboard": "Press E",
+        "touch": "Tap the SLAYYY button"
+      },
+      "finalPractice": {
+        "title": "Now you try!",
+        "body": "Put it all together."
+      }
+    },
+    "correction": {
+      "noInput": "Give it a go — don't worry, nothing can hurt you here.",
+      "jumpedAtCone": "You can't jump over the cone! Move to another lane.",
+      "contactedCone": "You hit the cone. Go around it, not over it.",
+      "dodgedBarrier": "You went around the barrier. Try jumping it this time!",
+      "contactedBarrier": "You hit the barrier. A jump clears it.",
+      "missedPaw": "The Paw got away! Change lane and run over it."
+    },
+    "skipConfirm": {
+      "title": "Skip the tutorial?",
+      "body": "You can replay it later from Settings.",
+      "confirm": "Skip",
+      "cancel": "Continue tutorial"
+    },
+    "complete": {
+      "title": "You're ready! ⭐",
+      "body": "Purrenade begins!",
+      "play": "START RUNNING",
+      "menu": "Main menu",
+      "skipped": "Tutorial skipped. You can replay it from Settings."
+    }
   }
 }

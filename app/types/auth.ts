@@ -21,6 +21,15 @@ export interface AuthUser {
   two_factor_pending: boolean
   two_factor_recovery_codes_remaining: number
   requires_two_factor_enrolment: boolean
+  /**
+   * Has the player finished — or skipped — the first-run tutorial?
+   *
+   * Server-owned, and deliberately not mirrored to browser storage: a flag the
+   * browser could write would be a flag that decides whether the tutorial is
+   * mandatory, which is exactly the kind of authority that does not belong on
+   * the client.
+   */
+  tutorial_completed: boolean
   created_at: string | null
   session: {
     id: string

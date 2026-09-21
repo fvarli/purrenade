@@ -328,24 +328,61 @@ stopped independently, by `shouldHandleKey` declining every binding but Escape
 while an activatable element has focus — and the dialog's focus trap guarantees
 one always does. Two mechanisms, neither relying on the other.
 
-### The tutorial seam — for M8, not built here
+### The tutorial seam — built at M8 — APPROVED
 
-M8 needs a run-like presentation in which the player cannot die, and it is blocked
-on an OPEN visual decision (`TU-1`), so none of it is built. What Milestone C
-leaves it is the shape it needs:
+Milestone C left this section describing a seam the tutorial *would* need. M8 built it, and
+what it added is narrower than the prediction: **one nullable field**, `RunState.tutorial`,
+which is `null` for every normal run.
 
-| A tutorial must | and can, because |
+| A tutorial must | and does, through |
 | --- | --- |
-| enter a controlled run | `mountRun()` is the single entry point, and takes its options at the call site |
-| suppress lethal behaviour | the rules are pure functions of state — a tutorial flag belongs in `game/domain`, where `step()` can honour it, not in the engine |
-| observe movement, jump and collect | `RunEvent` already carries them as coarse events, and the app layer already subscribes to exactly that |
-| leave cleanly | `stop()` is the same teardown a replay and a route leave use |
-| not corrupt a normal run | nothing is persisted, and every run-scoped counter resets with the surface |
+| enter a controlled run | `mountRun({ mode: 'tutorial' })` — the single entry point, taking its options at the call site as predicted |
+| suppress lethal behaviour | `step()` honours the mode: the collision resolves by the real rules and the heart is simply not spent |
+| author its own road | `advanceSpawning` and `advancePawSpawning` both return early, and a scripted director places props where they would have |
+| observe what the player did | recorded facts on `TutorialState`, read after collisions settle |
+| tell the app | four coarse `RunEvent` variants — a lesson, a correction, and the end |
+| leave cleanly | `stop()` — the same teardown a replay and a route leave use |
+| not corrupt a normal run | nothing is persisted, and a `RunState` is built once per mount and thrown away |
 
-The one thing M8 has to add is the flag itself, in the domain. That is where it
-belongs, and it is deliberately not pre-empted here: inventing a parameter before
-the milestone that needs it knows its own shape is how a boundary acquires fields
-nobody uses.
+**Exactly three call sites branch on the mode**, and they are the three the mode exists for:
+the two spawners, and the damage block in `step()`. Nothing else in the domain knows the
+tutorial exists. `collision.ts` is **unmodified** — it still computes `heartsLost` by the real
+rules, and `step()` decides whether to spend it.
+
+**The engine was not touched at all.** A tutorial prop is an ordinary obstacle or Paw Token in
+the lane the script chose, so `RenderSnapshot` did not widen and the scene has no tutorial
+branch. That is what "derive the treatment from the production visual system" means at this
+boundary.
+
+#### Why the player is not made invulnerable
+
+It would have been a smaller change and a worse one. `isProtected` would then be true, so
+`resolveCollisions` marks every damaging obstacle `cleared` rather than `hit` — and `cleared`
+is also the outcome of a clean pass. The cone lesson could no longer distinguish a player who
+walked into it from one who went around it, which is the entire lesson.
+
+#### Why the lessons watch facts rather than outcomes
+
+An obstacle's `outcome` is the damage rules' conclusion. What a lesson teaches is what the
+player *did*, so `TutorialState` records two things per prop — was the player in its lane while
+overlapping it, and were they airborne — and judges on those. This also avoids a real trap:
+`resolveCollisions` caps damage at one heart per step and marks any *further* damaging obstacle
+`cleared`, so `cleared` does not reliably mean "avoided".
+
+#### Why the world keeps scrolling
+
+An unsatisfied lesson re-presents its prop further down the road rather than freezing the
+scroll. Freezing breaks the jump lesson outright — a barrier that never travels is a barrier a
+jump cannot clear — and it would need a conditional in the scroll path, which is the one path
+the normal-run golden is most sensitive to. Re-presenting needs no change there at all.
+
+#### The proof that normal play is unchanged
+
+`tests/unit/normal-run-golden.spec.ts` hashes 32 seed-and-style combinations over every
+observable field of every step of a two-minute run, **including all three RNG streams**,
+against a fixture generated before the mode existed. A module that consumed one extra random
+value fails it even though no rule changed. That is the evidence behind "normal gameplay
+semantics were not changed"; it is deliberately not a sentence in a report.
 
 ---
 

@@ -1,4 +1,14 @@
-import type { InputEvent, LaneIndex, LoliPhase, ObstacleKind, RunPhase, SlayyyPhase } from '../domain'
+import type {
+  InputEvent,
+  LaneIndex,
+  LoliPhase,
+  ObstacleKind,
+  RunPhase,
+  SlayyyPhase,
+  TutorialCorrection,
+  TutorialLesson,
+  TutorialOutcome,
+} from '../domain'
 
 /**
  * The only vocabulary `game/domain` and `game/engine` share.
@@ -9,7 +19,7 @@ import type { InputEvent, LaneIndex, LoliPhase, ObstacleKind, RunPhase, SlayyyPh
  */
 
 /** Engine → domain. Re-exported so the engine never imports the domain directly. */
-export type { InputEvent, LaneIndex, ObstacleKind, RunPhase }
+export type { InputEvent, LaneIndex, ObstacleKind, RunPhase, TutorialCorrection, TutorialLesson, TutorialOutcome }
 
 /**
  * Domain → engine.
@@ -206,6 +216,42 @@ export type RunEvent =
   | { readonly type: 'slayyy_ready' }
   | { readonly type: 'slayyy_activated' }
   | { readonly type: 'slayyy_ended' }
+
+  // --- M8 -------------------------------------------------------------------
+
+  /**
+   * The tutorial's coarse moments, and deliberately only these.
+   *
+   * The app renders a prompt from a lesson id and a correction id. It is not
+   * told which lane the cone is in, how far away it is, or what the player just
+   * pressed — the same boundary every other event here respects, for the same
+   * reason: a UI that reads gameplay state is a UI that will eventually try to
+   * write it.
+   *
+   * `index` and `total` travel with the lesson so the progress indicator does
+   * not need its own copy of the lesson order, which would be a second place
+   * for the sequence to live.
+   */
+  | {
+    readonly type: 'tutorial_lesson'
+    readonly lesson: TutorialLesson
+    readonly index: number
+    readonly total: number
+  }
+  /**
+   * The player did something the lesson cannot accept, or nothing at all.
+   *
+   * `attempt` counts within the current lesson, so guidance can become more
+   * explicit without the app tracking how often it has spoken.
+   */
+  | {
+    readonly type: 'tutorial_correction'
+    readonly lesson: TutorialLesson
+    readonly correction: TutorialCorrection
+    readonly attempt: number
+  }
+  /** Finished or skipped. Both mean the same thing to first-run routing. */
+  | { readonly type: 'tutorial_completed', readonly outcome: TutorialOutcome }
 
 /** What the app hands the engine when it mounts a run. */
 export interface RunEventSink {

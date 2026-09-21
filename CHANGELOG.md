@@ -6,6 +6,67 @@ This project does not yet have released versions.
 
 ## [Unreleased]
 
+### Added — the game teaches itself
+
+Physical-phone testing found the failure this milestone exists for: **a new player who meets
+a traffic cone tries to jump it.** Jumping never clears a cone — it is `LANE_BLOCKING`, and it
+has to be gone *around* — so they are hit, and nothing in the game has told them why. M8 is a
+first-run tutorial that teaches the game's verbs using the real game, with that misconception
+as its central lesson.
+
+- **Nine lessons, in the real rules.** Greeting, move left, move right, **dodge the cone**,
+  **jump the barrier**, collect a paw, activate SLAYYY, a short closing practice, done. The
+  cone comes *before* the barrier deliberately: the misconception is corrected before the verb
+  that looks like it should have worked is introduced at all.
+- **Jumping at the cone is not special-cased anywhere.** `isDamaging` already refuses to clear
+  a lane blocker for an airborne player, so a jump produces a real contact and the tutorial
+  turns that contact into *"you can't jump over the cone — move to another lane"*. The rule
+  teaches itself, which is the only version of this lesson that stays true.
+- **The player cannot die, and is not made invulnerable.** Those are different, and the
+  difference is the design. Protecting the player would make every prop resolve as `cleared`,
+  and the lesson could then no longer tell a cone they walked into from one they went around.
+  So the collision is resolved by the real rules, the obstacle is stamped exactly as it would
+  be in a run, and the heart is simply not spent. A test drives a player who steers into
+  everything for four simulated minutes and asserts the hearts never move.
+- **The road is authored, not generated.** Both spawners return early in tutorial mode, so the
+  tutorial cannot inherit a hazard from the pattern pool — and draws **no randomness at all**,
+  which is asserted by comparing all three RNG streams against a freshly seeded state.
+- **The world never stops; the lesson loops.** An unsatisfied lesson re-presents its prop
+  further down the road. Freezing the scroll was the other option and it breaks the jump
+  lesson outright: a barrier that never travels is a barrier a jump cannot clear.
+- **SLAYYY is taught**, reversing an earlier decision that excluded it because the meter cannot
+  fill inside a short tutorial. It is filled once, for that lesson, by a function the tutorial
+  is the only caller of. `chargePerSecond`, `chargePerPaw` and every activation rule are
+  untouched — what is granted is the opportunity, not the power, and the player still presses
+  `E` or the real control.
+- **Each lesson watches the fact it teaches.** The paw lesson waits for *its own* token by id,
+  not for `runPaws` to tick; the cone and barrier lessons watch whether the player was in the
+  prop's lane and whether they were airborne, not the obstacle's `outcome`. Both alternatives
+  agree today and would stop agreeing later — `cleared` already does not reliably mean
+  "avoided", because only the first of two damaging obstacles in a step is marked `hit`.
+- **Completion is the account's fact, not the device's.** Persisted through the API's
+  already-approved `POST /progression/tutorial`, so a refresh, a new browser or a different
+  phone does not re-impose it. Nothing about it is written to browser storage.
+- **A failed save is never hidden.** If the write fails the completion screen stays up with a
+  retry and the player is *not* routed onward. Continuing would tell them they had finished
+  and then hand them the mandatory tutorial again on their next sign-in, with nothing to
+  explain why.
+- **Skippable, quietly.** A text control beside the progress dots, a confirmation that defaults
+  to *continue*, and a skip that counts as completion. Replaying from Settings never clears it.
+
+**Normal gameplay did not change, and that is proven rather than asserted.** The mode is one
+nullable field on `RunState` that is `null` for every real run, and
+`tests/unit/normal-run-golden.spec.ts` hashes 32 seed-and-style combinations over every
+observable field of every step of a two-minute run — RNG streams included — against a fixture
+generated *before* the tutorial existed. A module that drew one extra random value would fail
+it even though no rule had changed.
+
+**What it does not add.** No new visual asset family: a tutorial prop is an ordinary cone,
+barrier or Paw Token, so `RenderSnapshot` gained nothing and the scene was not touched. No
+score or paw readout during the tutorial, because both are progression surfaces and the
+tutorial grants no progression. No healing, no extra lives, no new collectible, no new obstacle
+class, and no near-miss lesson (TU-5 stays open).
+
 ### Added — the run becomes a session
 
 Enter, play, pause, lose, understand, replay or leave. The gameplay model is

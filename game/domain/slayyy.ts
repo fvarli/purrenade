@@ -134,6 +134,28 @@ export function advanceSlayyy(state: RunState, deltaMs: number): SlayyyState {
 }
 
 /**
+ * Fill the meter outright. **The tutorial's, and nothing else's.**
+ *
+ * The SLAYYY lesson cannot wait out a real fill — that is 35–45 s of a healthy
+ * run, and it is the reason `tutorial.md` §2 originally excluded SLAYYY from
+ * the tutorial altogether. Filling the meter for the lesson answers that
+ * objection without touching the thing the objection was about: `chargePerSecond`,
+ * `chargePerPaw` and `addCharge` are untouched, so normal progression is
+ * exactly what it was.
+ *
+ * Deliberately *not* an activation. `canActivateSlayyy` still decides,
+ * `activateSlayyy` still spends the meter and still counts, and the player
+ * still presses the key or the button. What is granted is the opportunity, not
+ * the power — which is what keeps the lesson's success condition the real
+ * mechanic rather than an imitation of it.
+ */
+export function primeSlayyy(slayyy: SlayyyState): SlayyyState {
+  if (slayyy.phase === 'active') return slayyy
+
+  return { phase: 'ready', chargeMicro: chargeCeilingMicro(), activeRemainingMs: 0 }
+}
+
+/**
  * Is SLAYYY protecting the player right now?
  *
  * The single definition of the rule. `collision.ts` calls this rather than

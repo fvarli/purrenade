@@ -26,7 +26,9 @@ behavior board. Board numbers below are the v0.3 numbers.
                                ├─► 16 Achievements
                                ├─► 17 Profile ──► 20 Account & security
                                └─► 18 Settings ──► 19 Language
-                                                 └─► Replay tutorial
+                                                 └─► Replay tutorial ──► Tutorial
+
+  PLAY, tutorial not completed ──► Tutorial ──► fresh Run
 ```
 
 Route paths are PROPOSED and finalized in
@@ -70,6 +72,7 @@ not specified by any reference. See the backend's `docs/security/authentication.
 | **12** | **Pause / Duraklat** | "MOLA! 🫖", **"your score is safe: n"**, resume, restart, **Müzik** and **Efektler** controls, return to menu | v0.3 renders these as **sliders** here and as **toggles** in Settings — [conflict #10](design-reference-conflicts.md). A recommendation now exists (§7A); the decision is still required. |
 | **13** | **Game over / Oyun Bitti** | "OYUN BİTTİ!", flavour line, score vs record, **`+runPaws`**, achievement progress chip (e.g. "Ramak Kala +1"), play again, return to menu | **No revive and no continue.** |
 | **14** | **New high score / Yeni Rekor** | "YENİ REKOR! ⭐", new score, previous record, "Ayşenur is dancing", `+runPaws`, achievement chip, play again, **view leaderboard** | Uses the record-dance animation state. |
+| **T** | **Tutorial** *(no v0.3 board — added at M8)* | The Milestone B world and HUD, minus the score and paw readouts; a lesson prompt card with the instruction, a correction line and nine progress dots; a quiet **Atla** control; a skip confirmation; a completion overlay | **Not a separate screen.** It is a mode of the run surface, so Phaser stays behind one route and one canvas. The prompt is deliberately **not** a dialog — the player keeps playing while it is up. The score and paw readouts are hidden because both are progression surfaces and the tutorial grants no progression. See [tutorial.md](tutorial.md) §7 for how the treatment was derived rather than invented (TU-1). |
 
 ### What boards 12 and 13 ship at Milestone C — APPROVED
 
@@ -126,7 +129,7 @@ expose the same gameplay-critical state. See
 | # | Screen | Key elements (APPROVED) | Behavior notes |
 | --- | --- | --- | --- |
 | **17** | **Profile / Profil** | Avatar with ⭐, username, "our star · running since {date}", stats — **REKOR**, **KOŞU** (runs), **BAŞARIM** (n/16), **🐾 PATİ** (`lifetimePaws`) — favourite character, language row, **Account & Security** row showing 2FA state, sign out | The paw stat here is `lifetimePaws`, distinct from the menu's `loliCyclePaws`. |
-| **18** | **Settings / Ayarlar** | Language (tr/en/es), **Müzik**, **Ses Efektleri**, **Azaltılmış hareket** (reduced motion), Account & Security, build version line | Also the entry point for **replaying the tutorial** (approved requirement; no v0.3 row exists for it yet — **OPEN** placement). |
+| **18** | **Settings / Ayarlar** | Language (tr/en/es), **Müzik**, **Ses Efektleri**, **Azaltılmış hareket** (reduced motion), **Eğitim → Eğitimi tekrar oyna**, Account & Security, build version line | The entry point for **replaying the tutorial**. **SI-2 resolved at M8:** its own section between Language and Account — it is the one row here that *starts* something rather than changing a setting, so filing it under Account would put an action among preferences. A plain link, not a confirmed action: a replay grants nothing and cannot affect the player's completed status. |
 | **19** | **Language / Dil Seçimi** | Türkçe (default), English, Español, each with a native-language sample line; note that language changes instantly, text is never baked into images, and boxes tolerate long translations | This note is an approved, testable constraint. See [localization.md](localization.md). |
 | **20** | **Account & Security / Hesap & Güvenlik** | 2FA state (on · authenticator app), email with verified mark, change password, **active sessions** (device, location, relative last-seen, "this device"), per-session sign-out, **sign out of all devices**, note that admin 2FA is mandatory and the admin panel is a separate plain interface | Session/device management is real backend scope: device labelling, approximate location, and revocation. |
 
@@ -198,7 +201,7 @@ Reduced-motion and audio settings both live on the profile and follow the accoun
 
 | Ref | Question |
 | --- | --- |
-| SI-2 | Where "replay tutorial" lives on the Settings screen (§6) |
+| ~~SI-2~~ | ~~Where "replay tutorial" lives on the Settings screen (§6)~~ — **resolved at M8**: its own section between Language and Account |
 
 **Resolved by M0.6:** SI-1 (admin capability set **APPROVED**, §7) and SI-3 (audio **Option C
 APPROVED**, §7A).

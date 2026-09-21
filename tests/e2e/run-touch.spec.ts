@@ -137,3 +137,52 @@ test.describe('touch reaches the playfield', () => {
     await expect(button).toHaveCSS('touch-action', 'manipulation')
   })
 })
+
+/**
+ * The tutorial prompt, touched.
+ *
+ * It is a card painted over the canvas, which is exactly the shape of the
+ * defect this file exists for — and the tutorial makes it worse, because the
+ * prompt is on screen while the player is being *asked to swipe*. A card that
+ * swallowed the swipe it requested would be a lesson that cannot be passed.
+ *
+ * So the prompt is `pointer-events: none` and only its Skip control opts back
+ * in. Both halves are asserted here: the road takes a touch through the card,
+ * and Skip still takes its own.
+ */
+test.describe('the tutorial prompt does not eat the gesture it asks for', () => {
+  test.skip(
+    !process.env.PURRENADE_E2E_EMAIL || !process.env.PURRENADE_E2E_PASSWORD,
+    'set PURRENADE_E2E_EMAIL and PURRENADE_E2E_PASSWORD',
+  )
+
+  async function openTutorial(page: Page): Promise<void> {
+    await page.goto('/run?mode=tutorial')
+    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.run__tutorial-card')).toBeVisible({ timeout: 30_000 })
+  }
+
+  test('a touch on the prompt reaches the canvas', async ({ page }) => {
+    await openTutorial(page)
+
+    const box = (await page.locator('.run__tutorial-card').boundingBox())!
+    // The card's own text, not its edge — the middle is where a thumb lands.
+    const x = Math.round(box.x + box.width / 2)
+    const y = Math.round(box.y + 24)
+
+    expect(await targetAt(page, x, y), 'the prompt must be transparent to touch').toContain('CANVAS')
+  })
+
+  test('the skip control still takes its own touch, at the approved size', async ({ page }) => {
+    await openTutorial(page)
+
+    const skip = page.locator('.run__tutorial-skip')
+    const box = (await skip.boundingBox())!
+
+    expect(box.height, 'Skip meets the touch-target minimum').toBeGreaterThanOrEqual(44)
+
+    const target = await targetAt(page, Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2))
+
+    expect(target, 'Skip opts back into pointer events').toContain('run__tutorial-skip')
+  })
+})

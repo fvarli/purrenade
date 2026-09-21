@@ -24,6 +24,18 @@ export interface AuthenticatedUser {
   two_factor_pending: boolean
   two_factor_recovery_codes_remaining: number
   requires_two_factor_enrolment: boolean
+  /**
+   * Has the player finished — or skipped — the first-run tutorial?
+   *
+   * A read projection. Progression owns the fact and
+   * `POST /progression/tutorial` is the only thing that can change it; this
+   * rides along on `/auth/me` because the decision it feeds is where PLAY goes,
+   * and that is decided during server-side render.
+   *
+   * The server stores a timestamp and sends a boolean. When a player finished
+   * is not a decision this client makes differently.
+   */
+  tutorial_completed: boolean
   created_at: string | null
   session: {
     id: string
@@ -71,6 +83,11 @@ export type LoginEnvelope =
       recovery_codes_available: boolean
     }
   }
+
+/** `POST /progression/tutorial`. One bit, and deliberately nothing else. */
+export interface TutorialStateEnvelope {
+  data: { tutorial_completed: boolean }
+}
 
 export interface TwoFactorChallengeEnvelope {
   status: 'authenticated'

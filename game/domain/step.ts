@@ -2,7 +2,8 @@ import { advanceBuffer, applyInput } from './input'
 import { sealState } from './state'
 import { advanceJump } from './jump'
 import { advanceObstacles, advanceSpawning } from './obstacles'
-import { advancePawSpawning, advancePawTokens, dropBlockedTokens, resolvePawTokens } from './collectibles'
+import { NOTHING_COLLECTED, advancePawSpawning, advancePawTokens, dropBlockedTokens, resolvePawTokens } from './collectibles'
+import { advanceTutorial, advanceTutorialDirector, skipTutorial } from './tutorial'
 import { advanceLoli, applyMagnet, applyPawsToCycle, clearLoli, earnLoliBonuses } from './loli'
 import { distanceMilliFor, earnMilli, earnPoints } from './score'
 import { advanceSlayyy, chargeFromPaws, chargeFromTime } from './slayyy'
@@ -86,8 +87,8 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
       throw new TypeError(`step: not an input event (got ${JSON.stringify(input) ?? String(input)})`)
     }
 
-    if (isPhaseInput(input)) {
-      next = applyPhaseInput(next, input)
+    if (isControlInput(input)) {
+      next = applyControlInput(next, input)
       continue
     }
 
@@ -147,6 +148,14 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
   next = advancePawTokens(next, runningDeltaMs)
   next = advancePawSpawning(next)
 
+  // 6a(ii). The tutorial lays down its own road.
+  //
+  // Exactly where the two generators would have run, so an authored prop enters
+  // the world at the point a generated one would have and is indistinguishable
+  // from it afterwards — it scrolls, collides and despawns by the same rules.
+  // A no-op on a normal run.
+  next = advanceTutorialDirector(next)
+
   // 6b. The companion's lifecycle, then its magnet.
   //
   // In that order: a bonus that becomes active on this step should attract on
@@ -190,7 +199,21 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
     next = { ...next, nearMissCount: next.nearMissCount + resolved.nearMisses }
   }
 
-  if (resolved.heartsLost > 0) {
+  /*
+   * Damage, unless this is the tutorial.
+   *
+   * The tutorial's safety is enforced here, at the rules level, exactly as
+   * `tutorial.md` §3.1 requires — not by making the player invulnerable, which
+   * would be a different and much worse design: `isProtected` would then be
+   * true, every prop would resolve as `cleared`, and the lesson could no
+   * longer tell a cone the player walked into from one they went around.
+   *
+   * So the collision is resolved by the real rules and the obstacle is stamped
+   * exactly as it would be in a run; what changes is only that the heart is
+   * not spent. The encounter still happened, which is what the lesson needs,
+   * and it cost nothing, which is what the player is promised.
+   */
+  if (resolved.heartsLost > 0 && next.tutorial === null) {
     const hearts = Math.max(0, next.hearts - resolved.heartsLost)
 
     next = {
@@ -221,10 +244,13 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
    * A run that ended on this step collects nothing: the terminal state is the
    * one place where "no further reward" is absolute.
    */
+  let collectedIds: readonly number[] = NOTHING_COLLECTED
+
   if (next.phase !== 'ended') {
     const picked = resolvePawTokens(next)
 
     next = picked.state
+    collectedIds = picked.collectedIds
 
     if (picked.collected > 0) {
       const cycle = applyPawsToCycle(next.loliCyclePaws, picked.collected)
@@ -248,6 +274,18 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
   }
 
   /*
+   * 9a. The tutorial judges what just happened.
+   *
+   * Last, and after the meter, so it sees the finished state of everything it
+   * reasons about — where the player ended up, what their prop resolved to,
+   * which tokens were taken, whether SLAYYY actually fired. Judging earlier
+   * would mean judging a half-settled step.
+   *
+   * A no-op on a normal run.
+   */
+  next = advanceTutorial(next, state, collectedIds, runningDeltaMs)
+
+  /*
    * 10. Terminal cleanup.
    *
    * Everything M7 owns stops at the same instant the run does: the companion
@@ -267,12 +305,28 @@ export function step(state: RunState, inputs: readonly InputEvent[], deltaMs: nu
   return sealState(next)
 }
 
-function isPhaseInput(input: InputEvent): boolean {
-  return input.type === 'pause' || input.type === 'resume'
+/**
+ * Inputs that change what the run *is*, rather than what the player is doing.
+ *
+ * They apply whatever the phase, and they are never buffered. `tutorial_skip`
+ * belongs here for the same reason pause does: a skip the player has to wait
+ * for is a skip that did not work.
+ */
+function isControlInput(input: InputEvent): boolean {
+  return input.type === 'pause' || input.type === 'resume' || input.type === 'tutorial_skip'
 }
 
+/**
+ * The accepted vocabulary, written out rather than derived.
+ *
+ * TypeScript cannot check the edge this guards — a replay harness or a future
+ * server-side validator feeds it input logs off the wire — so the set is the
+ * check. It is also hand-maintained, which means **a new `InputEvent` variant
+ * must be added here or the reducer throws on it**; `domain.spec.ts` asserts
+ * the set and the union agree.
+ */
 const INPUT_TYPES: ReadonlySet<string> = new Set<InputEvent['type']>([
-  'move_left', 'move_right', 'jump', 'slayyy', 'pause', 'resume',
+  'move_left', 'move_right', 'jump', 'slayyy', 'pause', 'resume', 'tutorial_skip',
 ])
 
 /**
@@ -300,7 +354,11 @@ function isInputEvent(input: unknown): input is InputEvent {
  * The phase to return to is remembered, so pausing during the readiness beat
  * resumes into the readiness beat rather than skipping it.
  */
-function applyPhaseInput(state: RunState, input: InputEvent): RunState {
+function applyControlInput(state: RunState, input: InputEvent): RunState {
+  // A no-op on a normal run: the rules refuse it, rather than every caller
+  // having to remember not to send it.
+  if (input.type === 'tutorial_skip') return skipTutorial(state)
+
   if (input.type === 'pause') {
     if (state.phase === 'paused') return state
 

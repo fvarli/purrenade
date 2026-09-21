@@ -33,15 +33,55 @@ import { HEARTS, PLAY_COLUMN_MAX_PX, PROGRESS } from '~~/game/bridge'
 definePageMeta({
   layout: false,
   middleware: 'verified',
+  /*
+   * Changing mode remounts the page.
+   *
+   * The mode is fixed for the life of a mounted engine, so moving from the
+   * tutorial into a real run has to be a new page instance rather than a
+   * reactive flag flipping under a live Phaser game. Keying on the query does
+   * that through the ordinary route lifecycle: `stop()` tears the surface down
+   * and `start()` builds a fresh one, which is the same teardown a route leave
+   * and a replay already use.
+   */
+  key: route => String(route.query.mode ?? 'auto'),
 })
 
 const { t } = useI18n()
+
+const auth = useAuthStore()
+const route = useRoute()
+
+/**
+ * Which game this visit is.
+ *
+ * Read **once**, into a plain const rather than a computed, and that matters:
+ * the mode is fixed for the life of a mounted engine, so a reactive value could
+ * change what the player is playing without remounting it. Changing mode is a
+ * navigation, and a navigation remounts this page.
+ *
+ * Three cases, in order of authority:
+ *
+ *  - `?mode=tutorial` — the Settings replay. An explicit request, honoured even
+ *    for a player who has already finished.
+ *  - `?mode=run` — where the tutorial hands over when it completes. Explicit so
+ *    the handover does not depend on the store having already updated.
+ *  - no query — the server decides. A player who has not been through the
+ *    tutorial gets it; everyone else goes straight to a run.
+ *
+ * Nothing redirects, so there is no loop to get into: PLAY always points at
+ * `/run` and this page chooses what to mount.
+ */
+const requestedMode = route.query.mode
+const tutorialMode = requestedMode === 'tutorial'
+  || (requestedMode !== 'run' && !auth.tutorialCompleted)
 
 const surface = useTemplateRef<HTMLElement>('surface')
 const {
   phase, loading, failed, isPaused, hasEnded, hearts, start, stop, restart, togglePause,
   score, runPaws, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
-} = useRunSurface()
+  lesson, lessonIndex, lessonTotal, correction, correctionAttempt, tutorialOutcome,
+  skipTutorial,
+} = useRunSurface({ mode: tutorialMode ? 'tutorial' : 'run' })
 
 /**
  * The paw readout switches to `n / 200` near the threshold.
@@ -180,8 +220,117 @@ function replayRun(): void {
   void restart()
 }
 
+/* --- the tutorial ------------------------------------------------------- */
+
+/**
+ * Whether the skip confirmation is open, and how the persistence is going.
+ *
+ * `saveFailed` exists so the completion overlay can say so rather than routing
+ * onward and pretending. The tutorial is finished when the *server* says it is.
+ */
+const confirmingSkip = ref(false)
+const savingTutorial = ref(false)
+const saveFailed = ref(false)
+
+/** The prompt shows while a tutorial is being taught, and not once it is over. */
+const showTutorialPrompt = computed(() =>
+  lesson.value !== null
+  && tutorialOutcome.value === null
+  && !isPaused.value
+  && !hasEnded.value,
+)
+
+/**
+ * Ask before leaving, and stop the road while asking.
+ *
+ * Pausing first mirrors what leaving a run already does: a decision the player
+ * can reverse should not be made against a world that is still moving, and a
+ * cone arriving mid-question would be the tutorial arguing its own case.
+ */
+function requestSkip(): void {
+  if (!isPaused.value) togglePause()
+
+  confirmingSkip.value = true
+}
+
+function cancelSkip(): void {
+  confirmingSkip.value = false
+
+  if (isPaused.value) togglePause()
+
+  returnFocusToSurface()
+}
+
+/**
+ * Record the completion, and only then believe it.
+ *
+ * The store is updated **after** the request resolves, never before. Marking it
+ * locally first would make PLAY stop offering the tutorial on this page load
+ * and then start offering it again on the next sign-in, with nothing to explain
+ * why — which is worse than the failure it would be hiding.
+ *
+ * Idempotent upstream, so a retry after a failure cannot double-record and
+ * cannot move the stored completion.
+ */
+async function persistTutorialCompletion(): Promise<boolean> {
+  if (savingTutorial.value) return false
+
+  savingTutorial.value = true
+  saveFailed.value = false
+
+  try {
+    await useBffClient().completeTutorial()
+    auth.markTutorialCompleted()
+
+    return true
+  }
+  catch {
+    saveFailed.value = true
+
+    return false
+  }
+  finally {
+    savingTutorial.value = false
+  }
+}
+
+/**
+ * Confirmed the skip: tell the rules, then the server.
+ *
+ * The rules first, so the tutorial is terminal locally and the completion
+ * overlay takes over from the prompt. The server call is the same one a
+ * finished tutorial makes — skipping and finishing are the same fact, and the
+ * API is deliberately not told which happened.
+ */
+async function confirmSkip(): Promise<void> {
+  skipTutorial()
+  confirmingSkip.value = false
+
+  await persistTutorialCompletion()
+}
+
+/**
+ * Into the real game, from the end of the tutorial.
+ *
+ * Refuses to move until the completion is actually stored. `restart()` is the
+ * same full teardown and remount a replay uses — a new seed, a new run state,
+ * one canvas — so nothing the tutorial did can reach the run that follows.
+ */
+async function playAfterTutorial(): Promise<void> {
+  // A Settings replay by a player who already finished has nothing to store.
+  if (!auth.tutorialCompleted && !(await persistTutorialCompletion())) return
+
+  /*
+   * `?mode=run` is explicit rather than an empty query, so the handover does
+   * not depend on the store having updated first — and because the page key is
+   * the query, changing it is what remounts the surface into a genuinely fresh
+   * run: new seed, new run state, one canvas.
+   */
+  await navigateTo({ path: '/run', query: { mode: 'run' }, replace: true })
+}
+
 useHead({
-  title: () => t('run.title'),
+  title: () => (tutorialMode ? t('tutorial.title') : t('run.title')),
 })
 
 /*
@@ -210,7 +359,7 @@ onBeforeUnmount(stop)
     :style="{ '--run-column': `${PLAY_COLUMN_MAX_PX}px` }"
   >
     <h1 class="run__heading">
-      {{ t('run.title') }}
+      {{ tutorialMode ? t('tutorial.title') : t('run.title') }}
     </h1>
 
     <!--
@@ -229,7 +378,7 @@ onBeforeUnmount(stop)
       class="run__surface"
       role="group"
       tabindex="0"
-      :aria-label="t('run.surfaceLabel')"
+      :aria-label="tutorialMode ? t('tutorial.surfaceLabel') : t('run.surfaceLabel')"
     />
 
     <!--
@@ -245,7 +394,17 @@ onBeforeUnmount(stop)
     -->
     <div class="run__readouts">
       <div class="run__hud">
-        <p class="run__score">
+        <!--
+          No score during the tutorial.
+
+          The tutorial genuinely scores — it runs inside the real rules — but
+          that number is thrown away with the run state and reaches nothing.
+          Showing it would be offering a result the player might reasonably
+          expect to be kept, which is the "tutorial paws must not become durable
+          rewards" rule expressed in the HUD rather than only in the domain.
+          Hearts stay: they are never spent here, and the row proves it.
+        -->
+        <p v-if="!tutorialMode" class="run__score">
           <span class="run__score-label">{{ t('run.scoreLabel') }}</span>
           <span class="run__score-value">{{ score }}</span>
         </p>
@@ -316,7 +475,14 @@ onBeforeUnmount(stop)
           <span class="run__hearts-count">{{ t('run.hearts', { count: hearts, max: HEARTS.max }) }}</span>
         </p>
 
-        <p class="run__paws">
+        <!--
+          And no paw counter, for a sharper version of the same reason: it
+          shows `loliCyclePaws`, which is progress toward a Loli Bonus. A
+          tutorial paw earns none — the cycle starts at zero and one scripted
+          token cannot reach two hundred — so a counter ticking to 1 here would
+          be showing progression the tutorial does not grant.
+        -->
+        <p v-if="!tutorialMode" class="run__paws">
           <span aria-hidden="true" class="run__paw-glyph">🐾</span>
           <span>{{ nearThreshold
             ? t('run.cycleProgress', { count: cyclePaws, total: PROGRESS.loliThreshold })
@@ -344,6 +510,26 @@ onBeforeUnmount(stop)
           {{ t('run.loliActive') }}
         </p>
       </div>
+
+      <!--
+        The lesson prompt, and it belongs **inside** the readouts.
+
+        It is the one overlay on this route that must not take the viewport: the
+        player keeps playing while it is up, so it is a card in the
+        pointer-inert readout layer rather than a dialog with a scrim. Being a
+        child of this grid is also what holds it to the play column — as a
+        sibling it would span the whole window and sit above the game.
+      -->
+      <RunTutorialPrompt
+        v-if="showTutorialPrompt && lesson !== null"
+        :lesson="lesson"
+        :index="lessonIndex"
+        :total="lessonTotal"
+        :correction="correction"
+        :attempt="correctionAttempt"
+        :busy="savingTutorial"
+        @skip="requestSkip"
+      />
 
       <div class="run__foot">
         <p v-if="loading" class="run__status">
@@ -402,8 +588,31 @@ onBeforeUnmount(stop)
       says so and unmounted the moment it does not — which is what makes focus
       move in and back out without anything having to remember to do it.
     -->
+    <!--
+      The skip confirmation, however, *should* stop play — so it is a dialog,
+      and it is mounted before the pause overlay so that pausing to ask the
+      question does not also raise board 12 behind it.
+    -->
+    <RunTutorialSkipConfirm
+      v-if="confirmingSkip"
+      :busy="savingTutorial"
+      :restore-focus-to="surface"
+      @confirm="confirmSkip"
+      @cancel="cancelSkip"
+    />
+
+    <RunTutorialCompleteOverlay
+      v-else-if="tutorialOutcome !== null"
+      :outcome="tutorialOutcome"
+      :busy="savingTutorial"
+      :failed="saveFailed"
+      :restore-focus-to="surface"
+      @play="playAfterTutorial"
+      @menu="leaveToMenu"
+    />
+
     <RunPauseOverlay
-      v-if="isPaused"
+      v-if="isPaused && !confirmingSkip && tutorialOutcome === null"
       :score="score"
       :restore-focus-to="surface"
       @resume="resumeFromOverlay"
@@ -443,7 +652,13 @@ onBeforeUnmount(stop)
       </ul>
     </aside>
 
-    <aside class="run__aside run__aside--goal" :aria-label="t('run.nextGoalTitle')">
+    <!--
+      The goal card renders `cycleProgress`, so it is hidden for the same reason
+      the paw counter is: during the tutorial it would name a Loli Bonus the
+      player is not making progress toward. The keyboard legend beside it stays
+      — it is the one aside that is *more* useful while learning the keys.
+    -->
+    <aside v-if="!tutorialMode" class="run__aside run__aside--goal" :aria-label="t('run.nextGoalTitle')">
       <p class="run__aside-title">
         {{ t('run.nextGoalTitle') }}
       </p>
@@ -575,13 +790,14 @@ onBeforeUnmount(stop)
 
   display: grid;
   grid-template-columns: auto 1fr auto;
-  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-rows: auto auto 1fr auto auto auto;
   grid-template-areas:
-    "score   .       chrome"
-    ".       .       meta"
-    "banners banners banners"
-    "foot    foot    foot"
-    "slayyy  slayyy  slayyy";
+    "score    .        chrome"
+    ".        .        meta"
+    "banners  banners  banners"
+    "tutorial tutorial tutorial"
+    "foot     foot     foot"
+    "slayyy   slayyy   slayyy";
   gap: var(--space-2);
 
   padding:

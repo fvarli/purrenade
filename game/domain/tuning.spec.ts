@@ -397,7 +397,12 @@ const RULE_FILES = readdirSync(new URL('.', import.meta.url))
   // `rng.ts` is an algorithm, not a set of tunables: its constants are the
   // xorshift shift schedule and the splitmix words, and they are pinned far
   // more tightly than a registry row could — by a golden vector.
-  .filter(name => !['tuning.ts', 'patterns.ts', 'index.ts', 'rng.ts'].includes(name))
+  //
+  // `tutorial-script.ts` joins `patterns.ts` for the same reason `patterns.ts`
+  // is here: it is the authored road, and its offsets are the content rather
+  // than constants hiding inside logic. The tutorial's *pace* is tunable and
+  // lives in `TUNING.tutorial`; where a cone sits within a beat is authoring.
+  .filter(name => !['tuning.ts', 'patterns.ts', 'tutorial-script.ts', 'index.ts', 'rng.ts'].includes(name))
   .map(name => `./${name}`)
   .sort()
 

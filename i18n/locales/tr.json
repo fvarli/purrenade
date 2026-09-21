@@ -11,10 +11,33 @@
     "copied": "Kopyalandı!",
     "back": "Geri"
   },
-  "splash": { "starring": "BAŞROLDE AYŞENUR ⭐", "welcome": "Sahile hoş geldin" },
-  "menu": { "play": "OYNA", "characters": "Karakterler", "settings": "Ayarlar" },
-  "characters": { "title": "Karakterini Seç", "aysenur": "AYŞENUR", "ourStar": "YILDIZIMIZ", "aysenurLede": "Sahilin yıldızı — her şeyi güzelleştirir", "power": "Özel güç", "lockedGroup": "Kilitli karakterler", "locked": "Yakında", "artNote": "Yeni karakterler yakında gelecek.", "playWith": "BU KARAKTERLE OYNA" },
-  "settings": { "title": "Ayarlar", "language": "Dil", "account": "Hesap" },
+  "splash": {
+    "starring": "BAŞROLDE AYŞENUR ⭐",
+    "welcome": "Sahile hoş geldin"
+  },
+  "menu": {
+    "play": "OYNA",
+    "characters": "Karakterler",
+    "settings": "Ayarlar"
+  },
+  "characters": {
+    "title": "Karakterini Seç",
+    "aysenur": "AYŞENUR",
+    "ourStar": "YILDIZIMIZ",
+    "aysenurLede": "Sahilin yıldızı — her şeyi güzelleştirir",
+    "power": "Özel güç",
+    "lockedGroup": "Kilitli karakterler",
+    "locked": "Yakında",
+    "artNote": "Yeni karakterler yakında gelecek.",
+    "playWith": "BU KARAKTERLE OYNA"
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "language": "Dil",
+    "account": "Hesap",
+    "tutorial": "Eğitim",
+    "tutorialReplay": "Eğitimi tekrar oyna"
+  },
   "home": {
     "title": "Sahil",
     "greeting": "Tekrar hoş geldin, {name}!",
@@ -324,5 +347,76 @@
     "keysPause": "Esc  duraklat",
     "nextGoalTitle": "Sonraki hedef",
     "nextGoalNote": "Loli Bonusu yaklaşıyor!"
+  },
+  "tutorial": {
+    "title": "Eğitim",
+    "surfaceLabel": "Eğitim alanı: üç şerit, Ayşenur ortada.",
+    "skip": "Atla",
+    "progress": "{step} / {total}",
+    "progressLabel": "Eğitim ilerlemesi",
+    "saveFailed": "Kaydedilemedi. Bağlantını kontrol edip tekrar dene.",
+    "retry": "Tekrar dene",
+    "saving": "Kaydediliyor…",
+    "lesson": {
+      "intro": {
+        "title": "Hazır mısın? ✨",
+        "body": "Birkaç hareket öğrenelim!"
+      },
+      "moveLeft": {
+        "title": "Sola geç",
+        "keyboard": "← veya A tuşuna bas",
+        "touch": "Parmağını sola kaydır"
+      },
+      "moveRight": {
+        "title": "Sağa geç",
+        "keyboard": "→ veya D tuşuna bas",
+        "touch": "Parmağını sağa kaydır"
+      },
+      "dodgeCone": {
+        "title": "Koni! Şerit değiştir",
+        "keyboard": "← veya → ile yana geç",
+        "touch": "Yana kaydırıp koniden kaç"
+      },
+      "jumpBarrier": {
+        "title": "Bariyer! Zıpla",
+        "keyboard": "Boşluk, ↑ veya W ile zıpla",
+        "touch": "Parmağını yukarı kaydır"
+      },
+      "collectPaw": {
+        "title": "Pati Jetonu topla",
+        "keyboard": "Yana geçip üstünden geç",
+        "touch": "Yana kaydırıp üstünden geç"
+      },
+      "activateSlayyy": {
+        "title": "SLAYYY hazır! ✨",
+        "keyboard": "E tuşuna bas",
+        "touch": "SLAYYY düğmesine dokun"
+      },
+      "finalPractice": {
+        "title": "Şimdi sen dene!",
+        "body": "Öğrendiklerini birlikte kullan."
+      }
+    },
+    "correction": {
+      "noInput": "Hadi deneyelim — merak etme, burada canın eksilmez.",
+      "jumpedAtCone": "Koninin üstünden zıplayamazsın! Başka şeride geç.",
+      "contactedCone": "Koniye çarptın. Üstünden değil, yanından geçilir.",
+      "dodgedBarrier": "Bariyerin yanından geçtin. Bu sefer üstünden zıpla!",
+      "contactedBarrier": "Bariyere çarptın. Zıplayarak geçebilirsin.",
+      "missedPaw": "Pati kaçtı! Şerit değiştirip üstünden geç."
+    },
+    "skipConfirm": {
+      "title": "Eğitimi atla?",
+      "body": "İstediğin zaman Ayarlar'dan tekrar oynayabilirsin.",
+      "confirm": "Atla",
+      "cancel": "Eğitime devam et"
+    },
+    "complete": {
+      "title": "Hazırsın! ⭐",
+      "body": "Purrenade başlıyor!",
+      "play": "KOŞUYA BAŞLA",
+      "menu": "Ana menü",
+      "skipped": "Eğitimi atladın. Ayarlar'dan tekrar oynayabilirsin."
+    }
   }
 }

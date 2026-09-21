@@ -94,6 +94,16 @@ export const useAuthStore = defineStore('auth', {
 
     recoveryCodesRemaining: (state): number =>
       state.user?.two_factor_recovery_codes_remaining ?? 0,
+
+    /**
+     * Has this player already been through the tutorial?
+     *
+     * Defaults to **false** when the field is missing, and that direction is
+     * deliberate: an unknown answer sends the player to the tutorial, which
+     * costs them a minute, while the other default would silently skip
+     * first-run teaching for everyone the moment the field failed to arrive.
+     */
+    tutorialCompleted: (state): boolean => state.user?.tutorial_completed === true,
   },
 
   actions: {
@@ -213,6 +223,22 @@ export const useAuthStore = defineStore('auth', {
 
     setEmailVerification(state: EmailVerificationState | null): void {
       this.emailVerification = state
+    },
+
+    /**
+     * Mirror a completion the server has already accepted.
+     *
+     * Called **only** after `POST /api/progression/tutorial` has resolved, so
+     * that PLAY stops offering the tutorial without a second `/auth/me`. If the
+     * request fails this is never called, and the player keeps being offered
+     * the tutorial — which is the honest outcome: the server is the authority,
+     * and pretending otherwise would mean the tutorial reappears on the next
+     * sign-in with nobody able to explain why.
+     */
+    markTutorialCompleted(): void {
+      if (this.user === null) return
+
+      this.user = { ...this.user, tutorial_completed: true }
     },
 
     /**

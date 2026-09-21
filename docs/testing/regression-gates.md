@@ -40,6 +40,8 @@ Run on every pull request and every push to `main`.
 | G17a | **Loli activation semantics** | A threshold earned but never started is counted as an activation, or unmuting fails to restore the previous volume |
 | G23 | **RNG-stream ownership** | A module draws from a stream it does not own — `pattern` belongs to `obstacles.ts`, `collectible` to `collectibles.ts`, and `cosmetic` to nothing yet |
 | G24 | **Runtime art boundary** | A file under `app/` or `game/` carries a path into `design-reference/`, or a texture the run loads is missing, is not a PNG, or has no alpha channel |
+| G25 | **Normal-run equivalence** | A normal run's observable state diverges from the pre-M8 golden for any of 32 seed-and-style cases — RNG stream positions included |
+| G26 | **The state is frozen all the way down** | Any reachable node of a `RunState` is mutable, in either mode |
 
 G9–G14, G16, G23 and G24 are cheap static checks that encode approved rules. They
 exist because each of them is a rule that is easy to break accidentally and
@@ -55,6 +57,28 @@ while prose stays free to name the thing it forbids. Proven at M7 in both
 directions: adding `owedLoliBonuses` to `RunState` fails it, adding it as an
 i18n key fails it, and the existing prose mentions do not.
 
+**G25 and G26 are new at M8,** the milestone that put a second mode inside the reducer.
+
+**G25** is the evidence behind "normal gameplay semantics were not changed", and it exists
+because that claim is otherwise untestable. The tutorial mode is a nullable field and every
+branch it gates is guarded on it, so a normal run is *supposed* to take the path it always
+took — but the failures that would break that are silent ones: a lane transition settling one
+step later, a spawn cursor nudged by a refactor, an RNG stream drawn one extra time. None of
+those breaks a test that asserts a rule; every one changes the run a seed produces.
+
+So `tests/support/normal-run-golden.json` was generated on the tree **immediately before** M8
+and is never regenerated to make a test pass. It holds one hash per (seed, style) over every
+observable field of every step of a two-minute run. A deliberate gameplay change rewrites it in
+its own commit, with the reason recorded — never as a side effect of something else. The
+golden's driver is a private copy rather than an import of `scripted-player.ts`, because a
+shared instrument somebody retuned would silently invalidate every hash in it.
+
+**G26** is the check that should have existed since M7. `sealState` is a hand-written freeze
+walk, and its own comment says a new nested field ships unfrozen with nothing complaining —
+which was true of exactly one field per milestone until M8 added a third nested thing to
+forget. The replacement walks a whole state generically and fails on any mutable node, in both
+modes, so the *next* field is covered before anyone remembers to cover it.
+
 **G23 is new at M7,** the milestone that gave the `collectible` stream its first
 consumer. Determinism rests on the three streams being independent, and the
 property tests can only prove that of the code that exists; ownership-by-file is
@@ -67,21 +91,27 @@ it finds one, so the number of draws never depends on the obstacle layout.
 
 ### 2.1 What CI actually executes in a browser — and what it does not
 
-**CI runs 38 of the 89 browser tests. The other 51 never run there.**
+**CI runs 38 of the 110 browser tests. The other 72 never run there.**
 
 *Counting convention, so the numbers can be re-derived:* a "browser test" is a
 Playwright test in a product project. The `setup` project's single sign-in test
 is a fixture, not a product test, and is excluded — which is why
-`--list --project=chrome-auth` reports 45 while the project's own total is 44.
+`--list --project=chrome-auth` reports 64 while the project's own total is 63.
 
 | Project | Own tests | Runs in CI | Against |
 | --- | --- | --- | --- |
 | `chrome` (anonymous) | 41 | **38** | **a production build** — `npm run build`, then `.output/server/index.mjs` on 4399 |
-| `chrome-auth` | 44 | no — needs a session | the local dev stack |
-| `chrome-touch` | 4 | no — needs a session | the local dev stack |
+| `chrome-auth` | 63 | no — needs a session | the local dev stack |
+| `chrome-touch` | 6 | no — needs a session | the local dev stack |
 
 Three of `chrome`'s 41 are tagged `@stack`; CI runs `--grep-invert @stack`, so
-they are part of the 51 that CI does not execute. **51 = 3 + 44 + 4.**
+they are part of the 72 that CI does not execute. **72 = 3 + 63 + 6.**
+
+**M8 added 19 of those**: `run-tutorial.spec.ts` (17, covering first-run
+routing, the cone lesson, skipping, the Settings replay, and the narrow widths
+in three locales) and two touch cases proving the lesson prompt does not swallow
+the gesture it asks for. All of them need a verified session, so all of them
+are in the unrunnable set and recorded in the accounting step by name.
 
 **Which suite runs against what is not interchangeable, and it is the anonymous
 one that gets the production build.** CI builds, serves `.output/server/index.mjs`
@@ -109,6 +139,37 @@ spec that passes.
 
 **This is a real residual, not a solved problem.** It is recorded here because
 the milestone reports would otherwise be the only place it is written down.
+
+### 2.2 Known failing browser cases — TEST DEBT
+
+Two `chrome-auth` cases fail locally and have done since before M8. They are
+recorded here rather than left in a milestone report, because a locally-run
+suite with an unrecorded failure is indistinguishable from a suite nobody ran.
+
+| Spec | Case |
+| --- | --- |
+| `run-surface.spec.ts` | *resumes from the on-screen control without waiting for a frame* |
+| `run-surface.spec.ts` | *gameplay keys still work immediately after using an on-screen control* |
+
+**Both predate M8**, proven rather than assumed: at the M8 closure review both
+were reproduced against the **unmodified `HEAD` copy of `app/pages/run.vue`**,
+temporarily restored for the purpose, with everything else in the working tree
+unchanged. `tests/e2e/run-surface.spec.ts` itself is untouched by M8.
+
+**The symptom:** each clicks `.run__pause` twice. The second click lands while
+the pause overlay is up, and `OverlayDialog`'s scrim — full-viewport,
+`pointer-events: auto`, `z-index: 2` — sits above `.run__readouts` at
+`z-index: 1`, so Playwright retries until it times out. That scrim is doing
+exactly what [`SI-7`](../product/open-decisions.md) asked it to do; what is
+unresolved is whether the HUD's own pause control should remain clickable
+behind it, or whether these two cases should resume through the overlay's own
+control instead.
+
+**Not fixed at M8, deliberately.** It is a question about approved pause UX, not
+about the tutorial, and answering it inside a tutorial milestone would be scope
+creep. Neither case is in a CI gate — `run-surface.spec.ts` is in the unrunnable
+set above — so this does not redden the pipeline; it means two local cases are
+known-red and must not be mistaken for M8 regressions.
 
 ---
 

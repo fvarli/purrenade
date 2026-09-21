@@ -28,6 +28,7 @@ function user(overrides: Partial<AuthUser> = {}): AuthUser {
     two_factor_pending: false,
     two_factor_recovery_codes_remaining: 0,
     requires_two_factor_enrolment: false,
+    tutorial_completed: false,
     created_at: '2026-01-01T00:00:00+00:00',
     session: {
       id: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
@@ -364,6 +365,111 @@ describe('what is never stored', () => {
     await auth.bootstrap()
     auth.setTwoFactorRequired('2026-01-01T00:05:00+00:00', true)
     auth.reset()
+
+    expect(writes).toEqual([])
+  })
+})
+
+/**
+ * Tutorial completion, as the store sees it.
+ *
+ * The store is a **mirror** of a server fact here, never its owner. The two
+ * cases worth pinning are the default direction when the field is absent, and
+ * that nothing writes it to browser storage — the completion decides whether a
+ * tutorial is mandatory, so a value the browser could set would be authority in
+ * the wrong place.
+ */
+describe('tutorial completion', () => {
+  it('is false for a player who has not been through it', async () => {
+    meResponse = { status: 'authenticated', user: user({ tutorial_completed: false }) }
+
+    const auth = useAuthStore()
+    await auth.bootstrap()
+
+    expect(auth.tutorialCompleted).toBe(false)
+  })
+
+  it('is true once the server says so', async () => {
+    meResponse = { status: 'authenticated', user: user({ tutorial_completed: true }) }
+
+    const auth = useAuthStore()
+    await auth.bootstrap()
+
+    expect(auth.tutorialCompleted).toBe(true)
+  })
+
+  it('defaults to teaching when the field never arrives', async () => {
+    /*
+     * The safe direction, and the reason it is `=== true` rather than truthy.
+     * An unknown answer costs the player a minute of tutorial; the other
+     * default would silently skip first-run teaching for everybody the moment
+     * the field failed to arrive.
+     */
+    const incomplete = user()
+
+    delete (incomplete as Partial<AuthUser>).tutorial_completed
+
+    meResponse = { status: 'authenticated', user: incomplete }
+
+    const auth = useAuthStore()
+    await auth.bootstrap()
+
+    expect(auth.tutorialCompleted).toBe(false)
+  })
+
+  it('is false when nobody is signed in', () => {
+    expect(useAuthStore().tutorialCompleted).toBe(false)
+  })
+
+  it('mirrors a completion the server has already accepted', async () => {
+    meResponse = { status: 'authenticated', user: user({ tutorial_completed: false }) }
+
+    const auth = useAuthStore()
+    await auth.bootstrap()
+
+    auth.markTutorialCompleted()
+
+    expect(auth.tutorialCompleted).toBe(true)
+    // Nothing else about the account moved.
+    expect(auth.user?.display_name).toBe('Aysenur')
+    expect(auth.status).toBe('authenticated')
+  })
+
+  it('does nothing when there is no user to mark', () => {
+    const auth = useAuthStore()
+
+    expect(() => auth.markTutorialCompleted()).not.toThrow()
+    expect(auth.user).toBeNull()
+  })
+
+  it('writes no completion to web storage', async () => {
+    /*
+     * Watched at the storage APIs, like the general case above, because this is
+     * the field with the strongest temptation to mirror: it decides whether the
+     * tutorial is mandatory, and a device mirror would be tempting precisely
+     * because it would survive a failed request. It must not exist — the server
+     * is the authority, and a browser-writable copy would be authority in the
+     * wrong place.
+     */
+    const writes: string[] = []
+    const fakeStorage = {
+      setItem: (key: string) => writes.push(key),
+      getItem: () => null,
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+    }
+
+    vi.stubGlobal('localStorage', fakeStorage)
+    vi.stubGlobal('sessionStorage', fakeStorage)
+
+    meResponse = { status: 'authenticated', user: user({ tutorial_completed: false }) }
+
+    const auth = useAuthStore()
+
+    await auth.bootstrap()
+    auth.markTutorialCompleted()
 
     expect(writes).toEqual([])
   })

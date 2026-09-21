@@ -143,6 +143,14 @@ export function eligiblePatterns(state: RunState): readonly Pattern[] {
 export function advanceSpawning(state: RunState): RunState {
   if (state.phase !== 'running') return state
 
+  /*
+   * The tutorial authors its own road — `tutorial.md` §3.1: the scene is
+   * authored, not generated, so it cannot inherit a hazard from the pattern
+   * pool. The cursor and the `pattern` stream are both left where they were,
+   * which is what makes "a tutorial draws no randomness" provable.
+   */
+  if (state.tutorial !== null) return state
+
   let next = state
   let guard = 0
 

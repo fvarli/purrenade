@@ -41,7 +41,7 @@ produces **separate commits in each**; the repositories are never merged.
 | **M5** | Game core: engine boundary, lanes, input, jump | web | M1 | **DELIVERED** — frozen at `1658f4b` | — |
 | **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — frozen at `cf4a07b` | — |
 | **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated, frozen at `3d3909d` | — |
-| **M8** | Interactive tutorial | web | M7 + tutorial design | Not started | — |
+| **M8** | Interactive tutorial | web | M7 + tutorial design | **DELIVERED** — TU-1 resolved by deriving the treatment from the production visual system | — |
 | **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | Not started | — |
 | **M10** | Leaderboards | both | M9 | Not started | — |
 | **M11** | Achievements and character unlocks | both | M9 | Not started | — |
@@ -78,8 +78,18 @@ production-readiness pass that added the supported way to establish the first ad
 frozen at `8046fb5`. None of them is a roadmap milestone, and none occupies a number in the
 overview table above: the delivery history is where an execution-only pass is recorded.
 
-**The next implementation milestone is M8, Interactive tutorial** — blocked on the tutorial
-visual design treatment (OPEN). M5, M6 and M7 are delivered and frozen.
+**M8 is delivered.** The tutorial visual treatment (TU-1) that blocked it was resolved at the
+M8 planning review by deriving the treatment from the production visual system rather than
+commissioning a new one.
+
+**The next implementation milestone is M9, run lifecycle and progression persistence** — still
+blocked on [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md). M5, M6
+and M7 are delivered and frozen.
+
+M9 also carries one inherited task: **moving `tutorial_completed_at` from `users` to
+`player_progression`**, with a backfill, once that table is created. It lives on `users` at M8
+because `player_progression` is still PROPOSED and every other column in it is run-derived.
+The backend's `docs/architecture/data-model.md` §4.1 owns that migration.
 
 ---
 
@@ -338,20 +348,40 @@ per-second rate at an 8.33 ms step rounds measurably fast in thousandths.
 
 ---
 
-## M8 — Interactive tutorial
+## M8 — Interactive tutorial — DELIVERED
 
-**Blocked on:** the tutorial visual design treatment (OPEN).
+**Was blocked on** the tutorial visual design treatment (TU-1). **Resolved at M8** by deriving
+the treatment from the production visual system that M2, M5–M7 and Milestone C established,
+rather than commissioning a new one — see [tutorial.md](tutorial.md) §7.
 
 **Deliverables:** a dedicated tutorial mode with damage disabled at the rules
-level; five gated steps; authored (non-generated) scene; replay from Settings;
+level; **nine** gated lessons; authored (non-generated) scene; replay from Settings;
 completion persisted to the profile; tr/en/es copy with touch and keyboard
 variants.
 
+**Scope changes the product owner approved at the planning review:**
+
+- **SLAYYY is taught** (TU-4), reversing the earlier decision that excluded it. A
+  tutorial-scoped readiness grant fills the meter for that lesson only; every normal charge and
+  activation rule is untouched.
+- **The cone lesson comes before the barrier lesson.** Physical-phone testing found that a new
+  player tries to *jump* a traffic cone, so the misconception is corrected before the verb that
+  looks like it should have worked is introduced.
+- **The tutorial is skippable** with a confirmation (TU-2); a skip counts as completion.
+
 **Acceptance criteria**
-- **The player cannot die in the tutorial** — verified by a test that attempts to.
-- Each step requires a successful action to advance.
-- The tutorial affects no score, leaderboard, or progression data.
+- **The player cannot die in the tutorial** — verified by a test that attempts to:
+  `game/domain/tutorial.spec.ts` drives a player who steers into every prop for four simulated
+  minutes and asserts the hearts never move and the phase never ends.
+- Each lesson requires a successful action to advance, and **jumping at the cone does not
+  satisfy the cone lesson and costs no heart**.
+- The tutorial affects no score, leaderboard, or progression data —
+  `game/domain/tutorial-isolation.spec.ts`, which also proves a tutorial consumes **no
+  randomness at all**.
 - Completion persists server-side and survives reinstall.
+- **A normal run is byte-identical to the run it was before the mode existed** —
+  `tests/unit/normal-run-golden.spec.ts`, 32 seed/style cases hashed over every observable
+  field of every step, RNG streams included, against a fixture generated before the change.
 
 ---
 

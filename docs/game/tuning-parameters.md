@@ -358,6 +358,31 @@ Curve: `value(t) = ceiling - (ceiling - base) × exp(-t / timeConstant)`.
 > **Both rates remain PROPOSED.** The 35–45 s *target* is APPROVED; these two numbers are one
 > way to hit it and SP-1 still owns them.
 
+## 11A. Tutorial
+
+Every value here is about **teaching pace**, never about difficulty. The tutorial
+cannot hurt the player — damage is disabled at the rules level — so none of these
+can make it harder or easier, only quicker or slower to read. That is also why the
+re-presentation of an unsatisfied lesson is a **distance gap** rather than a
+timeout: the player is never racing anything, and there is no step timeout and no
+forced skip.
+
+| Parameter | Value | Status | Notes |
+| --- | --- | --- | --- |
+| `tutorial.introDwellMs` | 2600 | PROPOSED | How long the greeting holds before the first lesson opens |
+| `tutorial.repromptMs` | 3000 | PROPOSED | From [tutorial.md](../product/tutorial.md) §3.2 — a lesson with no input re-prompts with more explicit guidance |
+| `tutorial.firstCueUnits` | 9 | PROPOSED | How far ahead a lesson places its first prop |
+| `tutorial.repeatGapUnits` | 11 | PROPOSED | The gap before an unsatisfied lesson presents its prop again. The world keeps scrolling; the lesson loops |
+| `tutorial.celebrateMs` | 900 | PROPOSED | How long a passed lesson is acknowledged before the next prompt |
+| `tutorial.finalPracticeUnits` | 34 | PROPOSED | The closing practice stretch, applying what was already taught |
+
+**Not tunable, deliberately.** The tutorial's safety is structural, not a value:
+there is no `tutorial.damageEnabled`, no `tutorial.hearts` and no
+`tutorial.canDie`. Damage is bypassed by the mode, so a knob here would be a way
+to switch off the one guarantee [tutorial.md](../product/tutorial.md) §3 states as
+an invariant. The lesson order is likewise a sequence in the rules, not a list a
+value could reorder.
+
 ## 12. Rendering (engine-side, not game rules)
 
 | Parameter | Value | Status | Notes |

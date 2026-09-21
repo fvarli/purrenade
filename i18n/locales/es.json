@@ -11,10 +11,33 @@
     "copied": "¡Copiado!",
     "back": "Volver"
   },
-  "splash": { "starring": "PROTAGONIZADA POR AYŞENUR ⭐", "welcome": "Bienvenida a la costa" },
-  "menu": { "play": "JUGAR", "characters": "Personajes", "settings": "Ajustes" },
-  "characters": { "title": "Elige tu personaje", "aysenur": "AYŞENUR", "ourStar": "NUESTRA ESTRELLA", "aysenurLede": "La estrella de la costa — hace todo más bonito", "power": "Poder especial", "lockedGroup": "Personajes bloqueados", "locked": "Próximamente", "artNote": "Próximamente llegarán más personajes.", "playWith": "JUGAR CON ESTE PERSONAJE" },
-  "settings": { "title": "Ajustes", "language": "Idioma", "account": "Cuenta" },
+  "splash": {
+    "starring": "PROTAGONIZADA POR AYŞENUR ⭐",
+    "welcome": "Bienvenida a la costa"
+  },
+  "menu": {
+    "play": "JUGAR",
+    "characters": "Personajes",
+    "settings": "Ajustes"
+  },
+  "characters": {
+    "title": "Elige tu personaje",
+    "aysenur": "AYŞENUR",
+    "ourStar": "NUESTRA ESTRELLA",
+    "aysenurLede": "La estrella de la costa — hace todo más bonito",
+    "power": "Poder especial",
+    "lockedGroup": "Personajes bloqueados",
+    "locked": "Próximamente",
+    "artNote": "Próximamente llegarán más personajes.",
+    "playWith": "JUGAR CON ESTE PERSONAJE"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "language": "Idioma",
+    "account": "Cuenta",
+    "tutorial": "Tutorial",
+    "tutorialReplay": "Repetir el tutorial"
+  },
   "home": {
     "title": "La playa",
     "greeting": "¡Bienvenida de nuevo, {name}!",
@@ -324,5 +347,76 @@
     "keysPause": "Esc  pausar",
     "nextGoalTitle": "Próxima meta",
     "nextGoalNote": "¡El Bonus de Loli se acerca!"
+  },
+  "tutorial": {
+    "title": "Tutorial",
+    "surfaceLabel": "Zona de tutorial: tres carriles, Ayşenur en el centro.",
+    "skip": "Saltar",
+    "progress": "{step} / {total}",
+    "progressLabel": "Progreso del tutorial",
+    "saveFailed": "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Reintentar",
+    "saving": "Guardando…",
+    "lesson": {
+      "intro": {
+        "title": "¿Lista? ✨",
+        "body": "¡Aprendamos unos movimientos!"
+      },
+      "moveLeft": {
+        "title": "Ve a la izquierda",
+        "keyboard": "Pulsa ← o A",
+        "touch": "Desliza a la izquierda"
+      },
+      "moveRight": {
+        "title": "Ve a la derecha",
+        "keyboard": "Pulsa → o D",
+        "touch": "Desliza a la derecha"
+      },
+      "dodgeCone": {
+        "title": "¡Un cono! Cambia de carril",
+        "keyboard": "Usa ← o → para apartarte",
+        "touch": "Desliza al lado para esquivarlo"
+      },
+      "jumpBarrier": {
+        "title": "¡Una valla! Salta",
+        "keyboard": "Pulsa Espacio, ↑ o W",
+        "touch": "Desliza hacia arriba"
+      },
+      "collectPaw": {
+        "title": "Recoge la Patita",
+        "keyboard": "Cambia de carril y pásale por encima",
+        "touch": "Desliza al lado y pásale por encima"
+      },
+      "activateSlayyy": {
+        "title": "¡SLAYYY listo! ✨",
+        "keyboard": "Pulsa E",
+        "touch": "Toca el botón SLAYYY"
+      },
+      "finalPractice": {
+        "title": "¡Ahora tú!",
+        "body": "Junta todo lo aprendido."
+      }
+    },
+    "correction": {
+      "noInput": "Inténtalo — tranquila, aquí nada te hace daño.",
+      "jumpedAtCone": "¡No puedes saltar el cono! Cambia de carril.",
+      "contactedCone": "Chocaste con el cono. Se rodea, no se salta.",
+      "dodgedBarrier": "Rodeaste la valla. ¡Esta vez sáltala!",
+      "contactedBarrier": "Chocaste con la valla. Saltando se pasa.",
+      "missedPaw": "¡Se escapó la Patita! Cambia de carril y pásale por encima."
+    },
+    "skipConfirm": {
+      "title": "¿Saltar el tutorial?",
+      "body": "Puedes repetirlo cuando quieras desde Ajustes.",
+      "confirm": "Saltar",
+      "cancel": "Seguir con el tutorial"
+    },
+    "complete": {
+      "title": "¡Ya estás lista! ⭐",
+      "body": "¡Empieza Purrenade!",
+      "play": "EMPEZAR A CORRER",
+      "menu": "Menú principal",
+      "skipped": "Tutorial saltado. Puedes repetirlo desde Ajustes."
+    }
   }
 }

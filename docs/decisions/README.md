@@ -8,15 +8,16 @@
 | [0002](ADR-0002-nuxt-phaser-frontend-architecture.md) | Nuxt + Phaser frontend architecture | **Accepted** | Frontend |
 | [0003](ADR-0003-laravel-rest-api-backend.md) | Laravel REST API backend | **Accepted** | Product-wide |
 | [0004](ADR-0004-postgresql-primary-database.md) | PostgreSQL as the primary database | **Accepted** | Product-wide |
-| [0005](ADR-0005-authentication-and-2fa-strategy.md) | Authentication and 2FA strategy | **🔴 Proposed — decision required** | Product-wide |
-| [0006](ADR-0006-run-validation-and-anti-cheat-boundary.md) | Run validation and anti-cheat boundary | **🔴 Proposed — decision required** | Product-wide |
+| [0005](ADR-0005-authentication-and-2fa-strategy.md) | Authentication and 2FA strategy | **Accepted and implemented (M2)** | Product-wide |
+| [0006](ADR-0006-run-validation-and-anti-cheat-boundary.md) | Run validation and anti-cheat boundary | **Accepted** | Product-wide |
 | [0007](ADR-0007-localization-strategy.md) | Localization strategy | **Accepted** | Product-wide |
 | [0008](ADR-0008-source-of-truth-and-design-reference-hierarchy.md) | Source-of-truth and design-reference hierarchy | **Accepted** | Product-wide |
 | [0009](ADR-0009-server-rendered-session-awareness.md) | Server-rendered session awareness | **Accepted** | Frontend |
 
-**ADR-0005 and ADR-0006 block work.** Neither can be deferred past its milestone:
-0005 blocks M2/M3 and constrains the approved "Android/iOS must remain possible"
-requirement; 0006 blocks M9/M10 and is the largest architectural risk in v1.
+**No ADR blocks work.** ADR-0005 was accepted and implemented at M2. ADR-0006 was
+accepted on 2026-09-22 and no longer blocks M9 or M10; the one consequence it leaves open
+is **ANTI-6**, which blocks **M11** only — see
+[`../product/open-decisions.md`](../product/open-decisions.md).
 
 ---
 

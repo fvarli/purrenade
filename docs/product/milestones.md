@@ -42,9 +42,9 @@ produces **separate commits in each**; the repositories are never merged.
 | **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — frozen at `cf4a07b` | — |
 | **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated, frozen at `3d3909d` | — |
 | **M8** | Interactive tutorial | web | M7 + tutorial design | **DELIVERED** — TU-1 resolved by deriving the treatment from the production visual system | — |
-| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | Not started | — |
+| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | **Not started — unblocked.** ADR-0006 accepted 2026-09-22 | — |
 | **M10** | Leaderboards | both | M9 | Not started | — |
-| **M11** | Achievements and character unlocks | both | M9 | Not started | — |
+| **M11** | Achievements and character unlocks | both | M9 | **Not started — blocked on AU-1 and ANTI-6** | — |
 | **M12** | Support screens, PWA, accessibility, responsive/desktop | web | M4, M7 | Not started | — |
 | **M13** | Admin panel | both | M3, M10 | Not started | — |
 | **M14** | Hardening: performance, security, observability, KVKK, release readiness | both | all | Not started | — |
@@ -82,9 +82,14 @@ overview table above: the delivery history is where an execution-only pass is re
 M8 planning review by deriving the treatment from the production visual system rather than
 commissioning a new one.
 
-**The next implementation milestone is M9, run lifecycle and progression persistence** — still
-blocked on [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md). M5, M6
-and M7 are delivered and frozen.
+**The next implementation milestone is M9, run lifecycle and progression persistence.** It is
+**no longer blocked**: [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md)
+was accepted on 2026-09-22, resolving PWA-1, RNG-1, RNG-2, ANTI-1 through ANTI-5, DM-1 and
+GR-1 through GR-5. M5, M6 and M7 are delivered and frozen.
+
+The one consequence left open is **ANTI-6**: the four `DERIVED_TELEMETRY` run facts have no
+verification source while Layer 3 is deferred, so M9 neither persists nor returns them. That
+blocks **M11**, not M9 or M10.
 
 M9 also carries one inherited task: **moving `tutorial_completed_at` from `users` to
 `player_progression`**, with a backfill, once that table is created. It lives on `users` at M8
@@ -385,21 +390,49 @@ variants.
 
 ---
 
-## M9 — Run lifecycle, anti-cheat boundary, progression
+## M9 — Run lifecycle, anti-cheat boundary, progression — UNBLOCKED
 
-**Deliverables:** run start and finish endpoints; the validation boundary from
-[ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md);
-**idempotent** submission; race-safe paw ledger and threshold evaluation;
-server-authoritative score; structured logging with correlation IDs.
+**Unblocked by ADR-0006** (accepted 2026-09-22): **Layer 1 + Layer 2** ship in v1 — structural
+and plausibility validation, plus server-owned run identity with a server-recorded start and a
+**server-issued seed**. Layer 3 replay is deferred beyond v1 with the domain kept portable, and
+there is **no separate run token**.
+
+**Deliverables:** run start and finish endpoints; the validation boundary from the ADR;
+**idempotent** submission whose identity lives with the durable run history; the one-active-run
+database invariant; race-safe paw ledger and threshold evaluation; server-authoritative score;
+the three-outcome result contract; a dedicated submission rate limiter; structured logging with
+correlation IDs; the relocation of `tutorial_completed_at` onto `player_progression`; and the
+**OpenAPI → TypeScript contract generation path** as engineering foundation.
 
 **Acceptance criteria**
-- A replayed submission never double-counts anything.
+- A replayed submission never double-counts anything, however late it arrives — the
+  idempotency identity has no expiry.
+- The same key with a different effective request is a `409` with zero side effects.
 - Concurrent submissions cannot corrupt the paw ledger or double-trigger a bonus.
-- An implausible result is rejected or flagged per the ADR, never silently accepted.
+- **A user cannot hold two active runs.** The database refuses the second; starting again
+  returns the existing run.
+- **Structural impossibilities are rejected; tuning-dependent anomalies are flagged only.** No
+  legitimate run is rejected on a still-PROPOSED tuning value.
+- A `flagged` or `rejected` run mutates **no** progression, paw ledger, personal best or
+  accepted run count, and the player is told honestly in **tr/en/es**.
+- **No `DERIVED_TELEMETRY` fact is persisted or returned** — the four columns do not exist
+  (ANTI-6).
+- The seed the client simulates from came from the server.
 - Database constraints enforce integrity in addition to application validation.
+- The frontend's new run and progression types are **generated from the contract**, not hand-written.
+- `tutorial_completed_at` is backfilled with the original timestamps, and
+  `users.tutorial_completed_at` is **not** dropped in the same deployment.
 
-**Tests:** idempotency under replay; concurrency tests on the ledger; tampered
-and implausible submissions; authorization on every endpoint.
+**Tests:** idempotency under replay, including a late retry; `409` on a changed request;
+concurrency tests on the ledger; the active-run invariant proven by the database refusing the
+second; tampered and implausible submissions across both the reject and flag paths; rate-limit
+enforcement on start and finish, including that a `429` does not consume an idempotency slot;
+authorization on every endpoint.
+
+**Implementation parameters selected during M9 planning**, not open product decisions:
+submission rate-limit values; plausibility bound values, gated on tuning approval; the
+authoritative duration derivation and its clock-skew/late-submission tolerance; the maximum
+active-run lifetime; and the contract generator's wiring.
 
 ---
 
@@ -430,10 +463,16 @@ retired — no minimum-duration criterion).
 
 **Still blocked on:** approval of the proposed 16-achievement catalogue (AU-1).
 
-**Also depends on** the ADR-0006 telemetry retention decision: **seven of the sixteen** have a
-`DERIVED_TELEMETRY` verification source and cannot be established from stored aggregates alone.
-They draw on four run-level facts: obstacle passes, near misses, SLAYYY activations, and
-**actual Loli activations**.
+**Also blocked on ANTI-6.** ADR-0006 ships Layers 1 and 2 only, and neither can *establish* a
+`DERIVED_TELEMETRY` fact — only Layer 3, deferred beyond v1, or an equivalent separately
+approved mechanism can. **Seven of the sixteen** achievements and **Sero's unlock** draw on four
+such run-level facts: obstacle passes, near misses, SLAYYY activations, and **actual Loli
+activations**.
+
+Rather than adopt client counters in breach of the APPROVED authority rule, M9 persists and
+returns none of them, so M11 must first resolve **how** they are established. Adding Layer 3,
+designing another server-verifiable mechanism, or changing the affected achievement and unlock
+behaviour are all open; **none is pre-empted**.
 
 **Deliverables:** server-side achievement evaluation inside the run transaction;
 idempotent unlocks; monotonic progress counters; the character unlock model with

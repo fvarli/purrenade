@@ -6,7 +6,10 @@ not invented around.**
 
 **Last full review:** 2026-09-19, against Claude Design v0.3, the ChatGPT Art
 Direction Board v1 and the nine production-art development masters then present.
-**Last amendment:** 2026-09-20 — #3a, **accepted at the Milestone B visual
+**Last amendment:** 2026-09-22 — #12 corrected to **RESOLVED**; its text still said the
+tutorial's visual presentation was OPEN "before M8", which TU-1's resolution at M8 and M8's
+delivery had already overtaken.
+**Previous amendment:** 2026-09-20 — #3a, **accepted at the Milestone B visual
 review**: the promenade is drawn in perspective and the lane rules stay
 orthographic. [`core-run.md`](core-run.md) §1.1 was amended to match.
 **Last decision pass:** 2026-09-12 (M0.6) — #10, #13, #14 and #15 resolved; #16 partially
@@ -175,13 +178,16 @@ Desktop and mobile must both expose score, hearts, Paw/Loli progress, SLAYYY
 state and pause. Presentation may differ responsively; gameplay-critical
 information may not be lost.
 
-### #12 — Tutorial has no v0.3 design · PARTIALLY RESOLVED
+### #12 — Tutorial has no v0.3 design · RESOLVED
 
 The approved brief mandates an interactive tutorial; no v0.3 screen covers it.
 
 **Resolution:** tutorial **behavior is APPROVED** and specified in
-[tutorial.md](tutorial.md). Its **visual presentation is OPEN** and requires a
-design treatment **before M8**. No visual design was invented.
+[tutorial.md](tutorial.md). The **visual treatment is also APPROVED** — TU-1 was resolved at
+M8 by **deriving it from the production visual system** that M2 and M5–M7 established, rather
+than commissioning a new one. See [tutorial.md](tutorial.md) §7 and
+[open-decisions.md](open-decisions.md) §0AH. **No visual design was invented**, and M8 is
+delivered.
 
 ---
 

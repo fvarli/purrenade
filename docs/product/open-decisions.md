@@ -7,8 +7,8 @@ Sections 1–3 hold the decisions that block or shape milestones. Section 4 hold
 the proposals awaiting review. **Section 6 indexes every remaining open question**
 raised so far, so nothing is recorded only in a document nobody rereads.
 
-**Last reviewed:** 2026-09-19 (production-art development-master review recorded;
-no OPEN item promoted).
+**Last reviewed:** 2026-09-22 (**ADR-0006 decision closure** — seventeen OPEN items
+resolved, one new OPEN item recorded; see §0AI).
 
 | Status | Meaning |
 | --- | --- |
@@ -16,6 +16,65 @@ no OPEN item promoted).
 | **PROPOSED** | A recommendation written so it can be reviewed. **Not authoritative.** May be implemented as a named tuning parameter, never presented as decided. |
 
 **Neither is ever silently promoted to APPROVED.**
+
+---
+
+## 0AI. Resolved — ADR-0006 accepted: the run validation and anti-cheat boundary
+
+**[ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) is Accepted
+(2026-09-22).** It was the largest architectural risk in v1 and the last thing blocking **M9**
+and **M10**. The model is **Layer 1 + Layer 2**: structural and plausibility validation, plus
+server-owned run identity with a server-recorded start and a server-issued seed. **Layer 3**
+deterministic replay is deferred beyond v1 with the domain kept portable; full
+server-authoritative simulation stays rejected.
+
+| Ref | Decision | Owning document |
+| --- | --- | --- |
+| **PWA-1** | **Connectivity is required to *start* a run.** The server creates the run before gameplay begins. An already-started run survives a transient loss — the player continues locally and the finish is retried under the **same idempotency identity**. Starting a brand-new authoritative run fully offline is **out of scope for v1**. The tutorial stays isolated and submits nothing. | [`../architecture/pwa-and-mobile.md`](../architecture/pwa-and-mobile.md) §3 |
+| **ANTI-1** | **Layers 1 and 2 ship in v1.** Layer 3 is deferred beyond v1; the pure domain stays portable so adding it later is a deployment decision, not a rewrite. **No duplicate PHP simulation** of the game rules is written to obtain it. | `purrenade-api/docs/security/anti-cheat.md` §3 |
+| **RNG-1** | **The run seed is server-issued.** The frontend initializes the deterministic domain from it; a browser-generated seed is never authoritative. | [`../game/determinism-and-rng.md`](../game/determinism-and-rng.md) §3 |
+| **RNG-2** | **No gameplay input log** is submitted or retained in v1. It belongs to the deferred Layer 3 design. | [`../game/determinism-and-rng.md`](../game/determinism-and-rng.md) §3.0B |
+| **ANTI-5 · DM-1 · GR-5** | **Data minimization.** **No `run_events` table**, and no raw per-event gameplay history. Validate at submission time; persist only the run record, compact authoritative derived facts, the minimum validation metadata, and approved progression state. Any future raw-event retention is a **separate** privacy decision. | `purrenade-api/docs/architecture/data-model.md` §3 |
+| **ANTI-4** | **Structural rejection is separated from tuning-dependent flagging.** Only impossibilities provable without an unresolved tuning value — and without assuming prompt submission — may reject. Plausibility anomalies bounded by still-PROPOSED tuning may only **flag**. **No legitimate run is rejected on an unresolved tuning number.** Tightening later requires an explicit decision. | `purrenade-api/docs/security/anti-cheat.md` §3A |
+| **ANTI-2 · GR-1** | **Three outcomes: `ACCEPTED`, `FLAGGED`, `REJECTED`.** Only `ACCEPTED` mutates anything. `FLAGGED` is retained with the metadata explaining it but changes **no** progression, paw ledger, personal best, accepted `run_count`, leaderboard eligibility or achievement progress, and the player is told honestly. `REJECTED` keeps only minimum attempt information. Never silently accepted, discarded or converted; **no automatic promotion from flagged to accepted**. | `purrenade-api/docs/api/endpoints/game-runs.md` |
+| **ANTI-3 · GR-2** | **No player appeal workflow and no actively serviced review queue in M9.** M13 may introduce administrative review tooling for flagged runs. | `purrenade-api/docs/security/anti-cheat.md` §4 |
+| **GR-4** | **At most one active authoritative run per user**, enforced by a **partial unique database index**, not a read-then-check query. Starting while one is open returns **that same run** — deterministic resume, never a second. The tutorial does not occupy the slot. This also resolves the cross-tab question in [`../architecture/state-management.md`](../architecture/state-management.md) §7. | `purrenade-api/docs/architecture/data-model.md` §3 |
+| **GR-3 · API-3** | **The idempotency identity lives with the durable run history — no cleanup window.** `(user_id, idempotency_key)` stays database-unique, with a stored request fingerprint so "same key, different request → `409`" is enforceable. Same key + same request returns the original result with zero side effects. **No `idempotency_keys` table at M9**; generalizing idempotency elsewhere remains **API-5**. | `purrenade-api/docs/api/endpoints/game-runs.md` |
+| **Run identity** | **No separate `run_token`.** A run is an opaque `run_id` bound to the authenticated actor, with server-owned state. The threat model establishes no property a token would add, and a browser-held run secret cuts against the approved posture that the browser holds no portable credential. | `purrenade-api/docs/security/threat-model.md` §3 |
+| **Submission rate limiting** | **A dedicated limiter exists** for run start and finish: user-scoped primary control, IP as secondary abuse defence, normal mobile retry kept practical, idempotent retries creating no duplicate state, and a `429` never consuming the idempotency slot. Values live in the central configuration, never controller literals, and tests must cover enforcement. **Numeric values are an M9 implementation parameter, not an open decision.** | `purrenade-api/docs/security/rate-limiting.md` §3 |
+| **Contract generation** | **M9 absorbs the hand-written API-type debt.** The OpenAPI → TypeScript generation path is established before or as part of introducing the M9 schemas, so the new run and progression types are generated from the authoritative contract rather than duplicated by hand. **Engineering foundation work inside M9, not a separate milestone.** | [`../architecture/api-client.md`](../architecture/api-client.md) §1A |
+| **Localization** | Every new M9 player-facing string — including all three outcomes and each flag-reason class — ships in **tr / en / es**, TR default. Parity gates are not weakened. | [ADR-0007](../decisions/ADR-0007-localization-strategy.md) |
+
+### What this closure deliberately did **not** do — ANTI-6
+
+**The APPROVED achievement-progression authority rule was not weakened.** A trusted client
+aggregate capped by plausibility checks is still not an acceptable verification model.
+
+Layers 1 and 2 can *bound* a number but cannot *establish* one that depends on what the player
+did. Four run-level facts are exactly that — obstacle passes by class, near misses, SLAYYY
+activations and **actual Loli activations** — and only Layer 3, or an equivalent separately
+approved trustworthy mechanism, can establish them.
+
+So while none exists, those four **must not be promoted from client-reported aggregates into
+authoritative `DERIVED_TELEMETRY` progression facts**. M9 does not create their columns, does
+not return them, and does not accumulate them. Recording them early would breach the trust
+boundary at the outset and buy nothing: a counter built from an untrustworthy source would
+have to be discarded the moment a real mechanism arrived.
+
+That consequence is recorded as **ANTI-6** in §1. It blocks **M11** only — not M9, not M10.
+Whether M11 adds Layer 3, designs another server-verifiable mechanism, or changes the affected
+achievement and unlock behaviour is a **product decision for the M11 architecture decision**,
+and this closure deliberately pre-empts none of them.
+
+### Implementation parameters, not open decisions
+
+Selecting these during M9 planning reopens nothing: submission rate-limit values; plausibility
+bound values, gated on tuning approval; the authoritative duration derivation and its
+clock-skew/late-submission tolerance; the maximum active-run lifetime; and the contract
+generator's wiring.
+
+**ARCH-2** and the **ADR-0006** register entry are retired by this closure. **SEC-3** and
+**SEC-5** remain open, over a materially smaller surface.
 
 ---
 
@@ -254,7 +313,7 @@ not decide it.
 | **Leaderboard core rules** (was LB-1, LB-2, LB-4) | Monday 00:00 **Europe/Istanbul**, attributed by server-recorded run start · `score DESC` → earlier `achieved_at` → shorter `duration_ms` → stable id · cursor pagination, default 25 / max 100 · banned users hidden publicly and retained for audit · public opt-out supported. | [leaderboards](leaderboards.md) §3.2, §4, §5 |
 | **Display-name v1 baseline** (was LB-3) | 3–20 chars · Unicode letters/digits plus `_` `.` `-` · at least one letter · no leading/trailing punctuation · case-insensitive uniqueness · rate-limited changes · **admin force-rename**. Profanity screening and homoglyph detection are **future hardening, not v1 blockers**. | [leaderboards](leaderboards.md) §5.1 |
 | **Minimum admin set** (was SI-1) | Six capabilities: user lookup · suspend/unsuspend · run inspection · run invalidation with mandatory reason · leaderboard/display-name moderation · audit log inspection. CMS, arbitrary data editing, granting progression, impersonation and bulk export are approved as **out of scope**. | `purrenade-api/docs/api/endpoints/admin.md` |
-| **Telemetry retention latitude** | **Raw events need not be retained forever.** The implementation may **validate raw telemetry at acceptance and persist compact authoritative derived run facts**, discarding the raw events, where that satisfies replay, audit and security. The data-minimizing option is explicitly permitted; the retention *choice* remains ANTI-5. | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
+| **Telemetry retention latitude** | **Raw events need not be retained forever.** The implementation may **validate raw telemetry at acceptance and persist compact authoritative derived run facts**, discarding the raw events, where that satisfies replay, audit and security. The data-minimizing option is explicitly permitted; **ANTI-5 then chose it** — see §0AI. | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
 
 **Retired in M0.6:** `AU-7` (Ogito minimum duration), and the counters `lifetimeScore`,
 `maxLoliBonusInSingleRun`, `accepted_runs_above_min_duration`.
@@ -290,10 +349,11 @@ These stop work when their milestone is reached.
 | Ref | Decision | Blocks | Source |
 | --- | --- | --- | --- |
 | **AU-1** | **Approval of the proposed 16-achievement catalogue**, as a whole. The authoring gap is closed; this is now a review item. | **M11** | [achievements-and-unlocks](achievements-and-unlocks.md) §1.5 |
-| **ANTI-5** | **What validated event data is retained**, in what form and for how long. **Seven** achievements are `DERIVED_TELEMETRY`. Validating at acceptance and keeping only derived run facts is an **explicitly permitted** answer. Interacts with SEC-3 and SEC-5. | **M9**, **M11** | `purrenade-api/docs/security/anti-cheat.md` §2.1 |
+| ~~**ANTI-5**~~ | **Resolved by ADR-0006** — data minimization; see §0AI. |  | `purrenade-api/docs/security/anti-cheat.md` §2.1 |
+| **ANTI-6** | **How the four `DERIVED_TELEMETRY` run facts are established** — obstacle passes by class, near misses, SLAYYY activations, actual Loli activations. Layers 1 and 2 bound them but cannot establish them, and Layer 3 is deferred, so **M9 neither persists nor returns them**. Blocks **seven of the sixteen** achievements and **Sero's unlock**. Adding Layer 3, designing another server-verifiable mechanism, or changing the affected behaviour are all open. Interacts with AU-1, SEC-5. | **M11** | `purrenade-api/docs/security/anti-cheat.md` §8 |
 | **LB-5** | **Retention and anonymization policy for deleted players.** Genuinely OPEN — product/legal decision, not architecture. | **M10**, **M14** | [leaderboards](leaderboards.md) §5.3 |
 | **LO-1 / #17** | **English and Spanish copy.** Only Turkish exists. | **M4** onward | [localization](localization.md) §5 |
-| **ADR-0006** | The run validation model itself, and **PWA-1** (offline play), which decides whether a server-issued run token is available. | **M9**, **M10** | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
+| ~~**ADR-0006**~~ | **Accepted 2026-09-22.** Layer 1 + Layer 2 in v1, Layer 3 deferred, no separate run token. **M9 and M10 are unblocked**; see §0AI. |  | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
 
 ---
 
@@ -311,7 +371,7 @@ These stop work when their milestone is reached.
 | **CR-2** | Does a collision interrupt an in-progress lane change or apply a speed dip? | [core-run](core-run.md) §5.5 |
 | **CR-6** | **Near-miss envelope vs the escape-path reaction budget** — they pull against each other and must be tuned together during M6. | [core-run](core-run.md) §5A.3 |
 | **DO-4** | May difficulty be influenced by the player's current heart count? | [difficulty-and-obstacles](difficulty-and-obstacles.md) §7 |
-| **PWA-1** | **Is a run playable offline?** Shapes both the PWA strategy and run validation. | [`../architecture/pwa-and-mobile.md`](../architecture/pwa-and-mobile.md) |
+| ~~**PWA-1**~~ | **Resolved by ADR-0006:** connectivity is required to **start**; an already-started run survives a transient loss and its finish is retried under the same idempotency identity. See §0AI. | [`../architecture/pwa-and-mobile.md`](../architecture/pwa-and-mobile.md) |
 
 ---
 
@@ -319,12 +379,12 @@ These stop work when their milestone is reached.
 
 | Ref | Decision | Owner |
 | --- | --- | --- |
-| **ARCH-2** | **Run validation / anti-cheat model.** Leaderboards are in v1. Largest architectural risk in the product. | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
+| ~~**ARCH-2**~~ | **Resolved by ADR-0006 (2026-09-22).** Layer 1 + Layer 2 in v1, Layer 3 deferred with the domain kept portable. Retired; see §0AI. | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
 | ~~**SEC-1**~~ | **Resolved in M2.** 12–128 characters, no composition rules, breach-checked, argon2id. See §0AA. | `purrenade-api/docs/security/authentication.md` |
 | ~~**SEC-2**~~ | **Resolved in M2** for code TTL, resend cooldown and rate-limit values — which is what SEC-2 tracks. The **transactional email provider** carve-out is no longer open: a provider was chosen and is in production — **Zoho Mail, EU region**, SMTP over TLS, with direct delivery and the queued verification flow both verified end to end at the first production deployment. Choosing it does **not** settle the data-protection posture around it — processor terms, retention at the provider and the processing-location analysis remain **OPEN under SEC-3**. | `purrenade-api/docs/security/rate-limiting.md` · `purrenade-api/docs/production/database-and-queue.md` §5 |
 | **SEC-3** | **KVKK/GDPR flows** — account deletion, data export, consent capture, retention. Architecture is proposed; **policy is OPEN**. | `purrenade-api/docs/security/data-protection.md` |
 | **SEC-4** | Published **security contact** and disclosure timeline. | `SECURITY.md` in both repositories |
-| **SEC-5** | **Retention period and minimization for gameplay telemetry.** New in M0.5: derived-from-telemetry achievements mean per-event data is retained, and that data is **behavioural personal data**. Jointly with ANTI-5. | `purrenade-api/docs/security/data-protection.md` §2A |
+| **SEC-5** | **Retention period for gameplay data.** **Materially narrowed by ADR-0006:** ANTI-5 resolved toward minimization, so **no raw per-event history is retained** and — while ANTI-6 is open — no telemetry-derived counters exist either. What remains is the retention *period* for the run records and compact derived facts that are kept. | `purrenade-api/docs/security/data-protection.md` §2A |
 | **LR-1** | The **layered licensing model**. `LICENSE` stays a placeholder until decided. | [licensing-and-rights](licensing-and-rights.md) §1 |
 | **LR-2 / #18** | **Consent records** for every real-person and real-animal likeness, covering commercial use, app-store distribution and marketing. | [licensing-and-rights](licensing-and-rights.md) §3 |
 | **LR-3** | Are the repositories **public from the first commit** or later? | [licensing-and-rights](licensing-and-rights.md) |
@@ -452,8 +512,8 @@ that owns it, and listed here so this register is the complete live list.
 | PWA-2 | [architecture/pwa-and-mobile.md](../architecture/pwa-and-mobile.md) | Does the service worker cache sprite atlases aggressively enough to make a repeat run start instantly, within the storage budget? |
 | PWA-3 | [architecture/pwa-and-mobile.md](../architecture/pwa-and-mobile.md) | Is installability promoted in-product, or left to the browser? |
 | PWA-4 | [architecture/pwa-and-mobile.md](../architecture/pwa-and-mobile.md) | Is a native shell actually planned, and on what horizon? |
-| RNG-1 | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | Is the run seed server-issued? Depends on [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) and on the offline question (PWA-1) |
-| RNG-2 | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | Is an input log recorded and submitted with the run? Directly affects payload size and the validation model |
+| ~~RNG-1~~ | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** yes — the seed is server-issued. |
+| ~~RNG-2~~ | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** no — no input log in v1; it belongs to the deferred Layer 3 design. |
 | RNG-3 | [game/determinism-and-rng.md](../game/determinism-and-rng.md) | Fixed-step rate confirmation (PROPOSED 120 Hz) |
 | SI-4 | [screen-inventory.md](screen-inventory.md) | Password policy (§2) |
 | SP-8 | [scoring-and-progression.md](scoring-and-progression.md) | Whether an activation that is cut short by run end still counts (PROPOSED: yes — it started) |
@@ -473,13 +533,14 @@ that owns it, and listed here so this register is the complete live list.
 | AD-3 | `purrenade-api/docs/api/endpoints/admin.md` | Audit log retention (SEC-3, OB-3) |
 | AD-4 | `purrenade-api/docs/security/authorization-and-roles.md` | Is admin access restricted by network or device in addition to 2FA? |
 | AD-5 | `purrenade-api/docs/security/authorization-and-roles.md` | Per-capability request/response shapes for the approved six-capability admin console, to be contracted at M13 |
-| ANTI-1 | `purrenade-api/docs/security/anti-cheat.md` | Which layers ship in v1 |
-| ANTI-2 | `purrenade-api/docs/security/anti-cheat.md` | What a `flagged` run means for the player, and whether there is an appeal |
-| ANTI-3 | `purrenade-api/docs/security/anti-cheat.md` | Who reviews flagged runs — an admin capability that does not exist yet (SI-1) |
-| ANTI-4 | `purrenade-api/docs/security/anti-cheat.md` | Bound values, derived once the tuning values are APPROVED rather than PROPOSED |
+| ~~ANTI-1~~ | `purrenade-api/docs/security/anti-cheat.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** Layers 1 and 2; Layer 3 deferred beyond v1 with the domain kept portable. |
+| ~~ANTI-2~~ | `purrenade-api/docs/security/anti-cheat.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** retained and honestly reported, but mutating no progression, ledger, personal best, run count or leaderboard eligibility. |
+| ~~ANTI-3~~ | `purrenade-api/docs/security/anti-cheat.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** nobody in M9 — no appeal workflow and no actively serviced queue. M13 may add review tooling. |
+| ~~ANTI-4~~ | `purrenade-api/docs/security/anti-cheat.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** structural rejection is separated from tuning-dependent flagging. The bound **values** remain an M9 implementation parameter, gated on tuning approval. |
+| **ANTI-6** | `purrenade-api/docs/security/anti-cheat.md` | **How the four `DERIVED_TELEMETRY` run facts are established.** Until something can, they are neither persisted nor returned. **Blocks M11** — see §1. |
 | ~~API-1~~ | `purrenade-api/docs/api/api-conventions.md` | **Resolved in M2:** RFC 9457 `problem+json` |
 | ~~API-2~~ | `purrenade-api/docs/api/api-conventions.md` | **Resolved in M2:** `snake_case` |
-| API-3 | `purrenade-api/docs/api/api-conventions.md` | Idempotency key retention window |
+| ~~API-3~~ | `purrenade-api/docs/api/api-conventions.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md)** for run submission: **no window** — the identity lives with the durable run history. |
 | API-4 | `purrenade-api/docs/api/api-conventions.md` | Default and maximum pagination limits |
 | API-5 | `purrenade-api/docs/api/api-conventions.md` | Is idempotency generalized beyond run submission? |
 | API-6 | `purrenade-api/docs/api/api-conventions.md` | Whether the API exposes a distinct bearer scheme now, or only when the native client is built |
@@ -495,16 +556,16 @@ that owns it, and listed here so this register is the complete live list.
 | CACHE-3 | `purrenade-api/docs/architecture/caching-and-redis.md` | Is the leaderboard projection in PostgreSQL or in Redis? |
 | CACHE-4 | `purrenade-api/docs/architecture/caching-and-redis.md` | Cache TTLs, once real traffic shapes are known |
 | CH-1 | `purrenade-api/docs/api/endpoints/characters.md` | Does selecting a character affect gameplay at all in v1, or only presentation? |
-| DM-1 | `purrenade-api/docs/architecture/data-model.md` | What form validated event retention takes — per-event records or per-run derived counts (ANTI-5). *That* some retention exists is no longer in question. |
+| ~~DM-1~~ | `purrenade-api/docs/architecture/data-model.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** neither — **no `run_events` table** and no raw per-event history. |
 | DM-2 | `purrenade-api/docs/architecture/data-model.md` | Weekly window: partitioned table, materialized view, or maintained table (LB-1) |
 | DM-3 | `purrenade-api/docs/architecture/data-model.md` | Retention for `runs`, `paw_ledger`, `audit_log` (SEC-3) |
 | DM-4 | `purrenade-api/docs/architecture/data-model.md` | What account deletion does to runs and leaderboard entries (LB-5, SEC-3) |
-| DM-7 | `purrenade-api/docs/architecture/data-model.md` | Index strategy for the lifetime telemetry-derived counters once real query shapes exist |
-| GR-1 | `purrenade-api/docs/api/endpoints/game-runs.md` | What a `flagged` run means for the player: hidden, held, or rejected |
-| GR-2 | `purrenade-api/docs/api/endpoints/game-runs.md` | Is there an appeal path, and who reviews |
-| GR-3 | `purrenade-api/docs/api/endpoints/game-runs.md` | Idempotency key retention window (API-3) |
-| GR-4 | `purrenade-api/docs/api/endpoints/game-runs.md` | May a player hold two runs open at once? |
-| GR-5 | `purrenade-api/docs/api/endpoints/game-runs.md` | Do near-miss, obstacle-pass, SLAYYY-activation and Loli-activation events arrive per-event, or as counts derived at acceptance? (ANTI-5) — the latter is explicitly permitted |
+| DM-7 | `purrenade-api/docs/architecture/data-model.md` | Index strategy for the lifetime telemetry-derived counters once real query shapes exist. Deferred with the counters themselves — **ANTI-6**. |
+| ~~GR-1~~ | `purrenade-api/docs/api/endpoints/game-runs.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** retained and excluded from ranking and progression, with the player told honestly. |
+| ~~GR-2~~ | `purrenade-api/docs/api/endpoints/game-runs.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** no appeal path in M9. |
+| ~~GR-3~~ | `purrenade-api/docs/api/endpoints/game-runs.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** no window; a stored request fingerprint makes the `409` rule enforceable. |
+| ~~GR-4~~ | `purrenade-api/docs/api/endpoints/game-runs.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** no — one active run per user, enforced by a partial unique index; starting again resumes it. |
+| ~~GR-5~~ | `purrenade-api/docs/api/endpoints/game-runs.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** not per-event. The four facts they feed are blocked on **ANTI-6** and are not established at M9. |
 | OB-1 | `purrenade-api/docs/architecture/observability.md` | Log aggregation destination and retention |
 | OB-2 | `purrenade-api/docs/security/data-protection.md` | Is an external error tracker acceptable? |
 | OB-3 | `purrenade-api/docs/architecture/observability.md` | Audit log retention (SEC-3) |

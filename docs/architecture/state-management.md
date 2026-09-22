@@ -170,14 +170,29 @@ while signed in, both are written.
 
 ---
 
-## 7. Cross-tab behavior — OPEN
+## 7. Cross-tab behavior — APPROVED
 
-Two tabs, one account, two runs in progress is a real scenario with real
+Two tabs, one account, two runs in progress was a real scenario with real
 consequences for the paw ledger and for run validation.
+[ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) imposed the
+stricter rule this section anticipated, and it resolves the question at the only layer that
+can resolve it.
 
-**PROPOSED:** the server treats each run as an independent, idempotent
-submission and resolves progression in the order it accepts them; the client
-makes no attempt to lock tabs. Signing out in one tab propagates to others.
+**One authenticated user may hold at most one active authoritative run**, enforced as a
+database invariant rather than an application check (GR-4). A second tab that asks to start a
+run does not get a second run — it gets **the one already open**, with the same identity,
+seed and server-recorded start.
 
-Recorded as OPEN because the anti-cheat model may impose a stricter rule — see
-[ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md).
+| Concern | Resolution |
+| --- | --- |
+| Two tabs racing to start | The database refuses the second; the caller is handed the existing run |
+| Two tabs racing to finish | Idempotent submission on `(user_id, idempotency_key)`; the second is either the same effective request, and returns the original result, or a different one, and is a `409` |
+| The paw ledger | Only an `accepted` run touches it, and only through an atomic database operation |
+| Signing out in one tab | Still propagates to the others |
+
+**The client still makes no attempt to lock tabs.** It does not need to: the invariant lives
+where it cannot be bypassed, and a client-side lock would be exactly the kind of frontend
+check that is never a control. What the client *does* owe the player is honesty — a second
+tab that resumes an already-running run must not present itself as a fresh one.
+
+`RunState` remains run-scoped and per-mount (§2). Nothing here makes it shared across tabs.

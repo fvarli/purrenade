@@ -44,9 +44,31 @@ The game domain is a pure function of its inputs. Concretely, inside
 | --- | --- |
 | Algorithm | A small, fast, well-distributed PRNG with explicit state (e.g. a 128-bit xorshift family). **Not** the platform RNG. |
 | State location | **Inside `RunState`**, threaded through `step()`. Not a module-level singleton. **As of M7 two streams are consumed** — `pattern` by weighted pattern selection (M6) and `collectible` by Paw Token groups (M7). `cosmetic` remains untouched. Paw spawning draws a fixed **two** values per group, count then lane, and then *rotates* to a clear lane instead of redrawing: the number of draws must not depend on the obstacle layout, or the two streams would be coupled through the playfield rather than through the seed. Tests assert both directions — perturbing `collectible` leaves 4000 steps of obstacles bit-identical, and does change the tokens, so the first assertion is not vacuous. |
-| Seed source | A cryptographically strong value at run start — from the **server** if the run-token model is adopted, otherwise locally generated |
-| Seed recording | The seed is part of the run summary, so any run can be replayed for debugging or validation |
+| Seed source | **APPROVED (RNG-1): server-issued.** `POST /game-runs` creates the run before gameplay begins and returns the seed, so the spawn sequence is known to the server. The frontend initializes the deterministic run domain from that value and **never treats a browser-generated seed as authoritative**. There is no offline-start fallback: a normal authoritative run requires connectivity to start (PWA-1). |
+| Seed recording | The server stores the seed against the run record, so any run can be reproduced for debugging or future validation. The client never supplies it back. |
 | Streams | Separate, independently-seeded streams for **pattern selection**, **collectible placement** and **cosmetic variation**, derived from the run seed |
+
+### 3.0A What RNG-1 changes, and where — APPROVED
+
+The domain already takes the seed as an input and never produces one, so adopting a
+server-issued seed is a change at the boundary, not in the rules.
+
+| Layer | Effect |
+| --- | --- |
+| `game/domain/` | **None.** `createRunState({ seed })` already validates and stores whatever it is handed. |
+| `game/bridge/` | **None.** `createRunLoop({ seed })` receives a seed; it has never made one. |
+| App layer | The seed stops being generated locally and starts coming from the run-start response. Today it is produced by `Math.random()` in `app/composables/useRunSurface.ts`, whose own comment says this changes "here and nowhere else" once RNG-1 settles. **It has now settled; the change itself is M9 implementation work.** |
+
+The tutorial is unaffected: it consumes no randomness at all, submits nothing, and starts no
+authoritative run.
+
+### 3.0B No input log — APPROVED (RNG-2)
+
+**No gameplay input log is recorded, submitted or retained in v1.** It belongs to the deferred
+Layer 3 replay design in the backend's `docs/security/anti-cheat.md` §3.
+
+The streams stay separate and the domain stays pure anyway — that is what keeps Layer 3 a
+deployment decision rather than a rewrite, and the separation is enforced by a CI gate.
 
 ### 3.1 Why separate streams
 
@@ -119,6 +141,6 @@ letting it accumulate.
 
 | Ref | Question |
 | --- | --- |
-| RNG-1 | Is the run seed **server-issued**? Depends on [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) and on the offline question (PWA-1) |
-| RNG-2 | Is an input log recorded and submitted with the run? Directly affects payload size and the validation model |
+| ~~RNG-1~~ | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) (accepted 2026-09-22): the seed is server-issued.** See §3 and §3.0A. |
+| ~~RNG-2~~ | **Resolved by ADR-0006: no input log in v1.** Layer 3 replay is deferred; the domain stays portable so it remains available. See §3.0B. |
 | RNG-3 | Fixed-step rate confirmation (PROPOSED 120 Hz) |

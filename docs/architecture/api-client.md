@@ -17,16 +17,18 @@ behind one module as §2 requires:
 | Error normalisation to a stable `code` | `app/composables/useApiProblem.ts` |
 | BFF routes, session, CSRF, upstream client | `server/` — see [bff-and-session.md](bff-and-session.md) |
 
-Two things this document requires are **not** yet done, and are OPEN:
+Two things this document requires are **not** yet done. Neither is an open decision any
+more; both are **M9 work**.
 
 - **Generated types.** §1 requires client types to come from the contract.
   `server/utils/contracts.ts` is hand-written, checked against
-  `openapi.draft.yaml` by hand whenever either changes. The generator is a
-  toolchain task.
+  `openapi.draft.yaml` by hand whenever either changes. **M9 absorbs this debt** —
+  see §1A.
 - **Retries, cancellation and idempotency keys.** §4 and §6 concern run
   submission, which does not exist yet. The BFF client has timeouts and does not
   retry; the one retry it performs is a single CSRF-token refresh, which is not a
-  network retry.
+  network retry. **M9 builds them**, against a contract that is now decided
+  ([ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md)).
 
 ---
 
@@ -41,6 +43,38 @@ response shapes.
   time**, not as a runtime failure in production.
 - **A contract change updates both repositories.** The backend's
   `docs/api/contract-change-process.md` defines the procedure.
+
+---
+
+## 1A. Contract generation is M9 foundation work — APPROVED
+
+§1 has required generated types since M0, and the repository has been carrying hand-written
+ones since M2. M9 introduces roughly five substantial new schemas at once — the run start and
+finish contracts, the run result, and progression — and duplicating those by hand is how the
+two repositories drift on the most security-sensitive surface in the product.
+
+**So the generation path is established before or as part of introducing those schemas.** This
+is engineering foundation work inside M9, **not a separate product milestone**.
+
+### What the path must satisfy
+
+| Requirement | Why |
+| --- | --- |
+| The backend's `docs/api/openapi.draft.yaml` is the **only** source | §1. A second hand-maintained shape is the thing being removed. |
+| The frontend consumes a **pinned snapshot**, not a live fetch | [ADR-0001](../decisions/ADR-0001-separate-frontend-backend-repositories.md): the repositories never share Git state, and a build must not depend on another repository being reachable |
+| The snapshot records **which backend revision it came from** | Otherwise "the contract" means whatever someone last copied |
+| Generated types are **committed**, and a CI gate regenerates and diffs them | A generator nobody runs is a hand-written file with extra steps |
+| A contract change that breaks the client fails at **build time** | §1, and the whole point of generating |
+| Migration of `server/utils/contracts.ts` is **incremental** | Types the new contracts need come from the generator; the rest move when they are touched. No unrelated churn. |
+
+### Selected during M9 planning
+
+The generator itself — `openapi-typescript` is the obvious candidate, since it targets OpenAPI
+3.1 and emits types with no runtime — plus the snapshot mechanism and the gate's wiring. Per
+the repository's version policy, the tool's current stable version is re-verified at install
+time rather than pinned from a document.
+
+This does not change what §1 already requires. It records how the requirement is finally met.
 
 ---
 
@@ -92,7 +126,7 @@ Components never call HTTP directly. Services never contain UI concerns.
 | --- | --- |
 | **Correlation ID** | Every request carries a client-generated correlation ID, logged on both sides, and surfaced to the player on an unexpected failure so a report is traceable |
 | **Locale** | Every request carries the active locale, so server-generated copy and emails match the player |
-| **Idempotency** | State-changing operations that must not double-apply — notably run submission — carry an idempotency key. See the backend's `docs/api/api-conventions.md` |
+| **Idempotency** | State-changing operations that must not double-apply — notably run submission — carry an idempotency key. The key is **stable for the life of the attempt**, not regenerated per retry. See the backend's `docs/api/api-conventions.md` |
 | **Timeouts** | Every request has one. No unbounded request. |
 | **Retries** | Only for idempotent requests, only on network errors and 5xx, with exponential backoff and jitter. **Never** on 4xx. **Never** in a tight loop. |
 | **Rate limiting** | Respect the server's retry signal; surface a calm message rather than hammering |
@@ -118,22 +152,58 @@ human-readable message text. Message text is for display; codes are for logic.
 
 ---
 
-## 6. Run submission — PROPOSED
+## 6. Run lifecycle — APPROVED (ADR-0006)
 
 Run submission is the most consequential call in the product, because it is where
 the client asks the server to change durable, ranked state.
+
+### Starting
+
+| Rule | Reason |
+| --- | --- |
+| A run is **started server-side before gameplay begins** | The server records the start, issues the seed and owns the run's state |
+| **Connectivity is required to start** | PWA-1. There is no offline-start path in v1. |
+| The client **initializes the deterministic domain from the server's seed** | A browser-generated seed is never authoritative (RNG-1) |
+| Starting while a run is already open **resumes it** | The server returns the same run rather than creating a second (GR-4). A client that lost its local state recovers this way — and must not present a resumed run as a fresh one. |
+| There is **no run token** to hold | The run is the opaque `run_id` plus the authenticated session. Nothing run-related is stored in the browser. |
+
+### Finishing
 
 | Rule | Reason |
 | --- | --- |
 | The client **proposes**; the server **decides** | Score and progression are server-authoritative |
 | Submission is **idempotent** | Retries, flaky networks and double taps must not double-count |
 | A failed submission is retried with the **same idempotency key** | Retrying with a new key would create a duplicate run |
+| The key is **generated once per run attempt** and reused across every retry of it | Including retries that span a reload. This is what makes deferred submission safe. |
 | The client displays the **server's** returned values | Never its own optimistic values once the response arrives |
 | A rejected or flagged run is surfaced honestly | Never silently discarded, never silently accepted |
+| **No input log is sent** | RNG-2. The payload is the compact untrusted hints the server's validation actually consumes. |
 
-**OPEN:** whether an unsubmitted run may be queued for later submission — this is
-the same decision as "is a run playable offline" (PWA-1), and it has direct
-anti-cheat consequences.
+### Losing the connection mid-run — APPROVED
+
+**PWA-1 is resolved**, and this is the shape it takes in the client:
+
+1. The run is already started, so the server knows about it. Nothing is lost.
+2. The player **keeps playing locally**. A network error never destroys a run in progress.
+3. The finish is **retried when connectivity returns**, under the same idempotency identity.
+4. The identity **never expires** server-side, so a late retry is still safe.
+
+This is ordinary request retry with a stable key — not an offline-first queue, and not
+background creation of runs. See [`pwa-and-mobile.md`](pwa-and-mobile.md) §3.
+
+### Telling the player the truth — APPROVED
+
+The server answers with one of three outcomes, and the client must distinguish them.
+
+| Outcome | What the player is shown |
+| --- | --- |
+| `accepted` | The authoritative score and the resulting progression |
+| `flagged` | The run happened, but honestly: it was **not accepted** for competitive or progression purposes. No progression, paw, personal-best or run-count change is shown, because none occurred. |
+| `rejected` | An explicit, honest response. Never dressed up as a success, never silently dropped. |
+
+**The client never infers an outcome from a status code**, and never presents its own
+optimistic numbers once a response has arrived. All three outcomes, and every flag-reason
+class, ship in **tr / en / es** (ADR-0007).
 
 ---
 

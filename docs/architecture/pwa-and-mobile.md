@@ -41,39 +41,52 @@ add later. Two decisions in particular must not foreclose it:
 > fallback is a Nitro + Workbox setup, which this repository is already structured for.
 
 | Offline **shell** (a useful screen when offline) | **Yes** | Better than a browser error page |
-| Offline **play** | **OPEN — see §3** | Has anti-cheat and leaderboard consequences |
-| Background sync of results | Follows §3 | Only meaningful if offline play exists |
+| Offline **play** | **Starting: no. Continuing: yes** — see §3 | Decided with ADR-0006 |
+| Deferred submission of an already-started run | **Yes** | The run survives a connectivity drop and its finish is retried under the same idempotency key |
+| Background sync of a *new* offline run | **No** | Out of scope for v1 — a run cannot begin offline |
 | Push notifications | **No** | Nothing in the approved product surface uses them |
 
 ---
 
-## 3. The offline question — OPEN (PWA-1)
+## 3. The offline question — APPROVED (PWA-1)
 
-**Is a run playable offline?**
+**Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md),
+accepted 2026-09-22**, which is where it had to be resolved: the answer decides whether the
+server can own a run's lifecycle at all.
 
-This single question shapes both the PWA strategy and the run-validation design,
-which is why it is called out rather than assumed.
+The decision splits the question rather than answering it yes or no.
 
-| If **yes** | Consequence |
+| | v1 |
 | --- | --- |
-| Runs are simulated with no server involvement | A server-issued run token cannot gate the run |
-| Results are queued and submitted later | Submission must be idempotent and carry trustworthy timing |
-| Weekly leaderboard attribution becomes ambiguous | A run played before rollover and submitted after it must land in exactly one week |
-| The attack surface widens considerably | An offline client is an unobserved client |
+| **Starting** a normal authoritative run offline | **No.** The server creates the run before gameplay begins, which is what gives Layer 2 a server-recorded start, a server-issued seed and a server-owned identity. |
+| **Continuing** an already-started run through a connectivity drop | **Yes.** A transient loss must not destroy the run. The player plays on locally. |
+| **Submitting** that run's result later | **Yes.** The finish is retried when connectivity returns, under the **same stable idempotency identity**. |
+| Starting a brand-new authoritative run fully offline | **Out of scope for v1** |
+| The tutorial | Unaffected — it is isolated and submits no run |
 
-| If **no** | Consequence |
+### Why this shape
+
+The two costs the old framing weighed against each other turned out to be separable.
+
+| Concern | How the split answers it |
 | --- | --- |
-| A run requires connectivity to start | The server can issue a run token and observe the run's lifecycle |
-| Validation is materially easier | Timing and pacing can be checked against server-recorded boundaries |
-| The player loses the ability to play on a plane or in a dead spot | A real product cost for a mobile-first game |
+| An offline client is an unobserved client | A run cannot *begin* unobserved. The server records its start, issues its seed and owns its state before any gameplay happens. |
+| Weekly attribution must be unambiguous | `started_at` is server-recorded, so a run belongs to exactly one week regardless of when its result arrives |
+| Retries must not double-count | `(user_id, idempotency_key)` is unique in the database, and the identity **never expires** |
+| A dropped connection must not cost the player their run | It does not. Only *starting* needs the network. |
 
-**PROPOSED:** v1 requires connectivity to **start** a run, but a run already in
-progress survives a transient network loss and its result is queued for
-submission with an idempotency key. This keeps the server able to bound the run
-while not punishing a player whose connection drops mid-run.
+**What this does not license.** A submission arriving late is expected, so the time between
+the server-recorded start and the arrival of the finish is an **upper bound** on gameplay
+duration and never the duration itself. The validation design treats it that way — see the
+backend's `docs/security/anti-cheat.md` §3A.
 
-Not decided. It must be resolved together with
-[ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md).
+### What it means for the service worker
+
+The offline **shell** still matters, and so does precaching. What is *not* built is a
+background-sync path that creates runs offline. The only deferred work is the retry of a
+finish for a run the server already knows about, which is ordinary request retry with a
+stable key rather than an offline-first queue — see
+[`api-client.md`](api-client.md) §6.
 
 ---
 
@@ -132,7 +145,7 @@ requirement. It is tracked as SEC-3.
 
 | Ref | Question |
 | --- | --- |
-| **PWA-1** | **Is a run playable offline?** (§3) |
+| ~~**PWA-1**~~ | **Resolved by ADR-0006 (2026-09-22):** connectivity is required to **start** a run; an already-started run survives a transient loss and its finish is retried under the same idempotency identity. (§3) |
 | PWA-2 | Does the service worker cache sprite atlases aggressively enough to make a repeat run start instantly, within the storage budget? |
 | PWA-3 | Is installability promoted in-product, or left to the browser? |
 | PWA-4 | Is a native shell actually planned, and on what horizon? |

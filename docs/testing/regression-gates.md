@@ -101,11 +101,19 @@ is a fixture, not a product test, and is excluded — which is why
 | Project | Own tests | Runs in CI | Against |
 | --- | --- | --- | --- |
 | `chrome` (anonymous) | 41 | **38** | **a production build** — `npm run build`, then `.output/server/index.mjs` on 4399 |
-| `chrome-auth` | 63 | no — needs a session | the local dev stack |
+| `chrome-auth` | 67 | no — needs a session | the local dev stack |
 | `chrome-touch` | 6 | no — needs a session | the local dev stack |
 
 Three of `chrome`'s 41 are tagged `@stack`; CI runs `--grep-invert @stack`, so
-they are part of the 72 that CI does not execute. **72 = 3 + 63 + 6.**
+they are part of the 76 that CI does not execute. **76 = 3 + 67 + 6.**
+
+**M9 added 4** in `run-submission.spec.ts`: the server starts the run and decides it
+(accepted, counted exactly once); play continues offline and the finish is delivered when the
+connection returns; a finish the BFF holds survives a reload and is delivered before a new
+run; and the tutorial starts and submits nothing. Like the other run specs they need a
+session and the local stack, and CI's list of unrunnable specs names the file. Run them with
+`--workers=1`: one account holds one active server run, so parallel workers on one account
+would race for it.
 
 **M8 added 19 of those**: `run-tutorial.spec.ts` (17, covering first-run
 routing, the cone lesson, skipping, the Settings replay, and the narrow widths
@@ -170,6 +178,29 @@ about the tutorial, and answering it inside a tutorial milestone would be scope
 creep. Neither case is in a CI gate — `run-surface.spec.ts` is in the unrunnable
 set above — so this does not redden the pipeline; it means two local cases are
 known-red and must not be mistaken for M8 regressions.
+
+#### Surfaced at M9 — three more, masked until now
+
+`run-surface.spec.ts`'s `the run surface` block runs **serially**, so the first known-red
+case above made Playwright skip everything after it ("did not run"). Running the rest in
+isolation at M9 found three more pre-existing failures:
+
+| Spec | Case |
+| --- | --- |
+| `run-surface.spec.ts` | *keeps the leave and pause controls reachable at 360x640* |
+| `run-surface.spec.ts` | *keeps the leave and pause controls reachable at 360x800* |
+| `run-surface.spec.ts` | *keeps the leave and pause controls reachable at desktop* |
+
+**The symptom:** the case checks `.run__slayyy-button` against the box of `.run__chrome`,
+treating that box as the play column. `.run__chrome` is `justify-self: end` — a right-aligned
+group only as wide as the pause and leave controls — so the full-width SLAYYY control starts
+far to its left at every viewport. The pause and leave controls pass; only the SLAYYY
+assertion's premise is wrong.
+
+**Not an M9 regression, proven:** M9 changes no line of `app/pages/run.vue`'s `<style>` block
+and no line of `tests/e2e/run-surface.spec.ts`. Every other case in the block passes when run
+with these five excluded. Whether the SLAYYY control should be measured against the readout
+column instead is a test correction for its owner, not an M9 change.
 
 ---
 

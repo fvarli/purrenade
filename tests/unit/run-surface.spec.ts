@@ -4,7 +4,9 @@
 // its whole job is DOM listeners and a WebGL teardown, so it needs a document.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useRunSurface } from '~/composables/useRunSurface'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { TUTORIAL_RUN_INIT, useRunSurface } from '~/composables/useRunSurface'
 import { HEARTS } from '~~/game/bridge'
 import type { RunEvent, RunPhase } from '~~/game/bridge'
 
@@ -60,6 +62,11 @@ let created: Array<ReturnType<typeof useRunSurface>> = []
 
 /** What the page asked the engine to mount, so the mode can be asserted. */
 let mountedMode: 'run' | 'tutorial' | undefined
+let mountedSeed: number | undefined
+let mountedCycle: number | undefined
+
+/** A server-started run's seed and cycle, as `StartedRun` would give them. */
+const INIT = { seed: 12345, loliCyclePaws: 0 } as const
 
 function surface(overrides: {
   failMount?: boolean
@@ -67,10 +74,11 @@ function surface(overrides: {
   mode?: 'run' | 'tutorial'
 } = {}) {
   const instance = useRunSurface({
-    makeSeed: () => 12345,
-    mount: async ({ onEvent, mode }) => {
+    mount: async ({ onEvent, mode, seed, loliCyclePaws }) => {
       mountCalls++
       mountedMode = mode
+      mountedSeed = seed
+      mountedCycle = loliCyclePaws
 
       // Lets a test hold the engine mid-import and leave the route underneath it.
       if (overrides.gate) await overrides.gate
@@ -142,7 +150,7 @@ describe('starting a run', () => {
 
     expect(run.loading.value).toBe(true)
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     expect(mountCalls).toBe(1)
     expect(run.loading.value).toBe(false)
@@ -152,7 +160,7 @@ describe('starting a run', () => {
   it('reports a failed engine load instead of leaving a blank screen', async () => {
     const run = surface({ failMount: true })
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     expect(run.failed.value).toBe(true)
     expect(run.loading.value).toBe(false)
@@ -161,7 +169,7 @@ describe('starting a run', () => {
   it('attaches no listeners when the engine fails to load', async () => {
     const run = surface({ failMount: true })
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     expect(listeners['document:visibilitychange'] ?? 0).toBe(0)
     expect(listeners['window:blur'] ?? 0).toBe(0)
@@ -172,15 +180,15 @@ describe('starting a run', () => {
     // held for `stop()` to destroy.
     const run = surface()
 
-    await run.start(container())
-    await run.start(container())
+    await run.start(container(), INIT)
+    await run.start(container(), INIT)
 
     expect(mountCalls).toBe(1)
   })
 
   it('takes the phase from events, never by reading the simulation', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     expect(run.phase.value).toBe('ready')
 
@@ -191,7 +199,7 @@ describe('starting a run', () => {
 
   it('ignores coarse events that carry no phase', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'run_started' })
     emit({ type: 'run_interactive' })
@@ -203,7 +211,7 @@ describe('starting a run', () => {
 describe('stopping a run', () => {
   it('destroys the engine', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     run.stop()
 
@@ -212,7 +220,7 @@ describe('stopping a run', () => {
 
   it('removes every listener it attached', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     run.stop()
 
@@ -224,7 +232,7 @@ describe('stopping a run', () => {
   it('survives being stopped twice', async () => {
     // An unmount racing a navigation calls this more than once.
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     run.stop()
     run.stop()
@@ -250,7 +258,7 @@ describe('stopping a run', () => {
       }
 
       const run = surface()
-      await run.start(container())
+      await run.start(container(), INIT)
 
       expect(listeners['document:visibilitychange']).toBe(1)
 
@@ -267,7 +275,7 @@ describe('stopping a run', () => {
 describe('pausing when the run stops being watched', () => {
   it('pauses when the tab is hidden', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
     document.dispatchEvent(new Event('visibilitychange'))
@@ -278,7 +286,7 @@ describe('pausing when the run stops being watched', () => {
 
   it('pauses when the window loses focus', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     window.dispatchEvent(new Event('blur'))
 
@@ -289,7 +297,7 @@ describe('pausing when the run stops being watched', () => {
     // One-way, deliberately: a tab regaining focus while the player is looking
     // elsewhere must not restart a live run.
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
     document.dispatchEvent(new Event('visibilitychange'))
@@ -304,7 +312,7 @@ describe('pausing when the run stops being watched', () => {
   it('does not pause twice when several signals arrive together', async () => {
     // Hiding a tab fires blur and visibilitychange and pagehide. One pause.
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
     document.dispatchEvent(new Event('visibilitychange'))
@@ -316,7 +324,7 @@ describe('pausing when the run stops being watched', () => {
 
   it('stops responding to visibility once the run is torn down', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
     run.stop()
 
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
@@ -329,7 +337,7 @@ describe('pausing when the run stops being watched', () => {
 describe('the pause control', () => {
   it('toggles both ways', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     run.togglePause()
 
@@ -351,7 +359,7 @@ describe('the pause control', () => {
 
   it('does nothing after teardown', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
     run.stop()
 
     run.togglePause()
@@ -374,7 +382,7 @@ describe('leaving while the engine is still loading', () => {
 
     const run = surface({ gate })
 
-    const starting = run.start(container())
+    const starting = run.start(container(), INIT)
 
     // The player leaves before the import resolves.
     run.stop()
@@ -390,7 +398,7 @@ describe('leaving while the engine is still loading', () => {
     const gate = new Promise<void>((resolve) => { release = resolve })
 
     const run = surface({ gate })
-    const starting = run.start(container())
+    const starting = run.start(container(), INIT)
 
     run.stop()
 
@@ -406,8 +414,8 @@ describe('leaving while the engine is still loading', () => {
 
     const run = surface({ gate })
 
-    const first = run.start(container())
-    const second = run.start(container())
+    const first = run.start(container(), INIT)
+    const second = run.start(container(), INIT)
 
     release()
     await Promise.all([first, second])
@@ -428,7 +436,7 @@ describe('the provisional heart feedback', () => {
     // which is the whole contract between the rules and a heart row.
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'heart_lost', hearts: 2 })
 
@@ -442,7 +450,7 @@ describe('the provisional heart feedback', () => {
   it('reports the terminal phase', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     expect(run.hasEnded.value).toBe(false)
 
@@ -454,7 +462,7 @@ describe('the provisional heart feedback', () => {
   it('resets the heart row when the surface is torn down', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
     emit({ type: 'heart_lost', hearts: 1 })
     run.stop()
 
@@ -481,7 +489,7 @@ describe('the M7 heads-up display', () => {
      */
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'score_changed', total: 140 })
 
@@ -495,7 +503,7 @@ describe('the M7 heads-up display', () => {
   it('tracks both paw counters from one event', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'paws_changed', runPaws: 12, cyclePaws: 199 })
 
@@ -506,7 +514,7 @@ describe('the M7 heads-up display', () => {
   it('shows the companion only while it is running', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'loli_started' })
     expect(run.loliActive.value).toBe(true)
@@ -518,7 +526,7 @@ describe('the M7 heads-up display', () => {
   it('follows the SLAYYY meter through its states', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'slayyy_ready' })
     expect(run.slayyy.value).toBe('ready')
@@ -533,7 +541,7 @@ describe('the M7 heads-up display', () => {
   it('follows the meter\'s fill, as a whole percent', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
     expect(run.slayyyPercent.value).toBe(0)
 
     emit({ type: 'slayyy_charge', percent: 41 })
@@ -552,7 +560,7 @@ describe('the M7 heads-up display', () => {
     // charging is a no-op the rules make, not one the UI guesses at.
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
     run.activateSlayyy()
 
     expect(fake.slayyyCalls).toBe(1)
@@ -568,7 +576,7 @@ describe('the M7 heads-up display', () => {
   it('clears the companion and the active power when the run ends', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'loli_started' })
     emit({ type: 'slayyy_activated' })
@@ -583,7 +591,7 @@ describe('the M7 heads-up display', () => {
     // first event arrived.
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'score_changed', total: 900 })
     emit({ type: 'paws_changed', runPaws: 40, cyclePaws: 40 })
@@ -620,7 +628,7 @@ describe('replaying a run', () => {
 
   it('destroys the finished run and mounts a new one', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     loseTheRun()
     await run.restart()
@@ -640,7 +648,7 @@ describe('replaying a run', () => {
    */
   it('is back at the readiness beat before the new run says anything', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     loseTheRun()
     expect(run.hasEnded.value).toBe(true)
@@ -654,7 +662,7 @@ describe('replaying a run', () => {
 
   it('resets every run-scoped counter', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'slayyy_charge', percent: 80 })
     emit({ type: 'slayyy_ready' })
@@ -681,7 +689,7 @@ describe('replaying a run', () => {
    */
   it('does not multiply listeners however often it is replayed', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     await run.restart()
     await run.restart()
@@ -701,7 +709,7 @@ describe('replaying a run', () => {
 
   it('leaves exactly one live engine behind, not a stack of them', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
 
     await run.restart()
     await run.restart()
@@ -731,7 +739,7 @@ describe('replaying a run', () => {
    */
   it('does not mount into a surface the page has already left', async () => {
     const run = surface()
-    await run.start(container())
+    await run.start(container(), INIT)
     run.stop()
 
     await run.restart()
@@ -753,7 +761,7 @@ describe('the tutorial, from the Vue side', () => {
   it('mounts the mode it was created with', async () => {
     const run = surface({ mode: 'tutorial' })
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     expect(mountedMode).toBe('tutorial')
     expect(run.mode).toBe('tutorial')
@@ -762,7 +770,7 @@ describe('the tutorial, from the Vue side', () => {
   it('mounts a normal run by default', async () => {
     const run = surface()
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     expect(mountedMode).toBe('run')
     expect(run.mode).toBe('run')
@@ -771,7 +779,7 @@ describe('the tutorial, from the Vue side', () => {
   it('stays a tutorial across a replay', async () => {
     const run = surface({ mode: 'tutorial' })
 
-    await run.start(container())
+    await run.start(container(), INIT)
     await run.restart()
 
     // A replay of a tutorial is another tutorial. The mode is held beside the
@@ -784,7 +792,7 @@ describe('the tutorial, from the Vue side', () => {
   it('follows the lessons, and clears the guidance when one is passed', async () => {
     const run = surface({ mode: 'tutorial' })
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'tutorial_lesson', lesson: 'dodge_cone', index: 3, total: 9 })
 
@@ -808,7 +816,7 @@ describe('the tutorial, from the Vue side', () => {
   it('reports how the tutorial ended', async () => {
     const run = surface({ mode: 'tutorial' })
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'tutorial_completed', outcome: 'skipped' })
 
@@ -818,7 +826,7 @@ describe('the tutorial, from the Vue side', () => {
   it('clears every scrap of tutorial state on teardown', async () => {
     const run = surface({ mode: 'tutorial' })
 
-    await run.start(container())
+    await run.start(container(), INIT)
 
     emit({ type: 'tutorial_lesson', lesson: 'collect_paw', index: 5, total: 9 })
     emit({ type: 'tutorial_correction', lesson: 'collect_paw', correction: 'missed_paw', attempt: 2 })
@@ -846,7 +854,7 @@ describe('the tutorial, from the Vue side', () => {
   it('asks the engine to skip once a run exists', async () => {
     const run = surface({ mode: 'tutorial' })
 
-    await run.start(container())
+    await run.start(container(), INIT)
     run.skipTutorial()
 
     expect(fake.skipCalls).toBe(1)
@@ -860,7 +868,7 @@ describe('the tutorial, from the Vue side', () => {
 
     const run = surface({ mode: 'tutorial', gate })
 
-    const pending = run.start(container())
+    const pending = run.start(container(), INIT)
 
     run.stop()
     open()
@@ -871,5 +879,73 @@ describe('the tutorial, from the Vue side', () => {
     emit({ type: 'tutorial_lesson', lesson: 'move_left', index: 1, total: 9 })
 
     expect(run.lesson.value).toBeNull()
+  })
+})
+
+describe('the server seed (M9)', () => {
+  it('mounts the seed and cycle it is given, verbatim', async () => {
+    const run = surface()
+
+    await run.start(container(), { seed: 4294967295, loliCyclePaws: 199 })
+
+    expect(mountedSeed).toBe(4294967295)
+    expect(mountedCycle).toBe(199)
+    // The readout starts from the persistent cycle, before any paw event.
+    expect(run.cyclePaws.value).toBe(199)
+  })
+
+  it('mounts the boundary seed 0', async () => {
+    const run = surface()
+
+    await run.start(container(), { seed: 0, loliCyclePaws: 0 })
+
+    expect(mountedSeed).toBe(0)
+  })
+
+  it('replays a normal run from the new seed it is given', async () => {
+    const run = surface()
+
+    await run.start(container(), INIT)
+    await run.restart({ seed: 777, loliCyclePaws: 42 })
+
+    expect(mountedSeed).toBe(777)
+    expect(mountedCycle).toBe(42)
+  })
+
+  it('replays the tutorial from its fixed start', async () => {
+    const run = surface({ mode: 'tutorial' })
+
+    await run.start(container(), TUTORIAL_RUN_INIT)
+    await run.restart()
+
+    expect(mountedSeed).toBe(0)
+    expect(mountedCycle).toBe(0)
+    expect(TUTORIAL_RUN_INIT).toEqual({ seed: 0, loliCyclePaws: 0 })
+  })
+
+  it('exposes the summary when the run ends, and clears it on teardown', async () => {
+    const run = surface()
+
+    await run.start(container(), INIT)
+    expect(run.summary.value).toBeNull()
+
+    emit({ type: 'run_ended', summary: { score: 1234, runPaws: 12, elapsedMs: 45678 } })
+
+    expect(run.summary.value).toEqual({ score: 1234, runPaws: 12, elapsedMs: 45678 })
+
+    run.stop()
+
+    expect(run.summary.value).toBeNull()
+  })
+
+  it('generates no seed of its own', () => {
+    // RNG-1: a normal run's seed is server-issued. The composable has no
+    // platform RNG left to reach for.
+    // The repository root: this file runs under happy-dom, whose
+    // `import.meta.url` is not a file URL.
+    const source = readFileSync(join(process.cwd(), 'app/composables/useRunSurface.ts'), 'utf8')
+
+    expect(source).not.toMatch(/Math\.random/)
+    expect(source).not.toMatch(/makeSeed|defaultSeed/)
   })
 })

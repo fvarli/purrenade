@@ -296,7 +296,11 @@
         "body": "Beklenmedik bir hata oluştu. Birazdan tekrar deneyin."
       },
       "action": "Ana sayfaya dön"
-    }
+    },
+    "run_not_active": "Bu koşu zaten bitti, yeniden kaydedilemez.",
+    "idempotency_key_reused": "Bu koşu daha önce farklı sonuçlarla gönderilmiş.",
+    "bff_run_finish_pending": "Önceki koşun hâlâ kaydediliyor.",
+    "bff_invalid_request": "Bu istek gönderilemedi. Sayfayı yenileyip tekrar dene."
   },
   "run": {
     "title": "Koşu",
@@ -316,8 +320,7 @@
     "complete": {
       "title": "OYUN BİTTİ!",
       "flavour": "Ayşenur nefesleniyor. Sahil hâlâ burada.",
-      "pawsGained": "+{count} Pati Jetonu",
-      "persistenceNotice": "İlerlemenin kaydedilmesi sonraki aşamada geliyor."
+      "pawsGained": "+{count} Pati Jetonu"
     },
     "phase": {
       "ready": "Hazırlanıyor",
@@ -346,7 +349,40 @@
     "keysSlayyy": "E  SLAYYY",
     "keysPause": "Esc  duraklat",
     "nextGoalTitle": "Sonraki hedef",
-    "nextGoalNote": "Loli Bonusu yaklaşıyor!"
+    "nextGoalNote": "Loli Bonusu yaklaşıyor!",
+    "start": {
+      "starting": "Koşun başlatılıyor…",
+      "resolvingPrevious": "Önce önceki koşun kaydediliyor…",
+      "blocked": "Önceki koşun henüz kaydedilmedi. Denemeye devam ediyoruz — kaydedilince yeni koşu başlar.",
+      "offline": "Koşu başlatmak için internet bağlantısı gerekiyor.",
+      "failed": "Şu anda koşu başlatılamadı.",
+      "retry": "Tekrar dene",
+      "resumed": "Yarım kalan koşun aynı parkurda baştan başlıyor.",
+      "previousSaved": "Önceki koşun kaydedildi."
+    },
+    "submit": {
+      "playedScore": "Oynanan skor",
+      "saving": "Koşun kaydediliyor…",
+      "retrying": "Bağlantın geri gelince bu koşuyu kaydedeceğiz — bu sayfayı açık tut.",
+      "retryNow": "Şimdi dene"
+    },
+    "outcome": {
+      "accepted": "Koşu kaydedildi. En iyi skorun: {best}",
+      "personalBest": "Koşu kaydedildi — yeni kişisel rekor!",
+      "flagged": "Bu koşu kaydedildi, ama rekorlara ve ilerlemeye sayılmıyor.",
+      "rejected": "Bu koşu kabul edilemedi.",
+      "closed": "Bu koşu artık kaydedilemiyor."
+    },
+    "reason": {
+      "value_out_of_domain": "Değerleri bir koşunun üretebileceği sınırların dışındaydı.",
+      "duration_non_positive": "Hiç oyun süresi bildirmedi.",
+      "duration_exceeds_server_window": "Gerçekte geçen süreden daha uzun oyun süresi bildirdi.",
+      "score_below_paw_floor": "Skoru, yalnızca Pati Jetonlarının değerinden bile düşüktü.",
+      "score_rate_high": "Skoru, bir koşunun normalde izin verdiğinden hızlı arttı.",
+      "paw_rate_high": "Pati Jetonlarını bir koşunun normalde izin verdiğinden hızlı topladı.",
+      "score_below_duration_floor": "Süresine göre skoru alışılmadık derecede düşüktü.",
+      "duration_below_minimum": "Bir koşunun normalde bitebileceğinden daha erken bitti."
+    }
   },
   "tutorial": {
     "title": "Eğitim",

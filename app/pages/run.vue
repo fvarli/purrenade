@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { HEARTS, PLAY_COLUMN_MAX_PX, PROGRESS } from '~~/game/bridge'
+import { TUTORIAL_RUN_INIT } from '~/composables/useRunSurface'
+import { DEFAULT_CHARACTER_ID } from '~/stores/run-session'
+import type { RunSubmissionView } from '~/types/run'
 
 /**
  * The run surface.
@@ -7,8 +10,13 @@ import { HEARTS, PLAY_COLUMN_MAX_PX, PROGRESS } from '~~/game/bridge'
  * Board 10 in the approved inventory, reached from the authenticated branch of
  * the navigation map. The engine boundary and the movement rules arrived at M5,
  * obstacles and hearts at M6, and the heads-up display with everything it shows
- * at M7. Submitting a result is M9, so the page still says so rather than
- * implying the number it shows goes anywhere.
+ * at M7. M9 made the run the server's: a normal run is **started by the
+ * server before it is mounted** — its seed, its start time and its identity
+ * come from `POST /api/game-runs` — and its result is submitted to the server,
+ * which classifies it. The sequencing lives in the `runSession` store; this
+ * page mounts what the store says is ready and shows what the server said.
+ * The tutorial is untouched by any of it: it starts from a fixed seed and
+ * submits nothing.
  *
  * **Client-only.** A canvas cannot be server-rendered and Phaser reads `window`
  * at import time, so `nuxt.config.ts` marks this route `ssr: false`.
@@ -80,8 +88,87 @@ const {
   phase, loading, failed, isPaused, hasEnded, hearts, start, stop, restart, togglePause,
   score, runPaws, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
   lesson, lessonIndex, lessonTotal, correction, correctionAttempt, tutorialOutcome,
-  skipTutorial,
+  skipTutorial, summary,
 } = useRunSurface({ mode: tutorialMode ? 'tutorial' : 'run' })
+
+/* --- the server run (M9) ------------------------------------------------ */
+
+const runSession = useRunSessionStore()
+
+/**
+ * Mount the run the server started — only ever that one.
+ *
+ * Keyed on the store's start counter rather than the run id, so resuming the
+ * *same* run (a restart from pause, a reload mid-run) still remounts it from
+ * its own seed. There is no mid-run state to restore without an input log:
+ * a resumed run replays from its start, and the page says so.
+ */
+function mountServerRun(): void {
+  const run = runSession.run
+
+  if (tutorialMode || run === null || surface.value === null) return
+
+  stop()
+  void start(surface.value, { seed: run.seed, loliCyclePaws: run.loli_cycle_paws })
+}
+
+watch(() => runSession.starts, () => {
+  if (runSession.phase === 'ready') mountServerRun()
+})
+
+/**
+ * The run ended: propose its result. Exactly once — `summary` is set once per
+ * mounted run, and the store refuses a second submission for the same run.
+ */
+watch(summary, (ended) => {
+  if (!tutorialMode && ended !== null) void runSession.submit(ended)
+})
+
+/** What the page is waiting on before there is a run to play, if anything. */
+const startStatus = computed(() => {
+  if (tutorialMode) return null
+
+  switch (runSession.phase) {
+    case 'resolving': return runSession.proposed !== null ? t('run.start.resolvingPrevious') : t('run.start.starting')
+    case 'starting': return t('run.start.starting')
+    default: return null
+  }
+})
+
+/** A start that could not happen, and why, in the player's language. */
+const startProblem = computed(() => {
+  if (tutorialMode) return null
+
+  if (runSession.phase === 'blocked') return t('run.start.blocked')
+
+  if (runSession.phase === 'start_failed') {
+    return runSession.problemCode === 'client_network_error'
+      ? t('run.start.offline')
+      : t('run.start.failed')
+  }
+
+  return null
+})
+
+/** The run-complete screen's view of the submission. */
+const submissionView = computed<RunSubmissionView>(() => {
+  if (tutorialMode) return 'local'
+
+  switch (runSession.phase) {
+    case 'retry_wait': return 'retrying'
+    case 'outcome': return 'outcome'
+    case 'closed': return 'closed'
+    default: return 'saving'
+  }
+})
+
+function retryStart(): void {
+  void runSession.begin(runSession.characterId)
+}
+
+function retrySubmission(): void {
+  void runSession.retryNow()
+}
 
 /**
  * The paw readout switches to `n / 200` near the threshold.
@@ -215,9 +302,24 @@ function resumeFromOverlay(): void {
   togglePause()
 }
 
-/** Play again: a genuinely new run in the same surface. */
+/**
+ * Play again.
+ *
+ * The tutorial replays itself. A normal run asks the server: a finished run
+ * gets a new server run, with a new seed; a run abandoned from the pause
+ * screen is still the active one, so the server resumes it and it replays
+ * from its own start — which the page then says, rather than pretending it is
+ * fresh.
+ */
 function replayRun(): void {
-  void restart()
+  if (tutorialMode) {
+    void restart()
+
+    return
+  }
+
+  runSession.acknowledge()
+  void runSession.begin(runSession.characterId)
 }
 
 /* --- the tutorial ------------------------------------------------------- */
@@ -347,10 +449,22 @@ useHead({
  */
 
 onMounted(() => {
-  if (surface.value !== null) void start(surface.value)
+  if (surface.value === null) return
+
+  if (tutorialMode) {
+    void start(surface.value, TUTORIAL_RUN_INIT)
+
+    return
+  }
+
+  // Nothing mounts until the server has started the run.
+  void runSession.begin(DEFAULT_CHARACTER_ID)
 })
 
-onBeforeUnmount(stop)
+onBeforeUnmount(() => {
+  stop()
+  runSession.acknowledge()
+})
 </script>
 
 <template>
@@ -532,13 +646,45 @@ onBeforeUnmount(stop)
       />
 
       <div class="run__foot">
-        <p v-if="loading" class="run__status">
+        <!--
+          The server run first: nothing loads until the server has started one.
+          A start that could not happen says why, and offers the one action
+          that can help — trying again — rather than any local fallback.
+        -->
+        <p v-if="startStatus !== null" class="run__status" role="status">
+          {{ startStatus }}
+        </p>
+
+        <template v-else-if="startProblem !== null">
+          <UiAuthNotice variant="error">
+            {{ startProblem }}
+          </UiAuthNotice>
+          <UiAuthButton variant="secondary" class="run__start-retry" @click="retryStart">
+            {{ t('run.start.retry') }}
+          </UiAuthButton>
+        </template>
+
+        <p v-else-if="loading" class="run__status">
           {{ t('run.loading') }}
         </p>
 
         <UiAuthNotice v-else-if="failed" variant="error">
           {{ t('run.failed') }}
         </UiAuthNotice>
+
+        <!--
+          A resumed run is never presented as fresh (api-client.md §6). It
+          replays from its own start on its own course, because there is no
+          input log from which to restore where it was.
+        -->
+        <p v-else-if="!tutorialMode && runSession.resumed && !hasEnded" class="run__status run__status--resumed" role="status">
+          {{ t('run.start.resumed') }}
+        </p>
+
+        <!-- A finish left from before a reload was delivered on the way here. -->
+        <p v-else-if="!tutorialMode && runSession.previousDelivered !== null && !hasEnded" class="run__status" role="status">
+          {{ t('run.start.previousSaved') }}
+        </p>
       </div>
 
       <div class="run__slayyy">
@@ -624,10 +770,13 @@ onBeforeUnmount(stop)
       v-if="hasEnded"
       :score="score"
       :paws="runPaws"
-      :busy="loading"
+      :busy="loading || runSession.busy"
+      :submission="submissionView"
+      :outcome="runSession.outcome"
       :restore-focus-to="surface"
       @replay="replayRun"
       @menu="leaveToMenu"
+      @retry="retrySubmission"
     />
 
     <!--

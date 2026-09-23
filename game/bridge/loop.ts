@@ -33,6 +33,12 @@ import type { RenderSnapshot, RunEvent, RunEventSink } from './types'
 
 export interface RunLoopOptions {
   readonly seed: number
+  /**
+   * The player's persistent Loli progress, `0..199`, which this run starts
+   * from. Server-owned (`StartedRun.loli_cycle_paws`); `0` for the tutorial,
+   * whose paw earns nothing.
+   */
+  readonly loliCyclePaws?: number
   /** Coarse run events for the app layer. Never called with gameplay state. */
   readonly onEvent?: RunEventSink
   /** Which game to drive. `'run'` by default — the tutorial is the opt-in. */
@@ -70,8 +76,8 @@ export interface RunLoop {
   debugState(): RunState
 }
 
-export function createRunLoop({ seed, onEvent, mode = 'run' }: RunLoopOptions): RunLoop {
-  let state = createRunState({ seed, mode })
+export function createRunLoop({ seed, loliCyclePaws = 0, onEvent, mode = 'run' }: RunLoopOptions): RunLoop {
+  let state = createRunState({ seed, loliCyclePaws, mode })
   let previous = toRenderSnapshot(state)
   let current = previous
 
@@ -237,7 +243,14 @@ export function createRunLoop({ seed, onEvent, mode = 'run' }: RunLoopOptions): 
      * produced has already been emitted when this fires.
      */
     if (state.phase === 'ended' && before.phase !== 'ended') {
-      emit({ type: 'run_ended' })
+      emit({
+        type: 'run_ended',
+        summary: {
+          score: current.score.total,
+          runPaws: state.runPaws,
+          elapsedMs: state.elapsedMs,
+        },
+      })
     }
 
     emitTutorialTransitions(before)

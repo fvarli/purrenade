@@ -393,6 +393,26 @@ value could reorder.
 
 ---
 
+## 13. Server plausibility bounds — PROPOSED, flag-only (M9)
+
+The backend classifies every finish (`purrenade-api` `docs/security/anti-cheat.md` §3B,
+`config/game_runs.php`). Bounds derived from the **PROPOSED** values above may only **flag** a
+run — never reject it — because a legitimate player's run is never rejected on an unresolved
+tuning number (ANTI-4). A change to any value they derive from should be checked against them.
+
+| Server rule | Bound | Derived from | Effect |
+| --- | --- | --- | --- |
+| `score_rate_high` | > 80 points per second | §3A speed, §7 difficulty, §9 scoring, §11 SLAYYY ×2 (theoretical max ≈ 78.6) | flag |
+| `paw_rate_high` | > 3 paws per second | §10 paw spawn (peak ≤ 2.08/s) | flag |
+| `score_below_duration_floor` | < 5 points per second | half of §9 `distancePerSecond` 10 | flag |
+| `duration_below_minimum` | < 4000 ms | §5 first hazard 2500 ms + invulnerability, below the ≈ 4900 ms fastest three-heart loss | flag |
+
+The **structural** rules — which may reject — rest only on APPROVED or LOCKED values:
+`score.perPaw` 10 (`score ≥ 10 × run_paws`), the stored integer domain, a non-zero duration,
+and a claimed duration within the server's own `finished_at − started_at` window plus 5000 ms.
+
+---
+
 ## Values that are NOT tunable — APPROVED
 
 Some things are invariants, not parameters. They must not be exposed as config,

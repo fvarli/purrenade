@@ -44,6 +44,17 @@ against it**: Nuxt 4.5.2 dev-depends on TS `6.0.3`, `@nuxtjs/i18n` and `@pinia/n
 `^5.9.3`. The caret is deliberately narrowed to a tilde so a future `npm update` cannot silently
 cross a major boundary the toolchain does not support.
 
+### `openapi-typescript` 7.13.0 — M9, verified 2026-09-23
+
+The contract generator (`api-client.md` §1A). 7.13.0 was the current stable release at
+install. It declares `peerDependencies: { typescript: "^5.x" }`, which the pinned TS `~6.0.3`
+does not satisfy. Resolved with a **targeted** npm `overrides` entry —
+`"openapi-typescript": { "typescript": "$typescript" }` — so the generator uses the project's
+own TypeScript; `--force` and `--legacy-peer-deps` were not used. Verified before pinning:
+generation succeeds under TS 6.0.3, is byte-deterministic across runs, and its output
+typechecks. The lockfile gained only the generator and its own dependencies. **Remove the
+override once `openapi-typescript` declares TS 6 support.** Run with Node 24 (`.nvmrc`).
+
 ### The one dependency that is not ours: `esbuild`
 
 `esbuild@0.28.2` appears in `devDependencies` but **no Purrenade code imports it**. It resolves

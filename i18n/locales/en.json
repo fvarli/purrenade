@@ -296,7 +296,11 @@
         "body": "An unexpected error occurred. Try again in a moment."
       },
       "action": "Back to the start"
-    }
+    },
+    "run_not_active": "That run has already ended and can't be saved again.",
+    "idempotency_key_reused": "That run was already submitted with different results.",
+    "bff_run_finish_pending": "Your previous run is still being saved.",
+    "bff_invalid_request": "That request couldn't be sent. Reload the page and try again."
   },
   "run": {
     "title": "Run",
@@ -316,8 +320,7 @@
     "complete": {
       "title": "GAME OVER!",
       "flavour": "Ayşenur is catching her breath. The seaside is still here.",
-      "pawsGained": "+{count} Paw Tokens",
-      "persistenceNotice": "Saving your progress arrives in a later milestone."
+      "pawsGained": "+{count} Paw Tokens"
     },
     "phase": {
       "ready": "Getting ready",
@@ -346,7 +349,40 @@
     "keysSlayyy": "E  SLAYYY",
     "keysPause": "Esc  pause",
     "nextGoalTitle": "Next goal",
-    "nextGoalNote": "The Loli Bonus is getting closer!"
+    "nextGoalNote": "The Loli Bonus is getting closer!",
+    "start": {
+      "starting": "Starting your run…",
+      "resolvingPrevious": "Saving your previous run first…",
+      "blocked": "Your previous run hasn't been saved yet. We'll keep trying — a new run starts once it's saved.",
+      "offline": "You need a connection to start a run.",
+      "failed": "We couldn't start a run right now.",
+      "retry": "Try again",
+      "resumed": "Your unfinished run restarts on the same course.",
+      "previousSaved": "Your previous run has been saved."
+    },
+    "submit": {
+      "playedScore": "Score played",
+      "saving": "Saving your run…",
+      "retrying": "We'll save this run when you're back online — keep this page open.",
+      "retryNow": "Try now"
+    },
+    "outcome": {
+      "accepted": "Run saved. Your best: {best}",
+      "personalBest": "Run saved — new personal best!",
+      "flagged": "This run was recorded, but it doesn't count toward records or progress.",
+      "rejected": "This run couldn't be accepted.",
+      "closed": "This run could no longer be recorded."
+    },
+    "reason": {
+      "value_out_of_domain": "Its numbers were outside anything a run can produce.",
+      "duration_non_positive": "It reported no playing time at all.",
+      "duration_exceeds_server_window": "It reported more playing time than had actually passed.",
+      "score_below_paw_floor": "Its score was lower than its Paw Tokens alone are worth.",
+      "score_rate_high": "Its score rose faster than a run normally allows.",
+      "paw_rate_high": "It collected Paw Tokens faster than a run normally allows.",
+      "score_below_duration_floor": "Its score was unusually low for how long it lasted.",
+      "duration_below_minimum": "It ended sooner than a run normally can."
+    }
   },
   "tutorial": {
     "title": "Tutorial",

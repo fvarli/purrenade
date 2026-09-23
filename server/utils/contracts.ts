@@ -1,49 +1,37 @@
+import type { components, paths } from '~~/shared/contracts/api.generated'
+
 /**
  * The shapes this BFF expects from the Laravel API.
  *
- * Hand-written for M2, and that is a known temporary state. `docs/architecture/
- * api-client.md` §1 makes generation from `openapi.draft.yaml` the rule, so a
- * contract change surfaces as a type error rather than a runtime surprise. The
- * generator is a toolchain task of its own; until it lands, these types are
- * kept deliberately small and are checked against the OpenAPI document by hand
- * whenever either changes.
+ * **Generated where it matters, migrated incrementally** (`docs/architecture/
+ * api-client.md` §1A). The source is the backend's OpenAPI document, pinned as
+ * a snapshot under `contracts/openapi/` and turned into
+ * `shared/contracts/api.generated.ts` by `npm run contract:generate`; CI
+ * regenerates and diffs it. Everything M9 introduced — the run lifecycle and
+ * progression — and every shape M9 touched is an alias of a generated type, so
+ * a contract change is a type error here rather than a runtime surprise.
  *
- * Recorded as OPEN in the decision register so it is a scheduled task rather
- * than a quiet omission.
+ * The remaining hand-written envelopes are the authentication ones M9 does not
+ * touch. They move to generated aliases when they are next changed, not in an
+ * unrelated sweep. A drift found on the way is fixed in the backend's OpenAPI
+ * document, never by forking a generated type here.
  */
+type Schemas = components['schemas']
 
-/** The `/auth/me` projection. Mirrors App\Http\Resources\AuthenticatedUserResource. */
-export interface AuthenticatedUser {
-  id: number
-  display_name: string
-  email: string
-  role: 'player' | 'admin'
-  email_verified: boolean
-  email_verified_at: string | null
-  two_factor_enabled: boolean
-  two_factor_pending: boolean
-  two_factor_recovery_codes_remaining: number
-  requires_two_factor_enrolment: boolean
-  /**
-   * Has the player finished — or skipped — the first-run tutorial?
-   *
-   * A read projection. Progression owns the fact and
-   * `POST /progression/tutorial` is the only thing that can change it; this
-   * rides along on `/auth/me` because the decision it feeds is where PLAY goes,
-   * and that is decided during server-side render.
-   *
-   * The server stores a timestamp and sends a boolean. When a player finished
-   * is not a decision this client makes differently.
-   */
-  tutorial_completed: boolean
-  created_at: string | null
-  session: {
-    id: string
-    device: string
-    two_factor_satisfied: boolean
-    created_at: string | null
-  } | null
-}
+/** The JSON body of an operation's response, straight from the contract. */
+type JsonBody<Operation, Status extends number>
+  = Operation extends { responses: Record<Status, { content: { 'application/json': infer Body } }> }
+    ? Body
+    : never
+
+/**
+ * The `/auth/me` projection. Generated: `AuthenticatedUser` in the contract.
+ *
+ * `tutorial_completed` rides along for first-run routing: the server stores a
+ * timestamp and sends a boolean, because when a player finished is not a
+ * decision this client makes differently.
+ */
+export type AuthenticatedUser = Schemas['AuthenticatedUser']
 
 export interface EmailVerificationMeta {
   resend_available_in: number
@@ -85,9 +73,24 @@ export type LoginEnvelope =
   }
 
 /** `POST /progression/tutorial`. One bit, and deliberately nothing else. */
-export interface TutorialStateEnvelope {
-  data: { tutorial_completed: boolean }
-}
+export type TutorialStateEnvelope = JsonBody<paths['/progression/tutorial']['post'], 200>
+
+// --- M9: runs and progression ------------------------------------------------
+
+/** `GET /progression`. */
+export type ProgressionEnvelope = JsonBody<paths['/progression']['get'], 200>
+export type Progression = Schemas['Progression']
+
+/** `POST /game-runs` — `201` for a new run, `200` for a resumed one. Same body. */
+export type StartedRunEnvelope = JsonBody<paths['/game-runs']['post'], 201>
+export type StartedRun = Schemas['StartedRun']
+
+/** `POST /game-runs/{runId}/finish`. */
+export type RunResultEnvelope = JsonBody<paths['/game-runs/{runId}/finish']['post'], 200>
+export type RunResult = Schemas['RunResult']
+
+/** The untrusted proposal a finish carries. Integers only, by protocol. */
+export type RunTelemetry = Schemas['RunTelemetry']
 
 export interface TwoFactorChallengeEnvelope {
   status: 'authenticated'

@@ -321,6 +321,10 @@ export async function destroySession(event: H3Event): Promise<void> {
 
   if (id && isPlausibleIdentifier(id)) {
     await storage().removeItem(id)
+    // A pending run finish belongs to this session and this account. It ends
+    // with them — sign-out, rotation on a privilege change, or expiry — so it
+    // can never be submitted as somebody else.
+    await storage().removeItem(pendingRunFinishKey(id))
   }
 
   deleteCookie(event, cookieName(), { path: '/', secure: true, sameSite: 'lax' })
@@ -341,4 +345,33 @@ export function csrfTokenMatches(submitted: string, expected: string): boolean {
   if (a.length !== b.length) return false
 
   return timingSafeEqual(a, b)
+}
+
+/**
+ * The storage key of a session's pending run finish.
+ *
+ * A **sibling** of the session record rather than a field inside it, on
+ * purpose. `touchSession` writes back the whole record it read at the start of
+ * its request, so a field living in the record could be erased by any
+ * concurrent request that happened to refresh the idle clock — silently losing
+ * the one thing the pending finish exists to keep. A key of its own has exactly
+ * one writer. The `:` makes it a separate namespace, and its shape can never be
+ * mistaken for a session identifier (`isPlausibleIdentifier`).
+ */
+export function pendingRunFinishKey(sessionId: string): string {
+  return `run-pending:${sessionId}`
+}
+
+/** Read a session's pending run finish, or null. */
+export async function readPendingRunFinish<T>(sessionId: string): Promise<T | null> {
+  return await storage().getItem<T>(pendingRunFinishKey(sessionId))
+}
+
+/** Store a session's pending run finish, surfacing a store failure as a problem. */
+export async function writePendingRunFinish<T extends object>(sessionId: string, pending: T): Promise<void> {
+  await withStore(() => storage().setItem(pendingRunFinishKey(sessionId), pending))
+}
+
+export async function clearPendingRunFinish(sessionId: string): Promise<void> {
+  await withStore(() => storage().removeItem(pendingRunFinishKey(sessionId)))
 }

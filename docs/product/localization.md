@@ -72,6 +72,14 @@ resolution must work with no session present.
 
 ## 5. Copy that does not yet exist — OPEN
 
+> **State of the files, recorded so this section is not misread (M9).** `i18n/locales/en.json`
+> and `es.json` exist with **full key parity** with `tr.json`, enforced in CI, so every screen
+> renders in all three. That parity is a build property, not an approval: the English and
+> Spanish copy — and M9's new run-start, submission, outcome and reason copy in all three
+> locales (`run.start.*`, `run.submit.*`, `run.outcome.*`, `run.reason.*`, and the
+> `errors.run_not_active`, `errors.idempotency_key_reused`, `errors.bff_*` codes) — is
+> **PROPOSED** until reviewed. The status below stands.
+
 **Only Turkish copy exists.** v0.3 contains two sample strings in the other
 locales — *"Play as Ayşenur by the sea!"* and *"¡Juega con Ayşenur junto al
 mar!"* — and nothing more.

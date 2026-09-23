@@ -42,7 +42,7 @@ produces **separate commits in each**; the repositories are never merged.
 | **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — frozen at `cf4a07b` | — |
 | **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated, frozen at `3d3909d` | — |
 | **M8** | Interactive tutorial | web | M7 + tutorial design | **DELIVERED** — TU-1 resolved by deriving the treatment from the production visual system | — |
-| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | **Not started — unblocked.** ADR-0006 accepted 2026-09-22 | — |
+| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | **Implemented, local gates verified — awaiting the independent adversarial audit, then release.** Not closed. | — |
 | **M10** | Leaderboards | both | M9 | Not started | — |
 | **M11** | Achievements and character unlocks | both | M9 | **Not started — blocked on AU-1 and ANTI-6** | — |
 | **M12** | Support screens, PWA, accessibility, responsive/desktop | web | M4, M7 | Not started | — |
@@ -390,7 +390,14 @@ variants.
 
 ---
 
-## M9 — Run lifecycle, anti-cheat boundary, progression — UNBLOCKED
+## M9 — Run lifecycle, anti-cheat boundary, progression — IMPLEMENTED, AUDIT PENDING
+
+> **Status (2026-09-23).** Implemented in both repositories and verified against the local
+> gates and the local stack. **Not released and not closed:** an independent adversarial
+> audit precedes the push, CI, the backend-first production deployment and the owner's
+> real-device acceptance. The expand half of the tutorial relocation ships with it; the drop of
+> `users.tutorial_completed_at` is a later, separate deployment. ANTI-6 stays open and blocks
+> M11.
 
 **Unblocked by ADR-0006** (accepted 2026-09-22): **Layer 1 + Layer 2** ship in v1 — structural
 and plausibility validation, plus server-owned run identity with a server-recorded start and a

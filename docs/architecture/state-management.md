@@ -116,6 +116,16 @@ trusted.
 
 ---
 
+### 2.5 What M9 added — confirmed
+
+`app/stores/run-session.ts` — the normal run's **server** lifecycle: the server run to mount
+(`StartedRun`), whether it was resumed, the submission's progress and the server's
+`RunResult`. It never holds `RunState`, a seed of its own, or an outcome it inferred, and it
+writes nothing to browser storage. It resets on sign-out and on a change of account.
+
+`useRunSurface` gained `summary` (the client's proposal, from `run_ended`) and takes its seed
+and starting `loliCyclePaws` as inputs rather than generating them.
+
 ## 3. Server-authoritative progression — APPROVED
 
 The client displays progression; the **server decides** it.

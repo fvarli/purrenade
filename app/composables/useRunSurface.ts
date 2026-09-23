@@ -3,6 +3,7 @@ import { HEARTS } from '~~/game/bridge'
 import type {
   RunEvent,
   RunPhase,
+  RunSummary,
   TutorialCorrection,
   TutorialLesson,
   TutorialOutcome,
@@ -25,16 +26,38 @@ import type {
  * The Vue layer learns the phase from events. It never reads the simulation.
  */
 
+/**
+ * What a run is mounted from.
+ *
+ * For a normal run **both come from the server** (`StartedRun`): the seed is
+ * server-issued (RNG-1) and the cycle is the player's persistent Loli progress.
+ * This composable never invents either — there is no local seed for a normal
+ * run, so a run the server did not start cannot be played as though it had.
+ */
+export interface RunInit {
+  readonly seed: number
+  readonly loliCyclePaws: number
+}
+
+/**
+ * The tutorial's fixed start: seed `0`, an empty cycle.
+ *
+ * The tutorial draws no randomness — it is scripted, and
+ * `tutorial-isolation.spec` proves it — so any constant would do, and a
+ * constant makes that visible. It starts from zero Loli progress because its
+ * one paw earns nothing.
+ */
+export const TUTORIAL_RUN_INIT: RunInit = Object.freeze({ seed: 0, loliCyclePaws: 0 })
+
 /** Injected so tests can drive a fake engine without loading Phaser. */
 export interface RunSurfaceOptions {
   readonly mount?: (options: {
     container: HTMLElement
     seed: number
+    loliCyclePaws: number
     mode: RunMode
     onEvent: (event: RunEvent) => void
   }) => Promise<MountedRun>
-  /** Injected so a test does not depend on a real random seed. */
-  readonly makeSeed?: () => number
   /**
    * Which game to mount. `'run'` by default.
    *
@@ -53,7 +76,8 @@ export interface RunSurface {
   readonly loading: Readonly<Ref<boolean>>
   readonly failed: Readonly<Ref<boolean>>
   readonly isPaused: ComputedRef<boolean>
-  start: (container: HTMLElement) => Promise<void>
+  /** Mount a run into `container`, from the seed and cycle it was started with. */
+  start: (container: HTMLElement, init: RunInit) => Promise<void>
   stop: () => void
   /**
    * Play again, in the same container, as a genuinely new run.
@@ -67,8 +91,12 @@ export interface RunSurface {
    *
    * A no-op before the first `start()`, because there is no container to
    * mount into yet.
+   *
+   * `init` defaults to the one the current run was started with — right for the
+   * tutorial, whose start is fixed. A normal run is replayed from a **new
+   * server run**, so its caller passes the new seed.
    */
-  restart: () => Promise<void>
+  restart: (init?: RunInit) => Promise<void>
   togglePause: () => void
   readonly hasEnded: ComputedRef<boolean>
   readonly hearts: Readonly<Ref<number>>
@@ -117,6 +145,16 @@ export interface RunSurface {
   readonly tutorialOutcome: Readonly<Ref<TutorialOutcome | null>>
   /** Leave the tutorial without finishing it. A no-op on a normal run. */
   skipTutorial: () => void
+
+  // --- M9 -------------------------------------------------------------------
+
+  /**
+   * What the finished run proposes, once it has ended; `null` until then.
+   *
+   * The client's claim, read from the sealed terminal state. The page hands it
+   * to the run session to submit; nothing here treats it as a result.
+   */
+  readonly summary: Readonly<Ref<RunSummary | null>>
 }
 
 /** The approved starting value, projected through the boundary. */
@@ -168,8 +206,12 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
   const correction = ref<TutorialCorrection | null>(null)
   const correctionAttempt = ref(0)
   const tutorialOutcome = ref<TutorialOutcome | null>(null)
+  const summary = ref<RunSummary | null>(null)
 
   let run: MountedRun | null = null
+
+  /** What the current run was mounted from, so `restart()` can reuse it. */
+  let lastInit: RunInit | null = null
 
   /**
    * The element the current run was mounted into, for `restart()`.
@@ -229,7 +271,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     phase.value = 'paused'
   }
 
-  const start = async (container: HTMLElement): Promise<void> => {
+  const start = async (container: HTMLElement, init: RunInit): Promise<void> => {
     // Guard re-entry, including re-entry *during* a mount.
     if (run !== null || mounting) return
 
@@ -239,6 +281,11 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
 
     loading.value = true
     failed.value = false
+    lastInit = init
+
+    // The readout starts where the player's persistent progress is, before the
+    // first paw event arrives.
+    cyclePaws.value = init.loliCyclePaws
 
     try {
       const mount = options.mount ?? (async (args) => {
@@ -249,15 +296,13 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
         return mountRun(args)
       })
 
-      // The seed is generated in the app layer: the domain may not read a
-      // platform RNG, and whether it becomes server-issued is RNG-1, still
-      // OPEN pending ADR-0006. When that settles, it changes here and nowhere
-      // else.
-      const seed = (options.makeSeed ?? defaultSeed)()
-
+      // Passed through verbatim. The seed is server-issued for a normal run
+      // (RNG-1, ADR-0006) and fixed for the tutorial; nothing here generates
+      // one, and the domain refuses anything that is not a uint32.
       const mounted = await mount({
         container,
-        seed,
+        seed: init.seed,
+        loliCyclePaws: init.loliCyclePaws,
         mode,
         onEvent: (event: RunEvent) => {
           // A late event from an abandoned mount must not drive the UI.
@@ -291,6 +336,7 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
           if (event.type === 'run_ended') {
             loliActive.value = false
             if (slayyy.value === 'active') slayyy.value = 'charging'
+            summary.value = event.summary
           }
 
           if (event.type === 'tutorial_lesson') {
@@ -395,6 +441,10 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     correctionAttempt.value = 0
     tutorialOutcome.value = null
 
+    // And M9's: a summary surviving a teardown would be submitted for the
+    // next run.
+    summary.value = null
+
     // `splice(0)` empties the list as it reads it, so a second `stop()` — from
     // an unmount racing a navigation — undoes nothing twice.
     for (const undo of teardown.splice(0)) undo()
@@ -403,15 +453,16 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     run = null
   }
 
-  const restart = async (): Promise<void> => {
+  const restart = async (init?: RunInit): Promise<void> => {
     const container = mountedContainer
+    const next = init ?? lastInit
 
     // Nothing has been mounted yet, so there is nothing to replay.
-    if (container === null) return
+    if (container === null || next === null) return
 
     stop()
 
-    await start(container)
+    await start(container, next)
   }
 
   const togglePause = (): void => {
@@ -450,13 +501,6 @@ export function useRunSurface(options: RunSurfaceOptions = {}): RunSurface {
     phase, loading, failed, isPaused, hasEnded, hearts, start, stop, restart, togglePause,
     score, runPaws, cyclePaws, loliActive, slayyy, slayyyPercent, activateSlayyy,
     mode, lesson, lessonIndex, lessonTotal, correction, correctionAttempt,
-    tutorialOutcome, skipTutorial,
+    tutorialOutcome, skipTutorial, summary,
   }
-}
-
-function defaultSeed(): number {
-  // Not `Math.random()` for its distribution — for its availability. This is
-  // the app layer, where a platform RNG is allowed; the domain's ban applies to
-  // the rules, which receive this value rather than producing one.
-  return Math.floor(Math.random() * 0xFFFFFFFF)
 }

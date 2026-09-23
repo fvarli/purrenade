@@ -1,0 +1,7 @@
+{
+  "repository": "purrenade-api",
+  "commit": "7476378bc450fedbe6e76f43003432d6f534d2e5",
+  "path": "docs/api/openapi.draft.yaml",
+  "sha256": "8813acef81528b7d7e86ec4500ecbf1ba4151a0dc26015d1fffd501ae9916b71",
+  "generator": "openapi-typescript@7.13.0"
+}

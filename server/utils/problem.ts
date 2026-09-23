@@ -34,6 +34,14 @@ export const BffProblemCode = {
    * codes would mean two branches for one condition.
    */
   NotFound: 'not_found',
+  /**
+   * A finish for another run is still waiting to be delivered. It must be
+   * resolved first: one pending finish per session, and no new run while one
+   * is outstanding.
+   */
+  RunFinishPending: 'bff_run_finish_pending',
+  /** The browser sent a body the BFF will not forward. */
+  InvalidRequest: 'bff_invalid_request',
 } as const
 
 export type ProblemCode = (typeof BffProblemCode)[keyof typeof BffProblemCode]
@@ -63,6 +71,8 @@ const TITLES: Record<ProblemCode, string> = {
   [BffProblemCode.UpstreamUnavailable]: 'Upstream unavailable',
   [BffProblemCode.SessionUnavailable]: 'Session store unavailable',
   [BffProblemCode.NotFound]: 'Not found',
+  [BffProblemCode.RunFinishPending]: 'A previous run is still being saved',
+  [BffProblemCode.InvalidRequest]: 'Invalid request',
 }
 
 /**

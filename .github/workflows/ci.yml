@@ -41,6 +41,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # The wire contract is the backend's OpenAPI document, pinned here as a
+      # snapshot with its provenance. This regenerates the TypeScript types from
+      # the snapshot and fails on any difference, so neither the snapshot nor
+      # the generated types can be edited by hand. Before typecheck, so a drift
+      # is reported as what it is rather than as a type error somewhere else.
+      - name: Contract matches the pinned backend snapshot
+        run: npm run contract:check
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -360,6 +368,7 @@ jobs:
           run-lifecycle.spec.ts
           run-obstacles.spec.ts
           run-scoring.spec.ts
+          run-submission.spec.ts
           run-surface.spec.ts
           run-touch.spec.ts
           run-tutorial.spec.ts

@@ -1,12 +1,15 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref, useTemplateRef } from 'vue'
 import RunPage from '~/pages/run.vue'
 import RunCompleteOverlay from '~/components/run/CompleteOverlay.vue'
 import RunOverlayDialog from '~/components/run/OverlayDialog.vue'
 import RunPauseOverlay from '~/components/run/PauseOverlay.vue'
+import { runSessionStub } from '../support/run-session-stub'
+import type { RunSessionStub } from '../support/run-session-stub'
 import { HEARTS, PROGRESS } from '~~/game/bridge'
 import type { TutorialCorrection, TutorialLesson, TutorialOutcome } from '~~/game/bridge'
+import type { RunResult } from '~/types/run'
 
 /**
  * The heads-up display.
@@ -21,6 +24,30 @@ import type { TutorialCorrection, TutorialLesson, TutorialOutcome } from '~~/gam
  * The page is mounted against a fake `useRunSurface`. The real one owns a
  * WebGL context, and this is a test of the readout, not of the engine.
  */
+
+/** A server result, with overridable fields. */
+function runResult(overrides: Partial<RunResult> = {}): RunResult {
+  return {
+    run_id: '01999999-9999-7999-8999-999999999999',
+    status: 'accepted',
+    score: 1000,
+    run_paws: 50,
+    is_personal_best: false,
+    previous_best_score: 900,
+    reasons: [],
+    progression: {
+      lifetime_paws: 50,
+      loli_cycle_paws: 50,
+      loli_threshold: 200,
+      best_score: 1000,
+      run_count: 1,
+      tutorial_completed: true,
+    },
+    achievements_unlocked: [],
+    characters_unlocked: [],
+    ...overrides,
+  }
+}
 
 /** Every value the page destructures, so the fake cannot silently omit one. */
 function surfaceState() {
@@ -52,6 +79,9 @@ function surfaceState() {
     correctionAttempt: ref(0),
     tutorialOutcome: ref<TutorialOutcome | null>(null),
     skipTutorial: vi.fn(),
+
+    // --- M9 -----------------------------------------------------------------
+    summary: ref<{ score: number, runPaws: number, elapsedMs: number } | null>(null),
   }
 }
 
@@ -71,6 +101,9 @@ let tutorialCompleted = true
 type SurfaceState = ReturnType<typeof surfaceState>
 
 let state: SurfaceState
+
+/** The run session the page talks to. Fresh per test. */
+let session: RunSessionStub
 
 function render() {
   return mount(RunPage, {
@@ -102,6 +135,7 @@ function render() {
 
 beforeEach(() => {
   state = surfaceState()
+  session = runSessionStub()
   routeQuery = {}
   tutorialCompleted = true
 
@@ -109,6 +143,7 @@ beforeEach(() => {
   globals.definePageMeta = () => {}
   globals.useHead = () => {}
   globals.useTemplateRef = useTemplateRef
+  globals.useRunSessionStore = () => session
   globals.navigateTo = vi.fn()
   globals.useRunSurface = () => state
   globals.useRoute = () => ({ query: routeQuery })
@@ -523,10 +558,11 @@ describe('the desktop side cards', () => {
 
 describe('the display claims nothing the run does not know', () => {
   /*
-   * v0.3's score card shows a personal best under the score, and there is no
-   * such number: persistence is M9, and `useRunSurface` has no field for it.
-   * Printing one would be the HUD inventing state — so the card carries the
-   * caption and the score, and stops there.
+   * v0.3's score card shows a personal best under the score, and during a run
+   * there is no such number: the best is the server's, it arrives only with the
+   * run's result (M9), and `useRunSurface` has no field for it. Printing one in
+   * the HUD would be inventing state — so the card carries the caption and the
+   * score, and stops there.
    */
   it('shows no personal best, no unlocks and no profile progression', () => {
     state.score.value = 4210
@@ -588,13 +624,18 @@ describe('the pause screen', () => {
     expect(state.restart).not.toHaveBeenCalled()
   })
 
-  it('restarts exactly once per activation', async () => {
+  it('restarts exactly once per activation — by asking the server, which resumes the run', async () => {
     state.isPaused.value = true
     const page = render()
+    await flushPromises()
+    session.begin.mockClear()
 
     await page.get('.run__restart').trigger('click')
 
-    expect(state.restart).toHaveBeenCalledTimes(1)
+    // A normal run is never restarted locally: the server run is still active,
+    // so the server resumes it and the page remounts it from its own seed.
+    expect(session.begin).toHaveBeenCalledTimes(1)
+    expect(state.restart).not.toHaveBeenCalled()
   })
 
   /*
@@ -673,14 +714,36 @@ describe('the run-complete screen', () => {
       .toBe(page.get('.run__complete .run__overlay-title').attributes('id'))
   })
 
-  it('reports the two facts the finished run actually produced', () => {
+  it('shows the score as played while it is being saved, and labels it so', async () => {
+    const page = render()
+    await flushPromises()
+    session.phase = 'submitting'
     state.hasEnded.value = true
     state.score.value = 4210
     state.runPaws.value = 37
-    const page = render()
+    await page.vm.$nextTick()
 
     expect(page.get('.run__final-score-value').text()).toBe('4210')
-    expect(page.get('.run__final-paws').text()).toContain('run.complete.pawsGained(count=37)')
+    expect(page.get('.run__final-score-label').text()).toBe('run.submit.playedScore')
+    expect(page.get('.run__overlay-note').text()).toBe('run.submit.saving')
+    // No paw gain and no verdict before the server has given one.
+    expect(page.find('.run__final-paws').exists()).toBe(false)
+    expect(page.find('.run__outcome').exists()).toBe(false)
+  })
+
+  it('shows the server\'s numbers once it has answered, not its own', async () => {
+    const page = render()
+    await flushPromises()
+    session.outcome = runResult({ status: 'accepted', score: 4000, run_paws: 30 })
+    session.phase = 'outcome'
+    state.hasEnded.value = true
+    state.score.value = 4210
+    state.runPaws.value = 37
+    await page.vm.$nextTick()
+
+    expect(page.get('.run__final-score-value').text()).toBe('4000')
+    expect(page.get('.run__final-score-label').text()).toBe('run.scoreLabel')
+    expect(page.get('.run__final-paws').text()).toContain('run.complete.pawsGained(count=30)')
   })
 
   /*
@@ -690,33 +753,46 @@ describe('the run-complete screen', () => {
    * and those two numbers stop agreeing the moment the first bonus lands. The
    * summary is about the run, so it takes `runPaws`.
    */
-  it('summarises the run total rather than the bonus cycle', () => {
+  it('summarises the run total rather than the bonus cycle', async () => {
+    const page = render()
+    await flushPromises()
+    session.outcome = runResult({ status: 'accepted', run_paws: 240 })
+    session.phase = 'outcome'
     state.hasEnded.value = true
     state.runPaws.value = 240
     state.cyclePaws.value = 40
-    const page = render()
+    await page.vm.$nextTick()
 
     expect(page.get('.run__final-paws').text()).toContain('count=240')
   })
 
-  it('claims no record, no best and no persistence it does not have', () => {
+  it('claims no record or best the server has not stated', async () => {
+    const page = render()
+    await flushPromises()
+    session.phase = 'submitting'
     state.hasEnded.value = true
     state.score.value = 4210
-    const page = render()
+    await page.vm.$nextTick()
 
     expect(page.find('.run__record').exists()).toBe(false)
     expect(page.find('.run__highscore').exists()).toBe(false)
-    // What it says instead: the truth, which is that nothing is saved yet.
-    expect(page.get('.run__overlay-note').text()).toBe('run.complete.persistenceNotice')
+    expect(page.text()).not.toContain('run.outcome.personalBest')
   })
 
-  it('replays exactly once per activation', async () => {
-    state.hasEnded.value = true
+  it('replays exactly once per activation — as a new server run', async () => {
     const page = render()
+    await flushPromises()
+    session.outcome = runResult({ status: 'accepted' })
+    session.phase = 'outcome'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+    session.begin.mockClear()
 
     await page.get('.run__replay').trigger('click')
 
-    expect(state.restart).toHaveBeenCalledTimes(1)
+    expect(session.acknowledge).toHaveBeenCalledTimes(1)
+    expect(session.begin).toHaveBeenCalledTimes(1)
+    expect(state.restart).not.toHaveBeenCalled()
   })
 
   it('returns to the menu without restarting', async () => {
@@ -757,5 +833,152 @@ describe('abandoning a run', () => {
     await page.get('.run__menu').trigger('click')
 
     expect(navigateTo).toHaveBeenCalledWith('/')
+  })
+})
+
+describe('the server run (M9)', () => {
+  it('mounts nothing until the server has started the run, then mounts its seed and cycle', async () => {
+    let release: () => void = () => {}
+    session.begin.mockImplementationOnce(async () => {
+      session.phase = 'starting'
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      session.run = {
+        run_id: '01999999-9999-7999-8999-999999999999',
+        character_id: 'aysenur',
+        seed: 4294967295,
+        started_at: '2026-09-23T12:00:00.000Z',
+        loli_cycle_paws: 199,
+      }
+      session.phase = 'ready'
+      session.starts++
+    })
+
+    const page = render()
+    await flushPromises()
+
+    expect(session.begin).toHaveBeenCalledWith('aysenur')
+    expect(state.start).not.toHaveBeenCalled()
+    expect(page.get('.run__status').text()).toBe('run.start.starting')
+
+    release()
+    await flushPromises()
+
+    expect(state.start).toHaveBeenCalledTimes(1)
+    expect(state.start.mock.calls[0]?.[1]).toEqual({ seed: 4294967295, loliCyclePaws: 199 })
+  })
+
+  it('offers only a retry when the start fails — never a local run', async () => {
+    session.begin.mockImplementationOnce(async () => {
+      session.phase = 'start_failed'
+      session.problemCode = 'client_network_error'
+    })
+
+    const page = render()
+    await flushPromises()
+
+    expect(state.start).not.toHaveBeenCalled()
+    expect(page.text()).toContain('run.start.offline')
+
+    await page.get('.run__start-retry').trigger('click')
+
+    expect(session.begin).toHaveBeenCalledTimes(2)
+  })
+
+  it('says a resumed run is resumed, never fresh', async () => {
+    session.begin.mockImplementationOnce(async () => {
+      session.run = {
+        run_id: '01999999-9999-7999-8999-999999999999',
+        character_id: 'aysenur',
+        seed: 1,
+        started_at: '2026-09-23T12:00:00.000Z',
+        loli_cycle_paws: 0,
+      }
+      session.resumed = true
+      session.phase = 'ready'
+      session.starts++
+    })
+
+    const page = render()
+    await flushPromises()
+
+    expect(page.get('.run__status--resumed').text()).toBe('run.start.resumed')
+  })
+
+  it('submits the summary once the run ends', async () => {
+    const page = render()
+    await flushPromises()
+
+    state.summary.value = { score: 1234, runPaws: 12, elapsedMs: 45678.9 }
+    await page.vm.$nextTick()
+
+    expect(session.submit).toHaveBeenCalledTimes(1)
+    expect(session.submit).toHaveBeenCalledWith({ score: 1234, runPaws: 12, elapsedMs: 45678.9 })
+  })
+
+  it.each([
+    ['accepted', 'run.outcome.accepted(best=1000)'],
+    ['flagged', 'run.outcome.flagged'],
+    ['rejected', 'run.outcome.rejected'],
+  ] as const)('tells the truth about a %s run', async (status, copy) => {
+    const page = render()
+    await flushPromises()
+    session.outcome = runResult({
+      status,
+      score: status === 'rejected' ? null : 1000,
+      run_paws: status === 'rejected' ? null : 50,
+      reasons: status === 'accepted' ? [] : ['score_rate_high'],
+    })
+    session.phase = 'outcome'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    expect(page.get('.run__outcome').text()).toBe(copy)
+
+    if (status !== 'accepted') {
+      expect(page.text()).toContain('run.reason.score_rate_high')
+      // No gain is shown for a run that changed nothing.
+      expect(page.find('.run__final-paws').exists()).toBe(false)
+    }
+
+    if (status === 'rejected') expect(page.find('.run__final-score').exists()).toBe(false)
+  })
+
+  it('announces a new personal best only when the server says so', async () => {
+    const page = render()
+    await flushPromises()
+    session.outcome = runResult({ status: 'accepted', is_personal_best: true })
+    session.phase = 'outcome'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    expect(page.get('.run__outcome').text()).toBe('run.outcome.personalBest')
+  })
+
+  it('keeps an offline finish waiting with a retry, and blocks replay until it resolves', async () => {
+    const page = render()
+    await flushPromises()
+    session.phase = 'retry_wait'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    expect(page.text()).toContain('run.submit.retrying')
+    expect(page.get('.run__replay').attributes('busy')).toBe('true')
+
+    await page.get('.run__retry').trigger('click')
+
+    expect(session.retryNow).toHaveBeenCalledTimes(1)
+  })
+
+  it('says so when the run could no longer be recorded', async () => {
+    const page = render()
+    await flushPromises()
+    session.phase = 'closed'
+    session.problemCode = 'run_not_active'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    expect(page.get('.run__outcome').text()).toBe('run.outcome.closed')
   })
 })

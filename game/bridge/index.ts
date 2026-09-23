@@ -29,6 +29,7 @@ export type {
   RunEvent,
   RunEventSink,
   RunPhase,
+  RunSummary,
   TutorialCorrection,
   TutorialLesson,
   TutorialOutcome,

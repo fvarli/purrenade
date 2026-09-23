@@ -296,7 +296,11 @@
         "body": "Se ha producido un error inesperado. Inténtalo de nuevo en un momento."
       },
       "action": "Volver al inicio"
-    }
+    },
+    "run_not_active": "Esa carrera ya terminó y no se puede volver a guardar.",
+    "idempotency_key_reused": "Esa carrera ya se envió con otros resultados.",
+    "bff_run_finish_pending": "Tu carrera anterior aún se está guardando.",
+    "bff_invalid_request": "No se pudo enviar esa solicitud. Recarga la página e inténtalo de nuevo."
   },
   "run": {
     "title": "Carrera",
@@ -316,8 +320,7 @@
     "complete": {
       "title": "¡FIN DEL JUEGO!",
       "flavour": "Ayşenur recupera el aliento. La playa sigue aquí.",
-      "pawsGained": "+{count} Huellas",
-      "persistenceNotice": "Guardar tu progreso llega en una fase posterior."
+      "pawsGained": "+{count} Huellas"
     },
     "phase": {
       "ready": "Preparándose",
@@ -346,7 +349,40 @@
     "keysSlayyy": "E  SLAYYY",
     "keysPause": "Esc  pausar",
     "nextGoalTitle": "Próxima meta",
-    "nextGoalNote": "¡El Bonus de Loli se acerca!"
+    "nextGoalNote": "¡El Bonus de Loli se acerca!",
+    "start": {
+      "starting": "Iniciando tu carrera…",
+      "resolvingPrevious": "Primero guardamos tu carrera anterior…",
+      "blocked": "Tu carrera anterior aún no se ha guardado. Seguimos intentándolo: la nueva empieza en cuanto se guarde.",
+      "offline": "Necesitas conexión para empezar una carrera.",
+      "failed": "Ahora mismo no se puede empezar una carrera.",
+      "retry": "Reintentar",
+      "resumed": "Tu carrera sin terminar vuelve a empezar en el mismo recorrido.",
+      "previousSaved": "Tu carrera anterior se ha guardado."
+    },
+    "submit": {
+      "playedScore": "Puntuación jugada",
+      "saving": "Guardando tu carrera…",
+      "retrying": "Guardaremos esta carrera cuando vuelvas a tener conexión; mantén esta página abierta.",
+      "retryNow": "Intentar ahora"
+    },
+    "outcome": {
+      "accepted": "Carrera guardada. Tu mejor marca: {best}",
+      "personalBest": "Carrera guardada: ¡nuevo récord personal!",
+      "flagged": "Esta carrera se ha registrado, pero no cuenta para récords ni progreso.",
+      "rejected": "Esta carrera no se ha podido aceptar.",
+      "closed": "Esta carrera ya no se puede registrar."
+    },
+    "reason": {
+      "value_out_of_domain": "Sus valores estaban fuera de lo que una carrera puede producir.",
+      "duration_non_positive": "No indicó ningún tiempo de juego.",
+      "duration_exceeds_server_window": "Indicó más tiempo de juego del que había pasado realmente.",
+      "score_below_paw_floor": "Su puntuación era menor que lo que valen solo sus Huellas.",
+      "score_rate_high": "Su puntuación subió más rápido de lo que una carrera permite normalmente.",
+      "paw_rate_high": "Recogió Huellas más rápido de lo que una carrera permite normalmente.",
+      "score_below_duration_floor": "Su puntuación era inusualmente baja para lo que duró.",
+      "duration_below_minimum": "Terminó antes de lo que una carrera puede terminar normalmente."
+    }
   },
   "tutorial": {
     "title": "Tutorial",

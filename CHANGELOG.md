@@ -6,6 +6,31 @@ This project does not yet have released versions.
 
 ## [Unreleased]
 
+### Added — M9: the server starts the run and decides it
+
+A normal run is now the server's (ADR-0006, Layers 1 and 2). The client proposes; the server
+decides; the page shows what the server said.
+
+- **Start before play.** PLAY asks the server for a run first (`POST /api/game-runs`) and
+  mounts nothing until it has one. The engine is seeded from the **server-issued** uint32 seed
+  and starts from the player's persistent Loli progress; `Math.random` is gone from the run
+  surface. A failed start offers a retry and never a local run. A resumed run is announced as
+  resumed and replays from its own start — there is no input log to restore mid-run state.
+- **An honest result screen.** Until the server answers, the score is labelled as the score
+  played. Then the server's verdict: accepted (with its score, paws and personal best),
+  flagged (recorded, not counted — honestly), rejected (explicitly), or "could no longer be
+  recorded". Every reason class has copy in tr, en and es.
+- **A finish survives a lost connection.** Play continues offline. The BFF stores the finish —
+  a stable retry payload with a UUID `Idempotency-Key` generated once — **before** calling the
+  API, and every retry resends exactly that. Backoff 2–60 s with jitter, never sooner than
+  `retry_after`, at once on `online`. A reload delivers a held finish before any new run. Never
+  in browser storage: server-side, beside the session, and destroyed with it.
+- **One contract.** The backend's OpenAPI document is snapshotted with its provenance under
+  `contracts/openapi/`, `openapi-typescript` 7.13.0 generates `shared/contracts/api.generated.ts`,
+  and CI regenerates and diffs it (`npm run contract:check`). Every M9 shape and every shape
+  M9 touched is a generated alias.
+- **Tutorial untouched.** Fixed seed `0`, no server run, nothing submitted.
+
 ### Added — the game teaches itself
 
 Physical-phone testing found the failure this milestone exists for: **a new player who meets

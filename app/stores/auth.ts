@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { AuthStatus, AuthUser, EmailVerificationState } from '~/types/auth'
 import type { SsrCall } from '~/composables/useBffClient'
+import { useRunSessionStore } from '~/stores/run-session'
 
 /**
  * Authentication state.
@@ -255,6 +256,12 @@ export const useAuthStore = defineStore('auth', {
       this.recoveryCodesAvailable = false
 
       invalidateCsrfToken()
+
+      // The run session belongs to the account that was signed in. Its pending
+      // finish lives in the BFF session, which ends with this; the in-memory
+      // half goes too, so nothing of one account is shown to — or retried
+      // as — the next.
+      useRunSessionStore().reset()
     },
 
     /**

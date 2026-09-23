@@ -17,18 +17,22 @@ behind one module as §2 requires:
 | Error normalisation to a stable `code` | `app/composables/useApiProblem.ts` |
 | BFF routes, session, CSRF, upstream client | `server/` — see [bff-and-session.md](bff-and-session.md) |
 
-Two things this document requires are **not** yet done. Neither is an open decision any
-more; both are **M9 work**.
+### Since M9
 
-- **Generated types.** §1 requires client types to come from the contract.
-  `server/utils/contracts.ts` is hand-written, checked against
-  `openapi.draft.yaml` by hand whenever either changes. **M9 absorbs this debt** —
-  see §1A.
-- **Retries, cancellation and idempotency keys.** §4 and §6 concern run
-  submission, which does not exist yet. The BFF client has timeouts and does not
-  retry; the one retry it performs is a single CSRF-token refresh, which is not a
-  network retry. **M9 builds them**, against a contract that is now decided
-  ([ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md)).
+Both items that were outstanding after M2 are implemented.
+
+- **Generated types** — §1A. `server/utils/contracts.ts` aliases the generated contract for
+  every shape M9 introduced or touched; the remaining auth envelopes move when they are next
+  changed.
+- **The run lifecycle, its retries and its idempotency key** — §6, "As implemented".
+
+| Concern | Where |
+| --- | --- |
+| Contract snapshot and provenance | `contracts/openapi/purrenade-api.openapi.yaml`, `contracts/openapi/SOURCE.json` |
+| Generated types | `shared/contracts/api.generated.ts` (never edited by hand) |
+| Run start, finish, pending, progression — BFF | `server/api/game-runs/**`, `server/api/progression/index.get.ts` |
+| The pending finish (stable retry payload + key) | `server/utils/run-finish.ts`, stored beside the session record (`server/utils/session.ts`) |
+| The browser's run lifecycle | `app/stores/run-session.ts` |
 
 ---
 
@@ -75,6 +79,24 @@ the repository's version policy, the tool's current stable version is re-verifie
 time rather than pinned from a document.
 
 This does not change what §1 already requires. It records how the requirement is finally met.
+
+### As implemented at M9
+
+| Step | Command | What it does |
+| --- | --- | --- |
+| Sync | `npm run contract:sync -- <path-to-purrenade-api> <40-char sha>` | `git show <sha>:docs/api/openapi.draft.yaml` → the snapshot, byte for byte; writes `SOURCE.json` (repository, commit, path, sha256, generator); regenerates. Refuses a SHA not on the backend's `origin/main`; `--allow-unpublished` exists only for a backend commit that has not been pushed yet, and warns. |
+| Generate | `npm run contract:generate` | `openapi-typescript` over the snapshot → `shared/contracts/api.generated.ts`, unformatted, excluded from ESLint |
+| Check (CI, before typecheck) | `npm run contract:check` | Snapshot sha256 must match `SOURCE.json`; the installed generator must be the recorded one; regenerating must reproduce the committed file byte for byte. Reads nothing outside this repository. `tests/unit/contract-check.spec.ts` proves each failure. |
+
+**Generator:** `openapi-typescript` **7.13.0**, pinned exactly. It declares a TypeScript peer
+of `^5.x`; this repository pins TS `~6.0.3` for Nuxt (versions-and-runtime §1A). An npm
+`overrides` entry points the generator at the project's own TypeScript instead of loosening
+peer resolution globally; generation was verified deterministic and its output typechecks
+under TS 6.
+
+**A drift found while migrating is fixed at the source.** The first one: `AuthenticatedUser`
+declared `email_verified_at`, `created_at`, `session` and `session.created_at` optional,
+although the API always returns them. The backend OpenAPI now marks them required.
 
 ---
 
@@ -204,6 +226,42 @@ The server answers with one of three outcomes, and the client must distinguish t
 **The client never infers an outcome from a status code**, and never presents its own
 optimistic numbers once a response has arrived. All three outcomes, and every flag-reason
 class, ship in **tr / en / es** (ADR-0007).
+
+### As implemented at M9
+
+**Start.** `run.vue` mounts nothing for a normal run until `runSession.begin()` has a server
+run: `POST /api/game-runs` → `{ run: StartedRun, resumed }`. The engine is mounted from the
+run's `seed` and `loli_cycle_paws`; there is no local seed anywhere (`useRunSurface` has no
+platform RNG left), and a failed start offers a retry, never a local run. A `200` resume is
+shown as such ("your unfinished run restarts on the same course") and replays from its start —
+there is no input log to restore mid-run state from (RNG-2). A restart from the pause screen
+asks the server too, which resumes the still-active run. The tutorial mounts from a fixed
+seed `0` and never calls any of this.
+
+**Finish.** `run_ended` carries the run's summary; the store proposes it once as three
+integers. The BFF generates the `Idempotency-Key` (a UUID), stores key and payload **beside
+the session record, before** calling Laravel, and on every later attempt resends exactly what
+it stored — whatever the browser sends. The stored payload is a **stable retry payload**, a
+copy of an untrusted proposal; Laravel alone classifies it.
+
+| Answer | BFF keeps the payload? | Browser |
+| --- | --- | --- |
+| `200` (any outcome) | cleared | shows the server's outcome and numbers |
+| `403` / `404` / `409` / `422` | cleared | "this run could no longer be recorded" — never retried |
+| `401`, `429`, `5xx`, timeout, unreachable | kept | retries: 2, 4, 8, 16, 30, 60 s (cap), ±20 % jitter, never sooner than `retry_after`; at once on `online`; "try now" by hand |
+
+**Reload.** `begin()` first asks `GET /api/game-runs/pending`; a finish the BFF is holding is
+delivered before any new run starts, and while it cannot be, the page says so and waits.
+
+**Account boundary.** The pending payload is keyed to the BFF session and destroyed with it
+(sign-out, rotation on a privilege change, expiry); the store resets on `auth.reset()` and
+when a different user appears. One session holds at most one pending finish, and no new run
+starts while it exists (`409 bff_run_finish_pending`).
+
+**Known limit (accepted, PWA-1).** A proposal that never reached the BFF — the device was
+offline from the moment the run ended until the tab was closed — is lost. The run stays
+`active` server-side; the next start resumes it within 24 h of its start or replaces it after
+that. Solving this is service-worker scope (M12), not M9.
 
 ---
 

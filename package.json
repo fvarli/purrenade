@@ -20,7 +20,10 @@
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "contract:sync": "node scripts/contract-sync.mjs",
+    "contract:generate": "openapi-typescript contracts/openapi/purrenade-api.openapi.yaml -o shared/contracts/api.generated.ts",
+    "contract:check": "node scripts/contract-check.mjs"
   },
   "dependencies": {
     "@fontsource/baloo-2": "5.3.0",
@@ -42,8 +45,14 @@
     "esbuild": "0.28.2",
     "eslint": "10.10.0",
     "happy-dom": "20.14.5",
+    "openapi-typescript": "7.13.0",
     "typescript": "~6.0.3",
     "vitest": "5.0.0",
     "vue-tsc": "3.3.11"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

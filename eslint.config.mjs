@@ -10,6 +10,10 @@ export default withNuxt(
       '.output/**',
       'dist/**',
       'coverage/**',
+      // Generated from the backend's OpenAPI document by `npm run
+      // contract:generate`, byte for byte, and diffed in CI. Reformatting it
+      // would make every regeneration a diff.
+      'shared/contracts/api.generated.ts',
     ],
   },
   /*

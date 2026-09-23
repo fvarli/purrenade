@@ -308,6 +308,32 @@ export function useBffClient() {
     completeTutorial: () =>
       bffRequest<{ tutorialCompleted: boolean }>('/api/progression/tutorial', { method: 'POST' }),
 
+    // --- M9: the run lifecycle ------------------------------------------
+
+    /** Start a normal run, or resume the active one (`resumed: true`). */
+    startRun: (characterId: string) =>
+      bffRequest<{ run: import('~/types/run').StartedRun, resumed: boolean }>(
+        '/api/game-runs',
+        { method: 'POST', body: { character_id: characterId } },
+      ),
+
+    /**
+     * Deliver a run's finish. `telemetry` is the proposal on the first attempt;
+     * on a retry the BFF resends the payload it stored, whatever is sent here.
+     */
+    finishRun: (runId: string, telemetry: import('~/types/run').RunTelemetry | null) =>
+      bffRequest<{ result: import('~/types/run').RunResult }>(
+        `/api/game-runs/${encodeURIComponent(runId)}/finish`,
+        { method: 'POST', body: telemetry === null ? {} : { telemetry } },
+      ),
+
+    /** A finish the BFF is still holding for this session, if any. */
+    pendingRunFinish: () =>
+      bffRequest<{ pending: import('~/types/run').PendingRunFinishView | null }>('/api/game-runs/pending'),
+
+    progression: () =>
+      bffRequest<{ progression: import('~/types/run').Progression }>('/api/progression'),
+
     verifyEmail: (body: { code: string }) =>
       bffRequest<{ user: import('~/types/auth').AuthUser }>('/api/auth/email/verify', { method: 'POST', body }),
 

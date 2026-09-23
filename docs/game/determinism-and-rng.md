@@ -57,10 +57,12 @@ server-issued seed is a change at the boundary, not in the rules.
 | --- | --- |
 | `game/domain/` | **None.** `createRunState({ seed })` already validates and stores whatever it is handed. |
 | `game/bridge/` | **None.** `createRunLoop({ seed })` receives a seed; it has never made one. |
-| App layer | The seed stops being generated locally and starts coming from the run-start response. Today it is produced by `Math.random()` in `app/composables/useRunSurface.ts`, whose own comment says this changes "here and nowhere else" once RNG-1 settles. **It has now settled; the change itself is M9 implementation work.** |
+| App layer | **Done at M9.** The seed comes from the run-start response (`StartedRun.seed`) and is passed to the engine verbatim; `Math.random()` is gone from `useRunSurface`. Wire type: a JSON **integer** in `0..4294967295` (uint32) — exact in PHP, PostgreSQL `bigint` and JavaScript, so it is never a string. The BFF refuses a start response whose seed is outside that range before it reaches the domain. |
 
 The tutorial is unaffected: it consumes no randomness at all, submits nothing, and starts no
-authoritative run.
+authoritative run. Since M9 it mounts from a fixed seed `0` (`TUTORIAL_RUN_INIT`), which makes
+that visible. The run's persistent `loliCyclePaws` is server-issued too (`StartedRun.loli_cycle_paws`)
+and threaded through the bridge into `createRunState`; the tutorial starts from `0`.
 
 ### 3.0B No input log — APPROVED (RNG-2)
 

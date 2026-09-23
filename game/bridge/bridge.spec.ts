@@ -766,6 +766,38 @@ describe('the world does not depend on the display', () => {
     expect(sameStep).toContain('phase_changed')
   })
 
+  it('carries the run summary on run_ended, read from the sealed terminal state (M9)', () => {
+    const events: RunEvent[] = []
+    const loop = createRunLoop({ seed: 31, onEvent: e => events.push(e) })
+
+    for (let i = 0; i < 20_000 && loop.debugState().phase !== 'ended'; i++) {
+      loop.frame(STEP_MS)
+    }
+
+    const ended = events.find(event => event.type === 'run_ended')
+    const final = loop.debugState()
+
+    expect(ended?.type).toBe('run_ended')
+
+    if (ended?.type !== 'run_ended') return
+
+    // The same numbers the terminal snapshot shows — and only these three:
+    // nothing an M9 server cannot establish is proposed (ANTI-6).
+    expect(ended.summary).toEqual({
+      score: toRenderSnapshot(final).score.total,
+      runPaws: final.runPaws,
+      elapsedMs: final.elapsedMs,
+    })
+    expect(Object.keys(ended.summary).sort()).toEqual(['elapsedMs', 'runPaws', 'score'])
+    expect(Number.isInteger(ended.summary.score)).toBe(true)
+  })
+
+  it('starts the domain from the loliCyclePaws it is given (M9)', () => {
+    expect(createRunLoop({ seed: 1, loliCyclePaws: 137 }).debugState().loliCyclePaws).toBe(137)
+    expect(createRunLoop({ seed: 1 }).debugState().loliCyclePaws).toBe(0)
+    expect(() => createRunLoop({ seed: 1, loliCyclePaws: 200 })).toThrow(RangeError)
+  })
+
   it('compares M7 fields that have actually moved, not constants', () => {
     /*
      * A guard on the test above rather than a new comparison.

@@ -19,6 +19,8 @@ export interface MountRunOptions {
   /** The element the canvas goes into. Sized by CSS; Phaser follows it. */
   readonly container: HTMLElement
   readonly seed: number
+  /** Persistent Loli progress the run starts from. Server-issued for a normal run. */
+  readonly loliCyclePaws?: number
   /** Coarse run events for the app layer. Never gameplay state. */
   readonly onEvent?: (event: RunEvent) => void
   /**
@@ -60,12 +62,12 @@ export interface MountedRun {
  * a WebGL context and a requestAnimationFrame loop, and neither is collected by
  * navigating away.
  */
-export async function mountRun({ container, seed, onEvent, mode }: MountRunOptions): Promise<MountedRun> {
+export async function mountRun({ container, seed, loliCyclePaws, onEvent, mode }: MountRunOptions): Promise<MountedRun> {
   // The lazy boundary. Static-importing Phaser here would put it in every
   // bundle that transitively reaches this module, which is the whole app.
   const phaser = (await import('phaser')).default
 
-  const loop: RunLoop = createRunLoop({ seed, onEvent, mode })
+  const loop: RunLoop = createRunLoop({ seed, loliCyclePaws, onEvent, mode })
 
   let destroyed = false
 

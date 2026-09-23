@@ -1,41 +1,59 @@
 <script setup lang="ts">
+import type { RunReasonCode, RunResult, RunSubmissionView } from '~/types/run'
+
 /**
- * Board 13 — run complete.
+ * Board 13 — run complete, and what the server made of it (M9).
  *
- * Everything on it is a fact the finished run actually produced: the score the
- * HUD was already showing, and the Paw Tokens collected during it. Both stop
- * changing when the run ends, because the domain seals the terminal state and
- * emits no further `score_changed` or `paws_changed`.
+ * The run ended on this device; whether it *counts* is the server's decision,
+ * and this screen says only what is actually known at each moment:
  *
- * ## What the approved board shows and this does not
+ * | `submission` | What it shows |
+ * | --- | --- |
+ * | `saving` | The score as played, and that it is being saved |
+ * | `retrying` | That the run will be saved when the connection returns — keep the page open |
+ * | `outcome` | The **server's** answer: accepted, flagged or rejected, with its numbers |
+ * | `closed` | That the run could no longer be recorded |
+ * | `local` | The tutorial's case: nothing is submitted |
  *
- * The board pairs the score with a **record**, adds an achievement progress
- * chip, and has a sibling board for a new personal best. None of those can be
- * stated truthfully yet: there is no personal best anywhere in this frontend —
- * no store, no web-storage write, no field on the run surface — because the
- * authoritative score is decided by the backend on submission, and submission
- * is M9. Achievements are M11 and the leaderboard is M10.
- *
- * So the record slot is left out rather than filled with a session-local number
- * dressed as a record, and the one durable sentence from the retired
- * `run.scopeNotice` takes its place: saving progress arrives later. That is the
- * honest version of the same information, and it leaves M9 a clean slot.
+ * **Never the client's own verdict.** Until the server answers, the number on
+ * screen is labelled as the score *played*; once it answers, only the server's
+ * values are shown (`api-client.md` §6). A flagged run is shown honestly as
+ * recorded but not counted; a rejected one explicitly, never as a success.
+ * Neither shows a progression, Paw or personal-best change, because none
+ * happened.
  */
 
-defineProps<{
+const props = defineProps<{
   score: number
   paws: number
   busy?: boolean
+  submission?: RunSubmissionView
+  outcome?: RunResult | null
   restoreFocusTo?: HTMLElement | null
 }>()
 
 const emit = defineEmits<{
   replay: []
   menu: []
+  retry: []
 }>()
 
 const { t } = useI18n()
 const titleId = useId()
+
+const state = computed<RunSubmissionView>(() => props.submission ?? 'local')
+
+/** The server's answer, once there is one. */
+const result = computed(() => (state.value === 'outcome' ? props.outcome ?? null : null))
+
+/** The first reason, for one honest sentence rather than a list of codes. */
+const reason = computed<RunReasonCode | null>(() => result.value?.reasons[0] ?? null)
+
+/**
+ * Replaying waits for a final answer: a new run cannot start while this one's
+ * finish is still being delivered.
+ */
+const replayBusy = computed(() => props.busy === true || state.value === 'saving' || state.value === 'retrying')
 </script>
 
 <template>
@@ -50,26 +68,66 @@ const titleId = useId()
       </p>
 
       <!--
-        The same score card the HUD uses, at the size this screen deserves. The
-        caption is the existing `run.scoreLabel`, not a second translation of
-        the same word.
+        The score card. Before the server answers it is the score as played;
+        after, the server's — and for a rejected run there is no score to show.
       -->
-      <p class="run__final-score">
-        <span class="run__final-score-label">{{ t('run.scoreLabel') }}</span>
-        <span class="run__final-score-value">{{ score }}</span>
+      <p v-if="result === null || result.score !== null" class="run__final-score">
+        <span class="run__final-score-label">
+          {{ result === null ? t('run.submit.playedScore') : t('run.scoreLabel') }}
+        </span>
+        <span class="run__final-score-value">{{ result?.score ?? score }}</span>
       </p>
 
-      <p class="run__final-paws">
-        <span aria-hidden="true" class="run__paw-glyph">🐾</span>
-        {{ t('run.complete.pawsGained', { count: paws }) }}
+      <template v-if="result?.status === 'accepted'">
+        <p class="run__final-paws">
+          <span aria-hidden="true" class="run__paw-glyph">🐾</span>
+          {{ t('run.complete.pawsGained', { count: result.run_paws ?? 0 }) }}
+        </p>
+
+        <p class="run__outcome run__outcome--accepted" role="status">
+          {{ result.is_personal_best
+            ? t('run.outcome.personalBest')
+            : t('run.outcome.accepted', { best: result.progression.best_score }) }}
+        </p>
+      </template>
+
+      <template v-else-if="result?.status === 'flagged'">
+        <p class="run__outcome run__outcome--flagged" role="status">
+          {{ t('run.outcome.flagged') }}
+        </p>
+        <p v-if="reason !== null" class="run__overlay-note">
+          {{ t(`run.reason.${reason}`) }}
+        </p>
+      </template>
+
+      <template v-else-if="result?.status === 'rejected'">
+        <p class="run__outcome run__outcome--rejected" role="status">
+          {{ t('run.outcome.rejected') }}
+        </p>
+        <p v-if="reason !== null" class="run__overlay-note">
+          {{ t(`run.reason.${reason}`) }}
+        </p>
+      </template>
+
+      <p v-else-if="state === 'saving'" class="run__overlay-note" role="status">
+        {{ t('run.submit.saving') }}
       </p>
 
-      <p class="run__overlay-note">
-        {{ t('run.complete.persistenceNotice') }}
+      <template v-else-if="state === 'retrying'">
+        <p class="run__overlay-note" role="status">
+          {{ t('run.submit.retrying') }}
+        </p>
+        <UiAuthButton variant="secondary" class="run__retry" @click="emit('retry')">
+          {{ t('run.submit.retryNow') }}
+        </UiAuthButton>
+      </template>
+
+      <p v-else-if="state === 'closed'" class="run__outcome run__outcome--rejected" role="status">
+        {{ t('run.outcome.closed') }}
       </p>
 
       <div class="run__overlay-actions">
-        <UiAuthButton class="run__replay" :busy="busy" @click="emit('replay')">
+        <UiAuthButton class="run__replay" :busy="replayBusy" @click="emit('replay')">
           {{ t('run.replay') }}
         </UiAuthButton>
 
@@ -145,6 +203,15 @@ const titleId = useId()
   margin: 0;
   font-size: var(--type-caption);
   color: var(--text-primary);
+  max-inline-size: 34ch;
+}
+
+.run__outcome {
+  margin: 0;
+  font-size: var(--type-body);
+  font-weight: 800;
+  text-align: center;
+  color: var(--color-ink);
   max-inline-size: 34ch;
 }
 

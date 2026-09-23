@@ -88,6 +88,11 @@ finish for a run the server already knows about, which is ordinary request retry
 stable key rather than an offline-first queue — see
 [`api-client.md`](api-client.md) §6.
 
+**As built at M9:** no service worker, no web storage, no IndexedDB. The retry payload lives in
+the BFF session (server-side), so it survives reloads and restarts while the session does; the
+browser keeps only in-memory state. The one gap — a proposal that never reached the BFF before
+the tab closed offline — is recorded in `api-client.md` §6 and belongs to M12.
+
 ---
 
 ## 4. Caching strategy — PROPOSED

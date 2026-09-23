@@ -189,7 +189,7 @@ export type RunEvent =
   | { readonly type: 'phase_changed', readonly phase: RunPhase }
   | { readonly type: 'heart_lost', readonly hearts: number }
   | { readonly type: 'near_miss' }
-  | { readonly type: 'run_ended' }
+  | { readonly type: 'run_ended', readonly summary: RunSummary }
   /**
    * The score changed, carrying the new total.
    *
@@ -254,6 +254,27 @@ export type RunEvent =
   | { readonly type: 'tutorial_completed', readonly outcome: TutorialOutcome }
 
 /** What the app hands the engine when it mounts a run. */
+/**
+ * What a finished run proposes to the server (M9).
+ *
+ * Read from the sealed terminal state, so it is the last word on the run:
+ * `run_ended` is emitted after every other change the final step made. The
+ * numbers are the client's claim and nothing more — the server classifies them
+ * and decides what, if anything, they are worth.
+ *
+ * Deliberately only these three. Near misses, obstacle passes, SLAYYY and Loli
+ * activations are not submitted: the server cannot establish them in v1
+ * (ANTI-6), and a client count of them is an input to nothing.
+ */
+export interface RunSummary {
+  /** The displayed score: the integer the HUD showed last. */
+  readonly score: number
+  /** Paw Tokens collected in this run. */
+  readonly runPaws: number
+  /** Simulated running time — excludes the ready beat, pauses and dropped catch-up steps. */
+  readonly elapsedMs: number
+}
+
 export interface RunEventSink {
   (event: RunEvent): void
 }

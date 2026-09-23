@@ -69,6 +69,13 @@ export const Endpoint = {
   sessionRevoke: { method: 'DELETE', path: '/api/v1/auth/sessions' },
   profileUpdate: { method: 'PATCH', path: '/api/v1/profile' },
   progressionTutorial: { method: 'POST', path: '/api/v1/progression/tutorial' },
+  progression: { method: 'GET', path: '/api/v1/progression' },
+  gameRunStart: { method: 'POST', path: '/api/v1/game-runs' },
+
+  // The finish path has a run id in it, so — like `sessionRevoke` — the table
+  // holds the collection and `gameRunFinishPath()` is the only thing that may
+  // build the full path, from a validated UUID.
+  gameRunFinish: { method: 'POST', path: '/api/v1/game-runs' },
   adminOverview: { method: 'GET', path: '/api/v1/admin/overview' },
 } as const satisfies Record<string, { method: string, path: string }>
 
@@ -89,6 +96,24 @@ export function sessionRevokePath(publicId: string): string {
   }
 
   return `/api/v1/auth/sessions/${publicId}`
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * `/api/v1/game-runs/{runId}/finish`, built only from a UUID.
+ *
+ * A malformed id answers exactly like an unknown one — `404` — for the same
+ * reason the API does: the endpoint must not be an existence oracle.
+ */
+export function gameRunFinishPath(runId: string): string {
+  if (!UUID.test(runId)) {
+    throw new UpstreamProblem(
+      bffProblem(BffProblemCode.NotFound, 404, 'That run does not exist.'),
+    )
+  }
+
+  return `/api/v1/game-runs/${runId.toLowerCase()}/finish`
 }
 
 /**
@@ -112,11 +137,16 @@ export interface UpstreamResponse<T> {
 }
 
 interface CallOptions {
-  /** Overrides the endpoint's path. Only for `sessionRevokePath`, which builds one safely. */
+  /** Overrides the endpoint's path. Only for the builders above, which build one safely. */
   path?: string
   body?: unknown
   /** The upstream credential from the session. Omitted for public endpoints. */
   token?: string
+  /**
+   * Sent as `Idempotency-Key`. Only the run finish takes one, and it is a UUID
+   * the BFF generated and stored — never a value the browser supplied.
+   */
+  idempotencyKey?: string
 }
 
 /**
@@ -161,6 +191,10 @@ export async function callApi<T = unknown>(
 
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
+  }
+
+  if (options.idempotencyKey !== undefined) {
+    headers['Idempotency-Key'] = options.idempotencyKey
   }
 
   try {

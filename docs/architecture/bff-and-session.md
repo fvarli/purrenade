@@ -65,6 +65,16 @@ interface SessionRecord {
 }
 ```
 
+**Beside it, since M9: the pending run finish** — `run-pending:<sessionId>` in the same
+`sessions` mount, holding `{ runId, idempotencyKey, telemetry, createdAt }`: the **stable
+retry payload** of a run whose finish has not reached a final answer (`server/utils/run-finish.ts`,
+`api-client.md` §6). A sibling key rather than a field of the record on purpose:
+`touchSession` writes back the whole record it read at the start of a request, so a field
+inside it could be erased by any concurrent request refreshing the idle clock. The sibling key
+has one writer, is destroyed by `destroySession` — sign-out, rotation, expiry — and carries a
+`createdAt`, so the sweeper ages it out with its session. It is never sent to the browser
+except as `{ runId, telemetry }` from `GET /api/game-runs/pending`; the key stays here.
+
 ### The session during a server render — IMPLEMENTED
 
 Nuxt renders every route but `/run` on the server, and that render resolves the session the

@@ -7,6 +7,8 @@ import RunPauseOverlay from '~/components/run/PauseOverlay.vue'
 import RunTutorialCompleteOverlay from '~/components/run/TutorialCompleteOverlay.vue'
 import RunTutorialPrompt from '~/components/run/TutorialPrompt.vue'
 import RunTutorialSkipConfirm from '~/components/run/TutorialSkipConfirm.vue'
+import { runSessionStub } from '../support/run-session-stub'
+import type { RunSessionStub } from '../support/run-session-stub'
 import { HEARTS } from '~~/game/bridge'
 import type { TutorialCorrection, TutorialLesson, TutorialOutcome } from '~~/game/bridge'
 
@@ -48,12 +50,18 @@ function surfaceState() {
     correctionAttempt: ref(0),
     tutorialOutcome: ref<TutorialOutcome | null>(null),
     skipTutorial: vi.fn(),
+
+    // --- M9 -----------------------------------------------------------------
+    summary: ref<{ score: number, runPaws: number, elapsedMs: number } | null>(null),
   }
 }
 
 type SurfaceState = ReturnType<typeof surfaceState>
 
 let state: SurfaceState
+
+/** The run session the page talks to. Fresh per test. */
+let session: RunSessionStub
 let routeQuery: Record<string, string>
 let tutorialCompleted: boolean
 let completeTutorial: ReturnType<typeof vi.fn>
@@ -86,6 +94,7 @@ function render() {
 
 beforeEach(() => {
   state = surfaceState()
+  session = runSessionStub()
   routeQuery = {}
   tutorialCompleted = false
   requestedMode = undefined
@@ -101,6 +110,7 @@ beforeEach(() => {
   globals.definePageMeta = () => {}
   globals.useHead = () => {}
   globals.useTemplateRef = useTemplateRef
+  globals.useRunSessionStore = () => session
   globals.navigateTo = navigateTo
   globals.useRoute = () => ({ query: routeQuery })
   globals.useAuthStore = () => ({
@@ -389,5 +399,28 @@ describe('completion is only true once the server says so', () => {
     // Already completed: nothing to persist, and nothing that could re-stamp it.
     expect(completeTutorial).not.toHaveBeenCalled()
     expect(navigateTo).toHaveBeenCalledWith({ path: '/run', query: { mode: 'run' }, replace: true })
+  })
+})
+
+describe('tutorial isolation from the server run (M9)', () => {
+  it('starts from the fixed tutorial seed and never asks the server for a run', async () => {
+    routeQuery = { mode: 'tutorial' }
+    render()
+    await flushPromises()
+
+    expect(state.start).toHaveBeenCalledTimes(1)
+    expect(state.start.mock.calls[0]?.[1]).toEqual({ seed: 0, loliCyclePaws: 0 })
+    expect(session.begin).not.toHaveBeenCalled()
+  })
+
+  it('submits nothing when the tutorial ends', async () => {
+    routeQuery = { mode: 'tutorial' }
+    const page = render()
+    await flushPromises()
+
+    state.summary.value = { score: 10, runPaws: 1, elapsedMs: 30000 }
+    await page.vm.$nextTick()
+
+    expect(session.submit).not.toHaveBeenCalled()
   })
 })

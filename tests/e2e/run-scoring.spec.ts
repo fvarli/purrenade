@@ -52,13 +52,24 @@ test.describe('the heads-up display during a run', () => {
   )
 
   test('starts empty and every fact is present', async ({ page }) => {
+    // Since M9 the paw counter starts from the player's persistent Loli
+    // progress, which the server returns with the run it started
+    // (`core-run.md` §7.2: "from the player profile"). So "empty" is the
+    // server's number, not zero — and that is exactly what rules out a stale
+    // number carried over from a previous run in this tab.
+    const started = page.waitForResponse(response =>
+      response.url().endsWith('/api/game-runs') && response.request().method() === 'POST')
+
     await open(page, '/run')
+
+    const cycle = (await (await started).json()).run.loli_cycle_paws as number
+
     await running(page)
 
     // Read before the first frames can move it. A HUD that begins at some
     // arbitrary number is a HUD reading stale state from a previous run.
     expect(await score(page)).toBeLessThan(20)
-    expect(await paws(page)).toBe(0)
+    expect(await paws(page)).toBe(cycle)
 
     await expect(page.locator('.run__score-label')).toBeVisible()
     await expect(page.locator('.run__hearts-count')).toBeVisible()

@@ -7,8 +7,8 @@ Sections 1–3 hold the decisions that block or shape milestones. Section 4 hold
 the proposals awaiting review. **Section 6 indexes every remaining open question**
 raised so far, so nothing is recorded only in a document nobody rereads.
 
-**Last reviewed:** 2026-09-22 (**ADR-0006 decision closure** — seventeen OPEN items
-resolved, one new OPEN item recorded; see §0AI).
+**Last reviewed:** 2026-09-24 (**M10 leaderboard decisions** — M10 unblocked, LB-5 moved to
+SEC-3/M14, LB-9 recorded; see §0AJ).
 
 | Status | Meaning |
 | --- | --- |
@@ -16,6 +16,23 @@ resolved, one new OPEN item recorded; see §0AI).
 | **PROPOSED** | A recommendation written so it can be reviewed. **Not authoritative.** May be implemented as a named tuning parameter, never presented as decided. |
 
 **Neither is ever silently promoted to APPROVED.**
+
+---
+
+## 0AJ. Resolved — M10 leaderboard decisions (2026-09-24)
+
+M9 is **closed** (production api `e9c7ebc`, web `f9fb8e3`). Planning M10 surfaced one false
+blocker and several unspecified details; the owner decided them as follows.
+
+| Decision | Outcome | Owning document |
+| --- | --- | --- |
+| **D1 — M10 is not blocked by account deletion** | Leaderboard projections store **no duplicated public identity** (the display name is joined live) and are derived, rebuildable data. **LB-5 stays OPEN** and moves to gate **SEC-3 / account deletion (M14)**, which must treat run history and projections consistently. D1 sets **no** delete behaviour. | [leaderboards](leaderboards.md) §5.3 |
+| **D2 — `achieved_at`** | The run's **server-recorded finish**. Weekly attribution still uses the server-recorded start. | [leaderboards](leaderboards.md) §4.1 |
+| **D3 — M10/M12 boundary** | M10 ships the working board 15 (this week and all time) and its entry points; M12 keeps cross-screen desktop, accessibility and PWA polish. Previous weeks are **retained permanently**; **viewing** them is new **OPEN LB-9**. No third tab. | [milestones](milestones.md) M10 · [leaderboards](leaderboards.md) §3.3 |
+| **Stable identifier** (engineering specification) | Tie-break rule 4 is the entry's **representative run id**, so one comparator both selects each player's best run and orders the board. Never exposed. | [leaderboards](leaderboards.md) §4.1 |
+| **Pagination consistency** (engineering specification) | Each response is snapshot-consistent; a multi-page traversal is live, not frozen — entries moving above the cursor are shown after a refresh, ranks may skip, no duplicates while positions only move up (invariant M). | [leaderboards](leaderboards.md) §4.3 |
+| **Banned-player enforcement** | Still APPROVED as product behaviour; **enforced from M13**, when ban state exists. M10 keeps a single visibility point and hides nobody. | [leaderboards](leaderboards.md) §5.2 |
+| **Projection storage** (was DM-2, CACHE-3, BA-3, CACHE-4) | Maintained **PostgreSQL** ranking tables, updated **inside** the run-acceptance transaction, with **no cache** in M10. | `purrenade-api/docs/architecture/data-model.md` §5 |
 
 ---
 
@@ -351,7 +368,7 @@ These stop work when their milestone is reached.
 | **AU-1** | **Approval of the proposed 16-achievement catalogue**, as a whole. The authoring gap is closed; this is now a review item. | **M11** | [achievements-and-unlocks](achievements-and-unlocks.md) §1.5 |
 | ~~**ANTI-5**~~ | **Resolved by ADR-0006** — data minimization; see §0AI. |  | `purrenade-api/docs/security/anti-cheat.md` §2.1 |
 | **ANTI-6** | **How the four `DERIVED_TELEMETRY` run facts are established** — obstacle passes by class, near misses, SLAYYY activations, actual Loli activations. Layers 1 and 2 bound them but cannot establish them, and Layer 3 is deferred, so **M9 neither persists nor returns them**. Blocks **seven of the sixteen** achievements and **Sero's unlock**. Adding Layer 3, designing another server-verifiable mechanism, or changing the affected behaviour are all open. Interacts with AU-1, SEC-5. | **M11** | `purrenade-api/docs/security/anti-cheat.md` §8 |
-| **LB-5** | **Retention and anonymization policy for deleted players.** Genuinely OPEN — product/legal decision, not architecture. | **M10**, **M14** | [leaderboards](leaderboards.md) §5.3 |
+| **LB-5** | **Retention and anonymization policy for deleted players.** Genuinely OPEN — product/legal decision, not architecture. **No longer blocks M10 (D1, §0AJ)**; gates SEC-3 / account deletion. | **M14** | [leaderboards](leaderboards.md) §5.3 |
 | **LO-1 / #17** | **English and Spanish copy.** Only Turkish exists. | **M4** onward | [localization](localization.md) §5 |
 | ~~**ADR-0006**~~ | **Accepted 2026-09-22.** Layer 1 + Layer 2 in v1, Layer 3 deferred, no separate run token. **M9 and M10 are unblocked**; see §0AI. |  | [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md) |
 
@@ -505,6 +522,7 @@ that owns it, and listed here so this register is the complete live list.
 | GE-3 | [architecture/game-engine-integration.md](../architecture/game-engine-integration.md) | Whether the domain also runs server-side for validation — see [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md). If it ever does, the domain must be portable, which is an additional reason to keep it free of browser APIs. |
 | LB-6 | [leaderboards.md](leaderboards.md) | Is there a friends-only or regional board? Nothing suggests one; recorded so it is not assumed |
 | LB-8 | [leaderboards.md](leaderboards.md) | Opt-out surface: where the setting lives and what an opted-out player sees (§5.4) |
+| LB-9 | [leaderboards.md](leaderboards.md) | Previous-week viewing: the interaction and API contract for looking at a retained past week (§3.3). Not shipped by M10 |
 | LO-2 | [localization.md](localization.md) | Tone brief for translators (§5) |
 | LO-3 | [localization.md](localization.md) | Is the brand tagline localized? — depends on whether a tagline is approved at all ([conflict #6](design-reference-conflicts.md)) |
 | LR-4 | [licensing-and-rights.md](licensing-and-rights.md) | Trademark posture for the Purrenade name and wordmark |
@@ -550,14 +568,14 @@ that owns it, and listed here so this register is the complete live list.
 | AUTH-4 | `purrenade-api/docs/architecture/auth-architecture.md` | Device **labelling resolved in M2**; IP/location and its retention still OPEN |
 | BA-1 | `purrenade-api/docs/architecture/backend-architecture.md` | Whether an event-driven internal design is warranted, or direct service calls suffice at this scale (PROPOSED: direct calls; events only where a genuine fan-out exists) |
 | BA-2 | `purrenade-api/docs/architecture/backend-architecture.md` | Whether the admin surface is a separate route group in this application or a separate application |
-| BA-3 | `purrenade-api/docs/architecture/backend-architecture.md` | The transaction boundary for leaderboard projection refresh — inside the submission transaction, or deferred |
+| ~~BA-3~~ | `purrenade-api/docs/architecture/backend-architecture.md` | **Resolved at M10 (§0AJ):** inside the run-acceptance transaction. |
 | CACHE-1 | `purrenade-api/docs/architecture/caching-and-redis.md` | Is Redis adopted at all, and at which milestone? |
 | CACHE-2 | `purrenade-api/docs/architecture/caching-and-redis.md` | Redis or Valkey? |
-| CACHE-3 | `purrenade-api/docs/architecture/caching-and-redis.md` | Is the leaderboard projection in PostgreSQL or in Redis? |
-| CACHE-4 | `purrenade-api/docs/architecture/caching-and-redis.md` | Cache TTLs, once real traffic shapes are known |
+| ~~CACHE-3~~ | `purrenade-api/docs/architecture/caching-and-redis.md` | **Resolved at M10 (§0AJ):** PostgreSQL. |
+| CACHE-4 | `purrenade-api/docs/architecture/caching-and-redis.md` | Cache TTLs, once real traffic shapes are known. **M10 uses no cache**; this stays open for later traffic. |
 | CH-1 | `purrenade-api/docs/api/endpoints/characters.md` | Does selecting a character affect gameplay at all in v1, or only presentation? |
 | ~~DM-1~~ | `purrenade-api/docs/architecture/data-model.md` | **Resolved by [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md):** neither — **no `run_events` table** and no raw per-event history. |
-| DM-2 | `purrenade-api/docs/architecture/data-model.md` | Weekly window: partitioned table, materialized view, or maintained table (LB-1) |
+| ~~DM-2~~ | `purrenade-api/docs/architecture/data-model.md` | **Resolved at M10 (§0AJ):** a maintained table. |
 | DM-3 | `purrenade-api/docs/architecture/data-model.md` | Retention for `runs`, `paw_ledger`, `audit_log` (SEC-3) |
 | DM-4 | `purrenade-api/docs/architecture/data-model.md` | What account deletion does to runs and leaderboard entries (LB-5, SEC-3) |
 | DM-7 | `purrenade-api/docs/architecture/data-model.md` | Index strategy for the lifetime telemetry-derived counters once real query shapes exist. Deferred with the counters themselves — **ANTI-6**. |

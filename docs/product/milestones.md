@@ -42,8 +42,8 @@ produces **separate commits in each**; the repositories are never merged.
 | **M6** | Obstacles, patterns, collision, hearts, difficulty | web | M5 | **DELIVERED** — frozen at `cf4a07b` | — |
 | **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated, frozen at `3d3909d` | — |
 | **M8** | Interactive tutorial | web | M7 + tutorial design | **DELIVERED** — TU-1 resolved by deriving the treatment from the production visual system | — |
-| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | **Implemented, local gates verified — awaiting the independent adversarial audit, then release.** Not closed. | — |
-| **M10** | Leaderboards | both | M9 | Not started | — |
+| **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | **DELIVERED** — closed 2026-09-24 after audit, production release and owner acceptance | api `e9c7ebc`, web `f9fb8e3` |
+| **M10** | Leaderboards | both | M9 | **In progress** — unblocked by D1 (LB-5 moved to SEC-3/M14) | — |
 | **M11** | Achievements and character unlocks | both | M9 | **Not started — blocked on AU-1 and ANTI-6** | — |
 | **M12** | Support screens, PWA, accessibility, responsive/desktop | web | M4, M7 | Not started | — |
 | **M13** | Admin panel | both | M3, M10 | Not started | — |
@@ -82,19 +82,17 @@ overview table above: the delivery history is where an execution-only pass is re
 M8 planning review by deriving the treatment from the production visual system rather than
 commissioning a new one.
 
-**The next implementation milestone is M9, run lifecycle and progression persistence.** It is
-**no longer blocked**: [ADR-0006](../decisions/ADR-0006-run-validation-and-anti-cheat-boundary.md)
-was accepted on 2026-09-22, resolving PWA-1, RNG-1, RNG-2, ANTI-1 through ANTI-5, DM-1 and
-GR-1 through GR-5. M5, M6 and M7 are delivered and frozen.
+**M9 is delivered.** It closed on 2026-09-24 after the independent adversarial audit, the
+backend-first production release (api `e9c7ebc`, web `f9fb8e3`) and the owner's real-device
+acceptance. Its small post-release debt is tracked for later milestones and does not reopen it.
 
-The one consequence left open is **ANTI-6**: the four `DERIVED_TELEMETRY` run facts have no
-verification source while Layer 3 is deferred, so M9 neither persists nor returns them. That
-blocks **M11**, not M9 or M10.
+**The next implementation milestone is M10, leaderboards.** It is **no longer blocked**: the
+owner decided on 2026-09-24 (D1) that M10 does not wait for the account-deletion lifecycle, and
+LB-5 moved to gate SEC-3 / account deletion at M14 — see [`leaderboards.md`](leaderboards.md) §5.3.
 
-M9 also carries one inherited task: **moving `tutorial_completed_at` from `users` to
-`player_progression`**, with a backfill, once that table is created. It lives on `users` at M8
-because `player_progression` is still PROPOSED and every other column in it is run-derived.
-The backend's `docs/architecture/data-model.md` §4.1 owns that migration.
+**ANTI-6** stays open: the four `DERIVED_TELEMETRY` run facts have no verification source while
+Layer 3 is deferred, so M9 neither persists nor returns them. That blocks **M11**, not M10 —
+no leaderboard rule uses those facts.
 
 ---
 
@@ -390,14 +388,12 @@ variants.
 
 ---
 
-## M9 — Run lifecycle, anti-cheat boundary, progression — IMPLEMENTED, AUDIT PENDING
+## M9 — Run lifecycle, anti-cheat boundary, progression — DELIVERED
 
-> **Status (2026-09-23).** Implemented in both repositories and verified against the local
-> gates and the local stack. **Not released and not closed:** an independent adversarial
-> audit precedes the push, CI, the backend-first production deployment and the owner's
-> real-device acceptance. The expand half of the tutorial relocation ships with it; the drop of
-> `users.tutorial_completed_at` is a later, separate deployment. ANTI-6 stays open and blocks
-> M11.
+> **Status (2026-09-24): CLOSED.** Audited, released backend-first to production (api
+> `e9c7ebc`, web `f9fb8e3`) and accepted by the owner on a real device. The expand half of the
+> tutorial relocation shipped with it; the drop of `users.tutorial_completed_at` is a later,
+> separate deployment. ANTI-6 stays open and blocks M11.
 
 **Unblocked by ADR-0006** (accepted 2026-09-22): **Layer 1 + Layer 2** ship in v1 — structural
 and plausibility validation, plus server-owned run identity with a server-recorded start and a
@@ -449,16 +445,32 @@ active-run lifetime; and the contract generator's wiring.
 opt-out are **APPROVED**. Profanity and confusable screening are deferred as future hardening
 and are **not** v1 blockers.
 
-**Still blocked on:** the genuinely OPEN retention/anonymization policy for deleted players
-(LB-5), which the leaderboard projection must honour.
+**Unblocked by owner decision D1 (2026-09-24) — APPROVED.** M10 does not wait for the
+account-deletion lifecycle. Leaderboard projections store no duplicated public identity (the
+display name is read live from the player's account) and are derived data, rebuildable from
+the authoritative run history. **LB-5 stays OPEN and now gates SEC-3 / account deletion at
+M14**, which must settle deletion, anonymization and retention consistently across the run
+history *and* the leaderboard projections. D1 decides no deletion behaviour.
+
+**Scope split with M12 — owner decision D3 (2026-09-24), APPROVED.** M10 ships the **working
+leaderboard screen** (board 15) for this week and all time, and its two entry points: a
+main-menu entry and the **"view leaderboard"** action after a run. M12 keeps the cross-screen
+desktop, accessibility and PWA polish. Previous weeks are **kept**, but **viewing** them has no
+approved interaction yet (LB-9, OPEN), so M10 ships no previous-week view and no third tab.
 
 **Deliverables:** weekly and all-time boards; deterministic tie-breaking;
 cursor pagination; the pinned "you" row with a true rank; the ranking projection
-and its refresh strategy.
+and its refresh strategy; the leaderboard screen and its entry points.
+
+**Not in M10:** hiding banned players (no ban state exists before the M13 moderation console),
+the opt-out surface (LB-8), previous-week viewing (LB-9), avatars, and deletion/anonymization
+(LB-5, SEC-3).
 
 **Acceptance criteria**
-- Ordering is a **total order**; no page duplicates or skips a row.
+- Ordering is a **total order**; a static board is paged with no duplicate and no skipped row,
+  and a live board honours the consistency contract in [`leaderboards.md`](leaderboards.md) §4.3.
 - The player's own rank is always accurate and never stale.
+- Only **accepted** runs rank; flagged and rejected runs never do.
 - Query plans are verified against realistic volumes, not toy data.
 
 ---
@@ -500,8 +512,8 @@ idempotent unlocks; monotonic progress counters; the character unlock model with
 
 ## M12 — Support screens, PWA, accessibility, responsive
 
-**Deliverables:** profile, settings, language, account & security, leaderboard and
-achievements UI; the desktop **460 px protected column** with decorative
+**Deliverables:** profile, settings, language, account & security and achievements UI, plus
+the cross-screen polish of the leaderboard screen M10 ships (D3); the desktop **460 px protected column** with decorative
 expansion; tablet scaling; reduced motion end to end; PWA scope per
 [`../architecture/pwa-and-mobile.md`](../architecture/pwa-and-mobile.md); self-hosted fonts.
 

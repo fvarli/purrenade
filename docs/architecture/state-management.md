@@ -14,7 +14,7 @@ Who owns what, and what must never become global mutable state.
 | Player profile (username, avatar, favourite character, best score, run count) | `profile` store | App | Server |
 | Progression (`lifetimePaws`, `loliCyclePaws`, achievements, unlocks, `tutorialCompletedAt`) | `progression` store | App | **Server — authoritative.** **At M8** there is no `progression` store: the only field of it that exists is tutorial completion, and it arrives as a boolean on the `auth` store's user projection because first-run routing has to decide during SSR. Progression still **owns** the write (`POST /api/progression/tutorial`); the `auth` store cannot change it. The store arrives with M9, when there are run-derived counters to put in it. |
 | Settings (locale, music, effects, reduced motion) | `settings` store | App | Server profile **and** device mirror |
-| Leaderboard page data | `leaderboard` store | View | Not persisted; cached briefly |
+| Leaderboard page data | **`leaderboard` store** (`app/stores/leaderboard.ts`) — **IMPLEMENTED at M10** | View — reset when the screen unmounts | **Not persisted and not cached**: every visit, tab switch and refresh asks the server, and every rank shown is the server's |
 | **Run state** (lane, hearts, score, SLAYYY charge, timers, spawns, RNG cursor, **`queuedLoliBonuses`**, near-miss events) | **`game/domain` `RunState`** | Run | **Never persisted.** Not in a store. |
 | Run summary (final score, `runPaws`, achievement deltas) | `run` store | Between run end and submission | Submitted to the server |
 | Engine handles (Phaser instance, scenes, textures) | Engine adapter | Route | Never |

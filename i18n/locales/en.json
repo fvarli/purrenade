@@ -18,7 +18,8 @@
   "menu": {
     "play": "PLAY",
     "characters": "Characters",
-    "settings": "Settings"
+    "settings": "Settings",
+    "leaderboard": "Leaderboard"
   },
   "characters": {
     "title": "Choose your character",
@@ -30,6 +31,35 @@
     "locked": "Coming later",
     "artNote": "More characters are coming later.",
     "playWith": "PLAY WITH THIS CHARACTER"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "tabs": {
+      "label": "Leaderboard period",
+      "weekly": "This Week",
+      "allTime": "All Time"
+    },
+    "loading": "Loading the leaderboard…",
+    "error": "The leaderboard could not be loaded right now.",
+    "retry": "Try again",
+    "empty": {
+      "weekly": "No scores yet this week. Be the first!",
+      "allTime": "No scores yet. Be the first!"
+    },
+    "podium": "Top three",
+    "list": "Rankings",
+    "crown": "First place",
+    "rank": "#{rank}",
+    "you": "YOU",
+    "ownLabel": "Your rank",
+    "ownEmpty": {
+      "weekly": "You have no score this week yet. Play a run to get on the board!",
+      "allTime": "You have no score yet. Play a run to get on the board!"
+    },
+    "loadMore": "Show more",
+    "loadingMore": "Loading…",
+    "loadMoreFailed": "More entries could not be loaded. Try again.",
+    "refresh": "Refresh and back to top"
   },
   "settings": {
     "title": "Settings",
@@ -382,7 +412,8 @@
       "paw_rate_high": "It collected Paw Tokens faster than a run normally allows.",
       "score_below_duration_floor": "Its score was unusually low for how long it lasted.",
       "duration_below_minimum": "It ended sooner than a run normally can."
-    }
+    },
+    "viewLeaderboard": "View Leaderboard"
   },
   "tutorial": {
     "title": "Tutorial",

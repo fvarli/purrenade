@@ -18,7 +18,8 @@
   "menu": {
     "play": "OYNA",
     "characters": "Karakterler",
-    "settings": "Ayarlar"
+    "settings": "Ayarlar",
+    "leaderboard": "Skor Tablosu"
   },
   "characters": {
     "title": "Karakterini Seç",
@@ -30,6 +31,35 @@
     "locked": "Yakında",
     "artNote": "Yeni karakterler yakında gelecek.",
     "playWith": "BU KARAKTERLE OYNA"
+  },
+  "leaderboard": {
+    "title": "Skor Tablosu",
+    "tabs": {
+      "label": "Skor tablosu dönemi",
+      "weekly": "Bu Hafta",
+      "allTime": "Tüm Zamanlar"
+    },
+    "loading": "Skor tablosu yükleniyor…",
+    "error": "Skor tablosu şu an yüklenemedi.",
+    "retry": "Tekrar dene",
+    "empty": {
+      "weekly": "Bu hafta henüz skor yok. İlk sen ol!",
+      "allTime": "Henüz skor yok. İlk sen ol!"
+    },
+    "podium": "İlk üç",
+    "list": "Sıralama",
+    "crown": "Birinci",
+    "rank": "#{rank}",
+    "you": "SEN",
+    "ownLabel": "Senin sıran",
+    "ownEmpty": {
+      "weekly": "Bu hafta henüz skorun yok. Bir koşu oyna, tabloya gir!",
+      "allTime": "Henüz skorun yok. Bir koşu oyna, tabloya gir!"
+    },
+    "loadMore": "Daha fazla göster",
+    "loadingMore": "Yükleniyor…",
+    "loadMoreFailed": "Devamı yüklenemedi. Tekrar dene.",
+    "refresh": "Yenile ve başa dön"
   },
   "settings": {
     "title": "Ayarlar",
@@ -382,7 +412,8 @@
       "paw_rate_high": "Pati Jetonlarını bir koşunun normalde izin verdiğinden hızlı topladı.",
       "score_below_duration_floor": "Süresine göre skoru alışılmadık derecede düşüktü.",
       "duration_below_minimum": "Bir koşunun normalde bitebileceğinden daha erken bitti."
-    }
+    },
+    "viewLeaderboard": "Skor Tablosuna Bak"
   },
   "tutorial": {
     "title": "Eğitim",

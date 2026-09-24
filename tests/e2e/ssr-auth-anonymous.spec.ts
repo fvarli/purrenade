@@ -150,6 +150,15 @@ test.describe('a signed-out visitor', () => {
     expect(complaints).toEqual([])
   })
 
+  test('is redirected away from the leaderboard, by the server (M10)', async ({ page }) => {
+    const response = await page.context().request.get('/leaderboard', { maxRedirects: 0 })
+
+    expect(response.status()).toBeGreaterThanOrEqual(300)
+    expect(response.status()).toBeLessThan(400)
+    expect(decodeURIComponent(response.headers().location ?? ''))
+      .toContain('/auth/login?redirect=/leaderboard')
+  })
+
   test('is still kept out of the run route', async ({ page }) => {
     // `/run` is `ssr: false` and must stay that way; this change must not have
     // reached it.

@@ -6,6 +6,30 @@ This project does not yet have released versions.
 
 ## [Unreleased]
 
+### Added — M10: the leaderboard
+
+Board 15, working: **Skor Tablosu**, with **Bu Hafta** by default and **Tüm Zamanlar** beside it.
+Every rank on it is the server's.
+
+- **`/leaderboard`** — a podium for the top three with 👑 on #1, ranked rows with the player's
+  initial as a placeholder avatar (upper-cased in the viewer's locale, so `i` becomes `İ` in
+  Turkish), and the player's own entry pinned as **SEN ⭐** with its true server rank — or a
+  line saying they have no score in this window yet. Load more, and an explicit refresh / back
+  to top: across pages the board is live, so ranks may skip and the screen does not pretend
+  otherwise. Loading, empty and failure-with-retry states; a cursor the server no longer
+  accepts restarts the board from the top.
+- **Entry points:** a Leaderboard tile on the menu, and **"Skor Tablosuna Bak"** on the
+  run-complete screen of an **accepted** run (never a flagged or rejected one).
+- **BFF:** `GET /api/leaderboards` re-validates the query (`window`, `cursor`, `limit` only)
+  and relays the page untouched; the upstream call can carry only the query members the
+  endpoint allow-list names. No cache anywhere.
+- **Contract:** pinned to the backend's M10 OpenAPI document; the leaderboard types are
+  generated aliases.
+- **Copy** in tr, en and es with key parity. Accessibility at M10's baseline: a real tablist
+  with arrow keys, ordered lists numbered by the server's ranks, the crown and the star named.
+- **Not in M10:** previous-week viewing (LB-9), avatars (SI-6), the board 14 record dance,
+  and M12's cross-screen polish.
+
 ### Added — M9: the server starts the run and decides it
 
 A normal run is now the server's (ADR-0006, Layers 1 and 2). The client proposes; the server

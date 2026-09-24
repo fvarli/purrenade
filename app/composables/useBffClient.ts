@@ -334,6 +334,18 @@ export function useBffClient() {
     progression: () =>
       bffRequest<{ progression: import('~/types/run').Progression }>('/api/progression'),
 
+    // --- M10: leaderboards ----------------------------------------------
+
+    /**
+     * One page of a leaderboard, with the player's own entry. `cursor` is the
+     * previous page's `meta.next_cursor`, passed back untouched — the browser
+     * never builds or reads one.
+     */
+    leaderboard: (window: import('~/types/leaderboard').LeaderboardWindow, cursor?: string | null) =>
+      bffRequest<import('~/types/leaderboard').LeaderboardPage>(
+        `/api/leaderboards?${new URLSearchParams(cursor ? { window, cursor } : { window }).toString()}`,
+      ),
+
     verifyEmail: (body: { code: string }) =>
       bffRequest<{ user: import('~/types/auth').AuthUser }>('/api/auth/email/verify', { method: 'POST', body }),
 

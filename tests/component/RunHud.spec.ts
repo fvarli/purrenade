@@ -804,6 +804,46 @@ describe('the run-complete screen', () => {
     expect(navigateTo).toHaveBeenCalledWith('/')
     expect(state.restart).not.toHaveBeenCalled()
   })
+
+  it('offers the leaderboard for an accepted run, after play again (M10)', async () => {
+    const page = render()
+    await flushPromises()
+    session.outcome = runResult({ status: 'accepted' })
+    session.phase = 'outcome'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    const actions = page.findAll('.run__overlay-actions button').map(button => button.classes()[0])
+
+    expect(actions).toEqual(['run__replay', 'run__leaderboard', 'run__menu'])
+    expect(page.get('.run__leaderboard').text()).toBe('run.viewLeaderboard')
+
+    await page.get('.run__leaderboard').trigger('click')
+
+    expect(navigateTo).toHaveBeenCalledWith('/leaderboard')
+    expect(state.restart).not.toHaveBeenCalled()
+  })
+
+  it.each(['flagged', 'rejected'] as const)('offers no leaderboard for a %s run, which is not on it', async (status) => {
+    const page = render()
+    await flushPromises()
+    session.outcome = runResult({ status })
+    session.phase = 'outcome'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    expect(page.find('.run__leaderboard').exists()).toBe(false)
+  })
+
+  it('offers no leaderboard while the run is still being saved', async () => {
+    const page = render()
+    await flushPromises()
+    session.phase = 'submitting'
+    state.hasEnded.value = true
+    await page.vm.$nextTick()
+
+    expect(page.find('.run__leaderboard').exists()).toBe(false)
+  })
 })
 
 describe('abandoning a run', () => {

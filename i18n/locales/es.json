@@ -18,7 +18,8 @@
   "menu": {
     "play": "JUGAR",
     "characters": "Personajes",
-    "settings": "Ajustes"
+    "settings": "Ajustes",
+    "leaderboard": "Clasificación"
   },
   "characters": {
     "title": "Elige tu personaje",
@@ -30,6 +31,35 @@
     "locked": "Próximamente",
     "artNote": "Próximamente llegarán más personajes.",
     "playWith": "JUGAR CON ESTE PERSONAJE"
+  },
+  "leaderboard": {
+    "title": "Clasificación",
+    "tabs": {
+      "label": "Periodo de la clasificación",
+      "weekly": "Esta semana",
+      "allTime": "Histórico"
+    },
+    "loading": "Cargando la clasificación…",
+    "error": "No se pudo cargar la clasificación en este momento.",
+    "retry": "Reintentar",
+    "empty": {
+      "weekly": "Aún no hay puntuaciones esta semana. ¡Sé el primero!",
+      "allTime": "Aún no hay puntuaciones. ¡Sé el primero!"
+    },
+    "podium": "Los tres primeros",
+    "list": "Clasificación",
+    "crown": "Primer puesto",
+    "rank": "#{rank}",
+    "you": "TÚ",
+    "ownLabel": "Tu puesto",
+    "ownEmpty": {
+      "weekly": "Aún no tienes puntuación esta semana. ¡Juega una partida para entrar!",
+      "allTime": "Aún no tienes puntuación. ¡Juega una partida para entrar!"
+    },
+    "loadMore": "Ver más",
+    "loadingMore": "Cargando…",
+    "loadMoreFailed": "No se pudieron cargar más puestos. Reinténtalo.",
+    "refresh": "Actualizar y volver arriba"
   },
   "settings": {
     "title": "Ajustes",
@@ -382,7 +412,8 @@
       "paw_rate_high": "Recogió Huellas más rápido de lo que una carrera permite normalmente.",
       "score_below_duration_floor": "Su puntuación era inusualmente baja para lo que duró.",
       "duration_below_minimum": "Terminó antes de lo que una carrera puede terminar normalmente."
-    }
+    },
+    "viewLeaderboard": "Ver clasificación"
   },
   "tutorial": {
     "title": "Tutorial",

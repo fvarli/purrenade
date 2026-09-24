@@ -270,6 +270,11 @@ function leaveToMenu(): void {
   void navigateTo('/')
 }
 
+/** The run was accepted: see where it landed, board 15 (M10). */
+function leaveToLeaderboard(): void {
+  void navigateTo('/leaderboard')
+}
+
 /**
  * Leaving pauses first.
  *
@@ -777,6 +782,7 @@ onBeforeUnmount(() => {
       @replay="replayRun"
       @menu="leaveToMenu"
       @retry="retrySubmission"
+      @leaderboard="leaveToLeaderboard"
     />
 
     <!--

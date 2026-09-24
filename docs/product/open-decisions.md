@@ -591,7 +591,7 @@ that owns it, and listed here so this register is the complete live list.
 | PR-1 | `purrenade-api/docs/security/data-protection.md` | Can a player change their username? |
 | PR-2 | `purrenade-api/docs/api/endpoints/profile.md` | Avatar source — uploaded, generated, or initials-based (SI-6). An upload path would add file storage, moderation, and a new abuse surface |
 | QJ-1 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Is Redis adopted, and therefore used as the queue driver? (CACHE-1) |
-| QJ-2 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Is the leaderboard projection refreshed by job or inline? (BA-3) |
+| ~~QJ-2~~ | `purrenade-api/docs/architecture/queues-and-jobs.md` | **Resolved at M10 (§0AJ):** inline, affected rows only, inside the finish transaction. |
 | QJ-3 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Which security notifications are sent, if any? Nothing in the approved surface requires them |
 | QJ-4 | `purrenade-api/docs/architecture/queues-and-jobs.md` | Retention and alerting policy for failed jobs |
 | RL-1 | `purrenade-api/docs/security/rate-limiting.md` | Fail open or fail closed when the limiter is unavailable? |

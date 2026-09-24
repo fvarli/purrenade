@@ -85,6 +85,7 @@ useHead({ title: () => t('home.title') })
              in <script setup>. It has no style rule; it exists to be selected. -->
         <UiAuthButton class="home__play" @click="navigateTo('/run')">{{ $t('menu.play') }}</UiAuthButton>
         <div class="home__grid">
+          <NuxtLink to="/leaderboard">{{ $t('menu.leaderboard') }}</NuxtLink>
           <NuxtLink to="/characters">{{ $t('menu.characters') }}</NuxtLink>
           <NuxtLink to="/settings">{{ $t('menu.settings') }}</NuxtLink>
           <NuxtLink to="/account/security">{{ $t('account.security.navLabel') }}</NuxtLink>

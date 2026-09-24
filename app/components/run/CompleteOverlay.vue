@@ -21,6 +21,10 @@ import type { RunReasonCode, RunResult, RunSubmissionView } from '~/types/run'
  * recorded but not counted; a rejected one explicitly, never as a success.
  * Neither shows a progression, Paw or personal-best change, because none
  * happened.
+ *
+ * **"Skor Tablosuna Bak"** (M10) appears only for an **accepted** run — the
+ * only kind that can be on the board. It leaves for the leaderboard, where the
+ * rank is the server's, never computed here.
  */
 
 const props = defineProps<{
@@ -36,6 +40,7 @@ const emit = defineEmits<{
   replay: []
   menu: []
   retry: []
+  leaderboard: []
 }>()
 
 const { t } = useI18n()
@@ -129,6 +134,15 @@ const replayBusy = computed(() => props.busy === true || state.value === 'saving
       <div class="run__overlay-actions">
         <UiAuthButton class="run__replay" :busy="replayBusy" @click="emit('replay')">
           {{ t('run.replay') }}
+        </UiAuthButton>
+
+        <UiAuthButton
+          v-if="result?.status === 'accepted'"
+          variant="secondary"
+          class="run__leaderboard"
+          @click="emit('leaderboard')"
+        >
+          {{ t('run.viewLeaderboard') }}
         </UiAuthButton>
 
         <UiAuthButton variant="quiet" class="run__menu" @click="emit('menu')">

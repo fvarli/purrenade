@@ -84,7 +84,7 @@ it. Each returns with the milestone that makes it true.
 | Element | Board | Status at Milestone C | Returns with |
 | --- | --- | --- | --- |
 | Score **vs record** | 13 | **Omitted.** There is no personal best anywhere in the frontend — no store, no web-storage write, no field on the run surface. The authoritative score is decided by the backend on submission. | **M9** |
-| **Board 14** — new high score, previous record, record dance, view leaderboard | 14 | **Not built.** It is a comparison against a record that does not exist. | **M9** / **M10** |
+| **Board 14** — new high score, previous record, record dance, view leaderboard | 14 | **Not built as a board.** Board 13 states a personal best since M9, and since M10 an accepted run's result offers **view leaderboard**; the record dance is still not built. | **Not assigned** — outside M10 (D3) |
 | Achievement progress chip | 13 | **Omitted.** No achievement is evaluated client-side. | **M11** |
 | Music and effects controls | 12 | **Omitted.** The contract is approved (§7A), but there is nothing to control: the engine starts Phaser with `audio: { noAudio: true }`, there is no settings store, and no preference is persisted. A toggle that changed nothing would be a screenshot of a feature. | **M12** |
 
@@ -119,7 +119,7 @@ expose the same gameplay-critical state. See
 
 | # | Screen | Key elements (APPROVED) | Behavior notes |
 | --- | --- | --- | --- |
-| **15** | **Leaderboard / Skor Tablosu** | **Bu Hafta / Tüm Zamanlar** tabs, ranked rows with avatar, name, score, rank, **👑 on #1**, pinned **"SEN"** row for the current player | See [leaderboards.md](leaderboards.md). |
+| **15** | **Leaderboard / Skor Tablosu** | **Bu Hafta / Tüm Zamanlar** tabs, ranked rows with avatar, name, score, rank, **👑 on #1**, pinned **"SEN"** row for the current player | See [leaderboards.md](leaderboards.md). **Built at M10** (`/leaderboard`): the podium, ranked rows with the player's initial as a placeholder avatar (no avatar system yet, SI-6), the pinned own entry with its server rank, load more, and refresh / back to top. Reached from the menu and from the run-complete screen of an accepted run. No previous-week view (LB-9). |
 | **16** | **Achievements / Başarımlar** | `8/16` header; cards with icon, title, description, progress (`18/25`), unlocked state, locked state with hidden reward; note that a new unlock spins with confetti and a SLAYYY sound | Only **6 of 16** are named in v0.3. See [achievements-and-unlocks.md](achievements-and-unlocks.md). |
 
 ---

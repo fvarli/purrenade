@@ -166,3 +166,14 @@ export interface AdminOverviewEnvelope {
     capabilities: { available: string[], planned_milestone: string }
   }
 }
+
+// --- M10: leaderboards -------------------------------------------------------
+
+/** `GET /leaderboards` — one page, the caller's own entry, and the cursor. */
+export type LeaderboardPage = JsonBody<paths['/leaderboards']['get'], 200>
+
+/** The query `GET /leaderboards` accepts, straight from the contract. */
+export type LeaderboardQuery = paths['/leaderboards']['get']['parameters']['query']
+
+/** One public entry: rank, display name, score, and whether it is the caller's. */
+export type LeaderboardEntry = Schemas['LeaderboardEntry']

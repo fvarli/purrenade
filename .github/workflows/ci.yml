@@ -365,6 +365,7 @@ jobs:
 
           # Specs that need a session, and why. Keep sorted.
           cat > /tmp/expected-unrun <<'EOF'
+          leaderboard.spec.ts
           run-lifecycle.spec.ts
           run-obstacles.spec.ts
           run-scoring.spec.ts

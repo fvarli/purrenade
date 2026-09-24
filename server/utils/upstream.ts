@@ -76,10 +76,26 @@ export const Endpoint = {
   // holds the collection and `gameRunFinishPath()` is the only thing that may
   // build the full path, from a validated UUID.
   gameRunFinish: { method: 'POST', path: '/api/v1/game-runs' },
+
+  // M10. The one endpoint that takes a query string — see `ENDPOINT_QUERY`.
+  leaderboards: { method: 'GET', path: '/api/v1/leaderboards' },
   adminOverview: { method: 'GET', path: '/api/v1/admin/overview' },
 } as const satisfies Record<string, { method: string, path: string }>
 
 export type EndpointName = keyof typeof Endpoint
+
+/**
+ * The query parameters each endpoint may be sent — and no others.
+ *
+ * The same closed-vocabulary rule as the table above, applied to the query
+ * string: an endpoint absent here takes none, and a key not listed for it is
+ * refused before any request is made. So a route cannot forward whatever the
+ * browser put in its URL, even by accident, and a new parameter reaching the
+ * API is as deliberate an act as a new endpoint.
+ */
+export const ENDPOINT_QUERY: Partial<Record<EndpointName, readonly string[]>> = {
+  leaderboards: ['window', 'cursor', 'limit'],
+}
 
 /**
  * The one endpoint with a path segment.
@@ -143,6 +159,12 @@ interface CallOptions {
   /** The upstream credential from the session. Omitted for public endpoints. */
   token?: string
   /**
+   * The query string, as already-validated strings. Only keys listed for the
+   * endpoint in `ENDPOINT_QUERY` are accepted; anything else throws before a
+   * request is made.
+   */
+  query?: Record<string, string>
+  /**
    * Sent as `Idempotency-Key`. Only the run finish takes one, and it is a UUID
    * the BFF generated and stored — never a value the browser supplied.
    */
@@ -164,6 +186,17 @@ export async function callApi<T = unknown>(
   const { method, path } = Endpoint[endpoint]
 
   const correlationId = resolveCorrelationId(event)
+
+  const query = options.query ?? {}
+  const allowedQuery = ENDPOINT_QUERY[endpoint] ?? []
+
+  for (const key of Object.keys(query)) {
+    if (!allowedQuery.includes(key)) {
+      // A programming error, not a request error: a route tried to send a
+      // parameter nobody allowed. Refused as an internal failure, loudly.
+      throw new Error(`query parameter "${key}" is not allowed for ${endpoint}`)
+    }
+  }
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -203,6 +236,7 @@ export async function callApi<T = unknown>(
       method: method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
       headers,
       body: options.body as Record<string, unknown> | undefined,
+      query: Object.keys(query).length > 0 ? query : undefined,
       timeout: config.apiTimeoutMs,
       // Errors are handled below rather than thrown as-is, so that a problem
       // body is preserved instead of being flattened into a generic message.

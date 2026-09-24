@@ -43,7 +43,7 @@ produces **separate commits in each**; the repositories are never merged.
 | **M7** | Paws, SLAYYY, Loli Bonus, HUD | web | M6 | **DELIVERED** — implemented, audited twice, remediated, frozen at `3d3909d` | — |
 | **M8** | Interactive tutorial | web | M7 + tutorial design | **DELIVERED** — TU-1 resolved by deriving the treatment from the production visual system | — |
 | **M9** | Run lifecycle API, anti-cheat boundary, progression persistence | both | M3, M7 | **DELIVERED** — closed 2026-09-24 after audit, production release and owner acceptance | api `e9c7ebc`, web `f9fb8e3` |
-| **M10** | Leaderboards | both | M9 | **In progress** — unblocked by D1 (LB-5 moved to SEC-3/M14) | — |
+| **M10** | Leaderboards | both | M9 | **Implemented, local gates verified — awaiting the independent adversarial audit, then release.** Not closed. | — |
 | **M11** | Achievements and character unlocks | both | M9 | **Not started — blocked on AU-1 and ANTI-6** | — |
 | **M12** | Support screens, PWA, accessibility, responsive/desktop | web | M4, M7 | Not started | — |
 | **M13** | Admin panel | both | M3, M10 | Not started | — |

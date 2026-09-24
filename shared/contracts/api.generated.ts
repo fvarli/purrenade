@@ -826,20 +826,51 @@ export interface paths {
         };
         /**
          * Get a leaderboard page
-         * @description APPROVED (v0.3 board 15). Two windows: weekly and all-time. Ranks by best
-         *     single-run score. The response always includes the requesting player's own
-         *     row with its true rank, even when outside the page.
+         * @description **IMPLEMENTED (M10).** APPROVED (v0.3 board 15). Two windows, `weekly` and
+         *     `all_time`, each ranking players by their **best single accepted run**. Only
+         *     `accepted` runs rank; `flagged` and `rejected` runs never do. The response always
+         *     carries the caller's own entry with its **true rank**, wherever it falls, or
+         *     `null` when they have no accepted run in the window. Clients never compute a rank.
          *
-         *     **Weekly boundary — APPROVED:** Monday 00:00 Europe/Istanbul, attributed by
-         *     server-recorded run start. Türkiye has been UTC+3 year-round since 2016, so there is
-         *     no DST-ambiguous or duplicated hour at rollover.
+         *     **Weekly boundary — APPROVED:** Monday 00:00 **Europe/Istanbul** (the IANA zone,
+         *     with its rule history), attributed by the run's server-recorded **start**. A run
+         *     started on Sunday 23:58 and submitted on Monday counts for the week it started in.
+         *     `period` gives the week's bounds in UTC; it is `null` for `all_time`.
          *
-         *     Ordering is a **total order** — score, then earlier achievement, then shorter
-         *     duration, then a stable id — so cursor pagination cannot duplicate or skip rows.
+         *     **Order — a total order (E1):** score descending, then earlier `achieved_at` (the
+         *     run's server-recorded finish, D2), then shorter duration, then the representative
+         *     run's id. Each player appears at most once per window, represented by their first
+         *     run in that order. No identifier is exposed.
          *
-         *     Banned players' entries are hidden but retained; deleted players must not appear
-         *     under their former identity; opted-out players are excluded from public pages but
-         *     still see their own rank.
+         *     **Cursor pagination.** Pass `meta.next_cursor` back as `cursor` to continue.
+         *     Cursors are opaque, encrypted, and bound to the window — and, for `weekly`, to
+         *     the week: a cursor issued before a Monday rollover keeps paging its own week. A
+         *     cursor that cannot be used — tampered, from another window, or issued under a
+         *     rotated key — is a `422` whose `errors.cursor[].code` is `cursor_invalid`; start
+         *     again without a cursor.
+         *
+         *     **Consistency contract.**
+         *
+         *     1. **Each response is internally consistent:** the page, its ranks, `has_more`
+         *        and `own_entry` are read from one database snapshot.
+         *     2. **A multi-page traversal is not a frozen snapshot.** Every request reads the
+         *        board as it is at that moment. An entry that is new, or improves, and lands
+         *        **above** the part already paged is **not shown** for the rest of that
+         *        traversal — it appears after a refresh from the first page. Ranks are
+         *        recomputed per request, so across pages they always increase but **may skip**
+         *        by the number of entries that moved above. An entry is **never served twice**
+         *        in one traversal, and one that stays below the cursor is served exactly once.
+         *     3. The no-duplicate guarantee holds because an entry's position can only move
+         *        **up** — it changes only when its player sets a better run. A future feature
+         *        that can move an entry down must revisit this.
+         *
+         *     Rate-limited as a normal read. Requires a verified address, like every product
+         *     surface.
+         *
+         *     **Not in M10:** banned players' entries are to be hidden (APPROVED), but no ban
+         *     state exists before the M13 moderation console, so none is filtered yet. Opt-out
+         *     (LB-8) and previous-week viewing (LB-9) are OPEN. Deleted players are LB-5,
+         *     OPEN, at SEC-3/M14.
          */
         get: operations["getLeaderboard"];
         put?: never;
@@ -1119,7 +1150,8 @@ export interface components {
                      * @description Stable per-field code, e.g. `required`, `taken`, `too_short`,
                      *     `too_long`, `email_invalid`, `confirmation_mismatch`,
                      *     `password_incorrect`, `password_compromised`, `format_invalid`,
-                     *     `type_invalid`, `character_unavailable`.
+                     *     `type_invalid`, `value_not_allowed`, `out_of_range`,
+                     *     `character_unavailable`, `cursor_invalid`.
                      */
                     code: string;
                     /** @description Human-readable. For display only. */
@@ -1662,39 +1694,56 @@ export interface components {
             /** @description Whether the tutorial has been completed or skipped. */
             tutorial_completed: boolean;
         };
-        /** @description A page of the ranking plus the requesting player's own row. */
+        /**
+         * @description A page of the ranking plus the requesting player's own entry, all read from one
+         *     snapshot. Not wrapped in a `data` envelope: `data` is the page's entries.
+         */
         LeaderboardPage: {
             /**
              * @description Which window this page is from.
              * @enum {string}
              */
             window: "weekly" | "all_time";
-            /** @description Ranked entries for this page. */
+            /** @description The week's bounds for `weekly`; `null` for `all_time`. */
+            period: components["schemas"]["LeaderboardPeriod"] | null;
+            /** @description Ranked entries for this page, in order. */
             data: components["schemas"]["LeaderboardEntry"][];
-            own_entry?: components["schemas"]["LeaderboardEntry"];
+            /** @description The caller's own entry with its true rank, or `null` when they have no accepted run in this window. */
+            own_entry: components["schemas"]["LeaderboardEntry"] | null;
             meta: components["schemas"]["CursorMeta"];
         };
-        /** @description One ranked row. */
-        LeaderboardEntry: {
-            /** @description Position in the ranking. */
-            rank: number;
-            /** @description Stable identifier. */
-            player_id: string;
-            /** @description Public display name. */
-            username: string;
-            /** @description Best single-run score in this window. */
-            score: number;
+        /** @description The week a weekly page ranks, as UTC instants — `[starts_at, ends_at)`, each a local Monday 00:00 in Europe/Istanbul. */
+        LeaderboardPeriod: {
             /**
              * Format: date-time
-             * @description When the score was set.
+             * @description Local Monday 00:00 Europe/Istanbul, as a UTC instant with millisecond precision.
              */
-            achieved_at?: string;
+            starts_at: string;
+            /**
+             * Format: date-time
+             * @description The next local Monday 00:00 Europe/Istanbul, as a UTC instant. Exclusive.
+             */
+            ends_at: string;
+        };
+        /**
+         * @description One ranked entry — exactly these four members. No player id, run id, email,
+         *     timestamp or validation data is exposed.
+         */
+        LeaderboardEntry: {
+            /** @description Position in the ranking, computed by the server. */
+            rank: number;
+            /** @description The player's public display name, read live. */
+            display_name: string;
+            /** @description Best accepted single-run score in this window. */
+            score: number;
+            /** @description Whether this entry is the requesting player's own. */
+            is_self: boolean;
         };
         /** @description Cursor pagination metadata. Cursors are opaque and never constructed by clients. */
         CursorMeta: {
-            /** @description Cursor for the next page, or null. */
-            next_cursor?: string | null;
-            /** @description Whether more pages exist. */
+            /** @description Cursor for the next page, or null when this is the last. */
+            next_cursor: string | null;
+            /** @description Whether more entries follow this page. */
             has_more: boolean;
         };
         /**
@@ -2824,9 +2873,12 @@ export interface operations {
             query: {
                 /** @description Which ranking window to read. */
                 window: "weekly" | "all_time";
-                /** @description Opaque cursor from a previous response. */
+                /**
+                 * @description Opaque cursor from a previous response's `meta.next_cursor`. Never constructed
+                 *     or parsed by a client.
+                 */
                 cursor?: string;
-                /** @description Page size. */
+                /** @description Page size. Defaults to 25. */
                 limit?: number;
             };
             header?: never;
@@ -2835,7 +2887,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A page of the ranking, plus the player's own row. */
+            /** @description A page of the ranking, plus the player's own entry. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2845,6 +2897,22 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /**
+             * @description The query failed validation. Per-field codes: `window` — `required`,
+             *     `type_invalid`, `value_not_allowed`; `limit` — `type_invalid`, `out_of_range`,
+             *     `format_invalid`; `cursor` — `type_invalid`, `too_long`, `format_invalid`,
+             *     `cursor_invalid`.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
         };
     };
     listAchievements: {

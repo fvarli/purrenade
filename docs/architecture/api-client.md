@@ -270,7 +270,7 @@ that. Solving this is service-worker scope (M12), not M9.
 | Data | Policy |
 | --- | --- |
 | Profile, progression | Cached in the store, invalidated on run submission and on relevant mutations |
-| Leaderboard | Short TTL; the player's own row always fresh |
+| Leaderboard | **Not cached (M10).** Every page, and the player's own entry, is read fresh from the server |
 | Achievements, characters | Cached; invalidated on unlock |
 | Anything security-relevant | Never cached client-side |
 
